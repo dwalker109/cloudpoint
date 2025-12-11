@@ -3,7 +3,6 @@ use ctru::services::am::Am;
 use ctru::services::fs;
 use ctru::services::fs::MediaType;
 use ctru_sys::*;
-use std::{ffi::CString, mem};
 
 fn main() {
     let gfx = Gfx::new().expect("Couldn't obtain GFX controller");
@@ -125,7 +124,7 @@ unsafe fn read_smdh(title_id: u64) {
     };
 
     if R_SUCCEEDED(res) {
-        let mut smdh_buf = [0u8; 2048];
+        let mut smdh_buf = [0u8; 0x36c0];
         let mut bytes_read: u32 = 0;
 
         let res = unsafe {
@@ -134,14 +133,15 @@ unsafe fn read_smdh(title_id: u64) {
                 &mut bytes_read,
                 0u64,
                 smdh_buf.as_mut_ptr() as *mut c_void,
-                2048u32,
+                0x36c0,
             )
         };
 
-        if R_SUCCEEDED(res) && bytes_read == 512 {
+        if R_SUCCEEDED(res)  {
             println!("File successfully read");
             if &smdh_buf[0..4] == b"SMDH" {
                 println!("SMDH read successfully!");
+                dbg!(String::from_utf8_lossy(&smdh_buf[..128]));
             }
         } else {
             println!("Failed to read SMDH: {res:x}");
