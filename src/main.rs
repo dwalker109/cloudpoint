@@ -2,7 +2,6 @@ use ctru::prelude::*;
 use ctru::services::am::Am;
 use ctru::services::fs;
 use ctru::services::fs::MediaType;
-use ctru_sys::*;
 
 fn main() {
     let gfx = Gfx::new().expect("Couldn't obtain GFX controller");
@@ -137,11 +136,18 @@ unsafe fn read_smdh(title_id: u64) {
             )
         };
 
-        if R_SUCCEEDED(res)  {
+        if R_SUCCEEDED(res) {
             println!("File successfully read");
             if &smdh_buf[0..4] == b"SMDH" {
                 println!("SMDH read successfully!");
-                dbg!(String::from_utf8_lossy(&smdh_buf[..128]));
+
+                let magic = String::from_utf8_lossy(&smdh_buf[0x00..0x04]);
+                let version = String::from_utf8_lossy(&smdh_buf[0x04..0x06]);
+                let title_en_short = title_from_utf16_bytes(&smdh_buf[0x208..0x288]);
+                let title_en_long = title_from_utf16_bytes(&smdh_buf[0x288..0x388]);
+                let title_en_pub = title_from_utf16_bytes(&smdh_buf[0x388..0x408]);
+
+                dbg!(magic, version, title_en_short, title_en_long, title_en_pub);
             }
         } else {
             println!("Failed to read SMDH: {res:x}");
@@ -150,5 +156,18 @@ unsafe fn read_smdh(title_id: u64) {
         println!("Failed to open file!");
     }
 
-    FSFILE_Close(file_handle);
+    unsafe {
+        FSFILE_Close(file_handle);
+    };
+}
+
+fn title_from_utf16_bytes(bytes: &[u8]) -> String {
+    // Convert every 2 bytes into u16
+    let u16_iter = bytes
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]));
+
+    // Decode UTF-16
+    String::from_utf16(&u16_iter.filter(|b| *b != 0x00).collect::<Vec<u16>>())
+        .expect("Invalid UTF-16 data")
 }
