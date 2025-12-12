@@ -1,3 +1,5 @@
+use std::fs::create_dir_all;
+
 use ctru::prelude::*;
 use ctru::services::am::Am;
 use ctru::services::fs;
@@ -10,6 +12,9 @@ fn main() {
 
     let top_screen = Console::new(gfx.top_screen.borrow_mut());
     let bottom_screen = Console::new(gfx.bottom_screen.borrow_mut());
+
+    // Dir setup
+    create_dir_all("sdmc:/3ds/Cloudpoint").ok();
 
     // Set up the AM service to retrieve the wanted information.
     let am = Am::new().expect("Couldn't obtain AM controller");
@@ -63,9 +68,6 @@ fn main() {
                 }
             }
 
-            // Read SMDH
-            unsafe { read_smdh(selected_title.id()) };
-
             // Clear the bottom screen and write the properties of selected title to it.
             bottom_screen.select();
             bottom_screen.clear();
@@ -78,6 +80,9 @@ fn main() {
             println!("Version: 0x{:x}", selected_title.version());
             println!("Product code: \"{}\"", selected_title.product_code());
             println!("Title count: {sd_count}");
+
+            // Read SMDH
+            unsafe { read_smdh(selected_title.id()) };
 
             refresh = false;
         }
@@ -141,13 +146,15 @@ unsafe fn read_smdh(title_id: u64) {
             if &smdh_buf[0..4] == b"SMDH" {
                 println!("SMDH read successfully!");
 
-                let magic = String::from_utf8_lossy(&smdh_buf[0x00..0x04]);
-                let version = String::from_utf8_lossy(&smdh_buf[0x04..0x06]);
+                let _magic = String::from_utf8_lossy(&smdh_buf[0x00..0x04]);
+                let _version = String::from_utf8_lossy(&smdh_buf[0x04..0x06]);
                 let title_en_short = title_from_utf16_bytes(&smdh_buf[0x208..0x288]);
                 let title_en_long = title_from_utf16_bytes(&smdh_buf[0x288..0x388]);
                 let title_en_pub = title_from_utf16_bytes(&smdh_buf[0x388..0x408]);
 
-                dbg!(magic, version, title_en_short, title_en_long, title_en_pub);
+                println!("Short: {title_en_short}");
+                println!("Long: {title_en_long}");
+                println!("Publisher: {title_en_pub}");
             }
         } else {
             println!("Failed to read SMDH: {res:x}");
