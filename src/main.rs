@@ -1,9 +1,12 @@
 use std::fs::create_dir_all;
+use std::ptr;
 
 use ctru::prelude::*;
 use ctru::services::am::Am;
 use ctru::services::fs;
 use ctru::services::fs::MediaType;
+use ctru_sys::*;
+use std::ffi::c_void;
 
 fn main() {
     let gfx = Gfx::new().expect("Couldn't obtain GFX controller");
@@ -84,6 +87,9 @@ fn main() {
             // Read SMDH
             unsafe { read_smdh(selected_title.id()) };
 
+            // Read save hash
+            read_raw_save(selected_title.id());
+
             refresh = false;
         }
 
@@ -92,9 +98,6 @@ fn main() {
 }
 
 unsafe fn read_smdh(title_id: u64) {
-    use ctru_sys::*;
-    use std::ffi::c_void;
-
     let file_path_data: [u32; 5] = [0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000];
     let archive_path_data: [u32; 4] = [
         title_id as u32,
@@ -177,4 +180,47 @@ fn title_from_utf16_bytes(bytes: &[u8]) -> String {
     // Decode UTF-16
     String::from_utf16(&u16_iter.filter(|b| *b != 0x00).collect::<Vec<u16>>())
         .expect("Invalid UTF-16 data")
+}
+
+fn read_full_id0() {
+    unsafe {
+        let mut sysdata: Handle = 0u64;
+
+        // Open the system save-data archive
+        let path = FS_Path {
+            type_: PATH_EMPTY,
+            size: 1,
+            data: ptr::null(),
+        };
+
+        let res = FSUSER_OpenArchive(&mut sysdata as *mut _, fs::ArchiveID::SystemSavedata, path);
+        if res != 0 {
+            panic!("cannot read id");
+        }
+
+        // Read first 16 bytes (ID0)
+        let mut id0_bytes = [0u8; 16];
+        let mut bytes_read: u32 = 0;
+
+        let res = FSFILE_Read(
+            sysdata,
+            &mut bytes_read as *mut _,
+            0, // offset
+            id0_bytes.as_mut_ptr() as *mut _,
+            16,
+        );
+
+        FSFILE_Close(sysdata);
+
+        if res != 0 {
+            return Err(res);
+        }
+
+        Ok(id0_bytes)
+    }
+}
+
+/// Convert 16-byte ID0 to 32-character lowercase hex string
+fn id0_to_string(id0_bytes: &[u8; 16]) -> String {
+    id0_bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
