@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 ctru-sys = { git = "https://github.com/rust3ds/ctru-rs" }
+chunktree = { path = "../chunktree" }
+serde_json = "1.0.149"
+serde = { version = "1.0.228", features = ["derive"] }
 
 [package.metadata.cargo-3ds]
 romfs_dir = "romfs"

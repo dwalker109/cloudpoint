@@ -1,0 +1,18 @@
+{
+    auto_https off
+}
+
+:8080 {
+    root * /data
+
+    # Route for PUT uploads
+    route {
+        method PUT
+        webdav {
+            root /data
+        }
+    }
+
+    # Serve GET and HEAD
+    file_server
+}
