@@ -1,23 +1,21 @@
-use std::fs::{File, create_dir_all};
-use std::mem;
-use std::time::SystemTime;
-
 use chunktree::store::LocalFileStore;
-use chunktree::version::Version;
+use chunktree::version::updater::blocking::Updater;
+use chunktree::version::{Diff, Version};
 use cloudpoint::walk_tree;
+use cloudpoint::web::{HttpStore, download_version, upload_version};
 use ctru::prelude::*;
 use ctru::services::am::Am;
 use ctru::services::fs;
 use ctru::services::fs::MediaType;
 use ctru_sys::*;
 use std::ffi::{CString, c_void};
+use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
+use std::mem;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime};
 
 fn main() {
-    unsafe {
-        ctru_sys::link3dsConnectToHost(true, true);
-    }
-
     std::panic::set_hook(Box::new(|info| {
         let mut log = std::fs::OpenOptions::new()
             .create(true)
@@ -29,8 +27,14 @@ fn main() {
 
     let gfx = Gfx::new().expect("Couldn't obtain GFX controller");
     let mut hid = Hid::new().expect("Couldn't obtain HID controller");
-    let apt = Apt::new().expect("Couldn't obtain APT controller");
+    let mut apt = Apt::new().expect("Couldn't obtain APT controller");
+    let mut soc = Soc::new().unwrap();
 
+    apt.set_app_cpu_time_limit(30)
+        .expect("Failed to enable system core");
+
+    // Redirect to the `3dslink` server that sent this program.
+    // let address = soc.redirect_to_3dslink(true, true).unwrap();
     let top_screen = Console::new(gfx.top_screen.borrow_mut());
     let bottom_screen = Console::new(gfx.bottom_screen.borrow_mut());
 
@@ -56,6 +60,7 @@ fn main() {
         hid.scan_input();
 
         if hid.keys_down().contains(KeyPad::START) {
+            drop(soc);
             break;
         }
 
@@ -72,22 +77,37 @@ fn main() {
             refresh = true;
         } else if hid.keys_down().intersects(KeyPad::A) {
             let tree = walk_tree(selected_title.id());
-            let version = Version::new(&tree, 64, 256, 1024).unwrap();
-            let mut store =
-                LocalFileStore::new(format!("/3ds/Cloudpoint/{}/store", selected_title.id()))
-                    .unwrap();
-            version.copy_chunks(&tree, &mut store).unwrap();
-            let out = File::create(format!(
-                "/3ds/Cloudpoint/{}/{}.json",
-                selected_title.id(),
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-            ))
+            let version_a = Version::new(
+                format!("{}", &selected_title.version()),
+                &tree,
+                256,
+                2048,
+                8096,
+            )
             .unwrap();
-            let w = BufWriter::new(out);
-            serde_json::to_writer_pretty(w, &version).ok();
+            let mut store = HttpStore;
+            version_a.copy_chunks(&tree, &mut store).unwrap();
+            upload_version(selected_title.id(), &version_a).unwrap();
+            // let version_b = download_version(selected_title.id()).unwrap();
+            // let diff = Diff::new(&version_a, &version_b);
+            // let mut u = Updater::start(
+            //     diff,
+            //     tree,
+            //     LocalFileStore::new("sdmc:/3ds/Cloudpoint/temp").unwrap(),
+            //     store,
+            // )
+            // .unwrap();
+            // println!("OK!");
+            // dbg!(&u.progress().bytes_total());
+            // dbg!(&u.progress().bytes_obtained());
+
+            // while !u.is_terminal() {
+            //     u.update_next().unwrap();
+            //     dbg!(&u.progress().bytes_total());
+            //     dbg!(&u.progress().bytes_obtained());
+            // }
+
+            println!("Updated");
         }
 
         // Render the title list via a scrollable text UI.

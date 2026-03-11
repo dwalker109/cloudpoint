@@ -1,18 +1,16 @@
 {
     auto_https off
+    debug
 }
 
 :8080 {
     root * /data
 
-    # Route for PUT uploads
     route {
-        method PUT
+        file_server browse
+
         webdav {
             root /data
         }
     }
-
-    # Serve GET and HEAD
-    file_server
 }
