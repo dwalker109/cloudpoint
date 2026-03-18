@@ -1,30 +1,34 @@
-#[derive(Debug, Clone)]
-struct SyncState {
-    title_id: u64,
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncState {
+    pub title_id: u64,
     product_code: String,
-    fp_loc_last: Option<u64>,
-    fp_loc_curr: Option<u64>,
-    fp_rem_last: Option<u64>,
-    fp_rem_curr: Option<u64>,
+    fingerprint_local_last: Option<u64>,
+    fingerprint_remote_last: Option<u64>,
+    #[serde(skip)]
+    fingerprint_local_curr: Option<u64>,
+    #[serde(skip)]
+    fingerprint_remote_curr: Option<u64>,
 }
 
 impl SyncState {
     pub fn set_local_fp(&mut self, fp: u64) {
-        self.fp_loc_curr = Some(fp);
+        self.fingerprint_local_curr = Some(fp);
     }
 
     pub fn set_remote_fp(&mut self, fp: u64) {
-        self.fp_rem_curr = Some(fp);
+        self.fingerprint_remote_curr = Some(fp);
     }
 
     pub fn get_action(&self) -> SyncAction {
-        match (self.fp_loc_curr, self.fp_rem_curr) {
+        match (self.fingerprint_local_curr, self.fingerprint_remote_curr) {
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
             (None, None) => SyncAction::Nothing,
             (Some(_), Some(_)) => {
-                let changed_local = self.fp_loc_curr != self.fp_loc_last;
-                let changed_remote = self.fp_rem_curr != self.fp_rem_last;
+                let changed_local = self.fingerprint_local_curr != self.fingerprint_local_last;
+                let changed_remote = self.fingerprint_remote_curr != self.fingerprint_remote_last;
 
                 match (changed_local, changed_remote) {
                     (false, true) => SyncAction::Download,
@@ -79,10 +83,10 @@ mod tests {
     #[test]
     fn local_change_only() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: Some(2),
-            fp_rem_last: Some(1),
-            fp_rem_curr: Some(1),
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: Some(2),
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: Some(1),
             ..fixture()
         };
 
@@ -94,10 +98,10 @@ mod tests {
     #[test]
     fn remote_change_only() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: Some(1),
-            fp_rem_last: Some(1),
-            fp_rem_curr: Some(2),
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: Some(1),
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: Some(2),
             ..fixture()
         };
 
@@ -109,10 +113,10 @@ mod tests {
     #[test]
     fn both_change() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: Some(2),
-            fp_rem_last: Some(1),
-            fp_rem_curr: Some(2),
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: Some(2),
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: Some(2),
             ..fixture()
         };
 
@@ -124,10 +128,10 @@ mod tests {
     #[test]
     fn no_local_with_remote_always_download() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: None,
-            fp_rem_last: Some(1),
-            fp_rem_curr: Some(1),
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: None,
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: Some(1),
             ..fixture()
         };
 
@@ -139,10 +143,10 @@ mod tests {
     #[test]
     fn no_remote_with_local_always_upload() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: Some(1),
-            fp_rem_last: Some(1),
-            fp_rem_curr: None,
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: Some(1),
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: None,
             ..fixture()
         };
 
@@ -154,10 +158,10 @@ mod tests {
     #[test]
     fn no_remote_no_local_always_no_action() {
         let s = SyncState {
-            fp_loc_last: Some(1),
-            fp_loc_curr: None,
-            fp_rem_last: Some(1),
-            fp_rem_curr: None,
+            fingerprint_local_last: Some(1),
+            fingerprint_local_curr: None,
+            fingerprint_remote_last: Some(1),
+            fingerprint_remote_curr: None,
             ..fixture()
         };
 
@@ -170,10 +174,10 @@ mod tests {
         SyncState {
             title_id: 0x00040000_1234ABCD,
             product_code: "XTR-X-ABCD".into(),
-            fp_loc_last: None,
-            fp_loc_curr: None,
-            fp_rem_last: None,
-            fp_rem_curr: None,
+            fingerprint_local_last: None,
+            fingerprint_local_curr: None,
+            fingerprint_remote_last: None,
+            fingerprint_remote_curr: None,
         }
     }
 }
