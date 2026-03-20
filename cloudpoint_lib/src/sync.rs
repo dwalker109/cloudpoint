@@ -42,7 +42,7 @@ impl SyncState {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum SyncAction {
+pub enum SyncAction {
     Nothing,
     Conflict,
     Upload,
