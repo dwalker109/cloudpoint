@@ -3,24 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncState {
     pub title_id: u64,
-    product_code: String,
-    fingerprint_local_last: Option<u64>,
-    fingerprint_remote_last: Option<u64>,
+    pub product_code: String,
+    pub fingerprint_local_last: Option<u64>,
+    pub fingerprint_remote_last: Option<u64>,
     #[serde(skip)]
-    fingerprint_local_curr: Option<u64>,
+    pub fingerprint_local_curr: Option<u64>,
     #[serde(skip)]
-    fingerprint_remote_curr: Option<u64>,
+    pub fingerprint_remote_curr: Option<u64>,
 }
 
 impl SyncState {
-    pub fn set_local_fp(&mut self, fp: u64) {
-        self.fingerprint_local_curr = Some(fp);
-    }
-
-    pub fn set_remote_fp(&mut self, fp: u64) {
-        self.fingerprint_remote_curr = Some(fp);
-    }
-
     pub fn get_action(&self) -> SyncAction {
         match (self.fingerprint_local_curr, self.fingerprint_remote_curr) {
             (None, Some(_)) => SyncAction::Download,
@@ -56,7 +48,7 @@ mod tests {
     #[test]
     fn local_only_no_remote() {
         let mut s = SyncState { ..fixture() };
-        s.set_local_fp(1);
+        s.fingerprint_local_curr = Some(1);
 
         let res = s.get_action();
 
@@ -66,7 +58,7 @@ mod tests {
     #[test]
     fn remote_only_no_local() {
         let mut s = SyncState { ..fixture() };
-        s.set_remote_fp(1);
+        s.fingerprint_remote_curr = Some(1);
 
         let res = s.get_action();
 

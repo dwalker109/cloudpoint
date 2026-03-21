@@ -18,7 +18,7 @@ impl VersionDirList {
             200 => Ok(serde_json::from_slice(&res.as_bytes())?),
             404 => Ok(VersionDirList(Vec::with_capacity(0))),
             _ => Err(anyhow!(
-                "version dir lookup failed, HTTP {}, {}",
+                "version dir lookup failed fatally, HTTP {}, {}",
                 res.status_code,
                 res.reason_phrase
             )),
@@ -29,7 +29,7 @@ impl VersionDirList {
         self.0
             .as_slice()
             .iter()
-            .sorted_by(|a, b| a.mod_time.cmp(&b.mod_time))
+            .sorted_by(|a, b| a.mtime.cmp(&b.mtime))
             .last()
     }
 }
@@ -37,8 +37,8 @@ impl VersionDirList {
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirEntry {
     name: String,
-    size: usize,
-    mod_time: DateTime<Utc>,
+    #[serde(with = "chrono::serde::ts_seconds")]
+    mtime: DateTime<Utc>,
 }
 
 impl VersionDirEntry {
@@ -64,7 +64,7 @@ impl VersionDirEntry {
         match res.status_code {
             200 => Ok(postcard::from_bytes(res.as_bytes())?),
             _ => Err(anyhow!(
-                "version file download failed, HTTP {}. {}",
+                "version file download failed, HTTP {}, {}",
                 res.status_code,
                 res.reason_phrase
             )),
@@ -89,7 +89,7 @@ impl VersionDirEntry {
         match res.status_code {
             201 => Ok(()),
             _ => Err(anyhow!(
-                "version file upload failed, HTTP {}. {}",
+                "version file upload failed fatally, HTTP {}, {}",
                 res.status_code,
                 res.reason_phrase
             )),
@@ -273,7 +273,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT");
-            then.status(409);
+            then.status(403);
         });
 
         let res = VersionDirEntry::put_version(&srv.base_url(), USER_KEY, TITLE_ID, &v);

@@ -6,8 +6,7 @@ use ctru_sys::{
     FS_OPEN_CREATE, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, FSDIR_Read, FSFILE_Close,
     FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive,
     FSUSER_ControlArchive, FSUSER_DeleteFile, FSUSER_OpenArchive, FSUSER_OpenDirectory,
-    FSUSER_OpenFile, PATH_ASCII, PATH_BINARY, PATH_UTF16, R_FAILED, R_SUCCEEDED, fsInit,
-    fsMakePath,
+    FSUSER_OpenFile, PATH_ASCII, PATH_BINARY, PATH_UTF16, R_FAILED, fsInit, fsMakePath,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -67,12 +66,15 @@ impl Drop for CtruUserSaveArchive {
             );
 
             if R_FAILED(res) {
-                panic!("failed to commit archive {} for title {}", self.archive, self.title_id),
+                panic!(
+                    "failed to commit archive {} for title {}",
+                    self.archive, self.title_id
+                );
             }
 
-            let res = FSUSER_CloseArchive(self.title_id);
+            let res = FSUSER_CloseArchive(self.archive);
 
-            if (R_FAILED(res)) {
+            if R_FAILED(res) {
                 panic!("Could not close archive for {}", self.title_id)
             }
         }
@@ -344,7 +346,7 @@ impl Leaf for ArchiveFileLeaf {
 }
 
 pub fn walk_tree(title_id: u64) -> Result<Tree<ArchiveFileLeaf>> {
-    let ctx = CtruUserSaveArchive::open(title_id)?;
+    let ctx = Arc::new(CtruUserSaveArchive::open(title_id)?);
     let mut results = HashMap::new();
 
     walk_sub("/\0".encode_utf16().collect(), &ctx, &mut results);
