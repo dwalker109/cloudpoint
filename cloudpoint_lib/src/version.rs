@@ -113,8 +113,7 @@ mod tests {
     fn fingerprint_fails_on_malformed_name() {
         let e = VersionDirEntry {
             name: "foobar".into(),
-            size: 123,
-            mod_time: Default::default(),
+            mtime: Default::default(),
         };
 
         assert!(e.fingerprint().is_err());
@@ -124,8 +123,7 @@ mod tests {
     fn fingerprint_ok_on_valid_name() {
         let e = VersionDirEntry {
             name: "987654321".into(),
-            size: 123,
-            mod_time: Default::default(),
+            mtime: Default::default(),
         };
 
         assert_eq!(e.fingerprint().unwrap(), 987654321);
@@ -139,8 +137,8 @@ mod tests {
                 .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/"));
             then.status(200).body(
                 r#"[
-                    {"name":"12345678","size":123,"mod_time":"2026-03-16T14:26:22.425706984Z"},
-                    {"name":"abcde123","size":456,"mod_time":"2026-03-17T12:04:29.799632917Z"}
+                    {"name":"12345678","size":123,"mtime":"2026-03-16T14:26:22.425706984Z"},
+                    {"name":"abcde123","size":456,"mtime":"2026-03-17T12:04:29.799632917Z"}
                 ]"#,
             );
         });
@@ -149,6 +147,19 @@ mod tests {
 
         assert!(res.is_ok());
         assert_eq!(res.unwrap().0.len(), 2);
+    }
+
+    #[test]
+    fn can_get_empty_dir_listing_for_200() {
+        let srv = MockServer::start();
+        srv.mock(|_, then| {
+            then.status(200).body("{}");
+        });
+
+        let res = VersionDirList::try_get(&srv.base_url(), USER_KEY, TITLE_ID);
+
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().0.len(), 0);
     }
 
     #[test]
@@ -188,8 +199,7 @@ mod tests {
 
         let e = VersionDirEntry {
             name: "12345678".into(),
-            size: 123,
-            mod_time: chrono::DateTime::default(),
+            mtime: chrono::DateTime::default(),
         };
         let res = e.get_version::<MemLeaf>(&srv.base_url(), USER_KEY, TITLE_ID);
 
@@ -208,8 +218,7 @@ mod tests {
 
         let e = VersionDirEntry {
             name: "12345678".into(),
-            size: 123,
-            mod_time: chrono::DateTime::default(),
+            mtime: chrono::DateTime::default(),
         };
         let res = e.get_version::<MemLeaf>(&srv.base_url(), USER_KEY, TITLE_ID);
 
@@ -226,8 +235,7 @@ mod tests {
 
         let e = VersionDirEntry {
             name: "12345678".into(),
-            size: 123,
-            mod_time: chrono::DateTime::default(),
+            mtime: chrono::DateTime::default(),
         };
         let res = e.get_version::<MemLeaf>(&srv.base_url(), USER_KEY, TITLE_ID);
 

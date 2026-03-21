@@ -6,23 +6,31 @@ mod config {
 }
 
 use anyhow::{Context, Result, anyhow};
-use chunktree::store::MemStore;
-use chunktree::version::updater::BlockingUpdater;
-use chunktree::version::{Diff, Version};
-use cloudpoint_lib::sync::{SyncAction, SyncState};
-use cloudpoint_lib::version::VersionDirEntry;
-use ctru::console::Console;
-use ctru::services::am::Title;
-use ctru::services::fs::MediaType;
-use ctru::services::hid::KeyPad;
-use ctru::services::{am::Am, apt::Apt, gfx::Gfx, hid::Hid, soc::Soc};
-use std::collections::HashMap;
-use std::fs;
-use std::fs::{File, create_dir_all};
-use std::io::{Read, Write};
-use std::net::TcpStream;
+use chunktree::{
+    store::MemStore,
+    version::{Diff, Version, updater::BlockingUpdater},
+};
+use cloudpoint_lib::{
+    sync::{SyncAction, SyncState},
+    version::VersionDirEntry,
+};
+use ctru::{
+    console::Console,
+    services::{
+        am::{Am, Title},
+        apt::Apt,
+        fs::MediaType,
+        gfx::Gfx,
+        hid::{Hid, KeyPad},
+        soc::Soc,
+    },
+};
+use std::{
+    collections::HashMap,
+    fs::{self, File, create_dir_all},
+};
 
-use crate::archive::{ArchiveFileLeaf, CtruUserSaveArchive, walk_tree};
+use crate::archive::{ArchiveFileLeaf, walk_tree};
 use crate::config::{BASE_URL, USER_KEY};
 use crate::store::HttpStore;
 
@@ -32,7 +40,7 @@ fn main() -> Result<()> {
     let mut hid = Hid::new()?;
     let gfx = Gfx::new()?;
     let _console = Console::new(gfx.top_screen.borrow_mut());
-    let mut soc = Soc::new()?;
+    let mut _soc = Soc::new()?;
 
     // soc.redirect_to_3dslink(true, true)?;
 
@@ -41,8 +49,8 @@ fn main() -> Result<()> {
     let installed_titles = get_installed_titles(&am)?;
     let installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
 
-    println!("Available sync states: {:?}", sync_states);
-    println!("Active sync states: {:?}", installed_sync_states);
+    println!("Available sync states: {:?}", sync_states.len());
+    println!("Active sync states: {:?}", installed_sync_states.len());
     println!("Press (A) to sync");
     println!("Press Start to exit");
 
@@ -113,7 +121,7 @@ fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
 
         if let Some(existing) = remote_version_meta {
             match existing.fingerprint() {
-                Ok(f) => s.fingerprint_remote_curr = Some(f),
+                Ok(f) => s.remote_fp = Some(f),
                 Err(e) => {
                     results.push(Err(anyhow!(
                         "latest version listing for {} has bad fingerprint: {}",
@@ -124,7 +132,7 @@ fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
                 }
             }
         } else {
-            s.fingerprint_remote_curr = None;
+            s.remote_fp = None;
         }
 
         let Ok(local_tree) = walk_tree(s.title_id) else {
@@ -137,7 +145,7 @@ fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
         };
 
         let local_ver = Version::new(&local_tree, HashMap::default(), 128, 512, 1024)?;
-        s.fingerprint_local_curr = Some(local_ver.fingerprint());
+        s.local_fp = Some(local_ver.fingerprint());
 
         println!("");
         dbg!(remote_version_meta);
@@ -156,8 +164,7 @@ fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
                 local_ver.copy_chunks(&local_tree, &mut store)?;
                 VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, &local_ver)?;
 
-                s.fingerprint_local_last = Some(local_ver.fingerprint());
-                s.fingerprint_remote_last = s.fingerprint_local_last;
+                s.last_fp = Some(local_ver.fingerprint());
                 fs::write(
                     format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
                     serde_json::to_string_pretty(&s)?,
@@ -188,8 +195,7 @@ fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
                     u.update_next()?;
                 }
 
-                s.fingerprint_remote_last = Some(remote_ver.fingerprint());
-                s.fingerprint_local_last = s.fingerprint_remote_last;
+                s.last_fp = Some(remote_ver.fingerprint());
                 fs::write(
                     format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
                     serde_json::to_string_pretty(&s)?,
