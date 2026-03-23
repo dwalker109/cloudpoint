@@ -19,12 +19,12 @@ use std::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct CtruUserSaveArchive {
+pub struct CtrArchive {
     pub title_id: u64,
     pub archive: FS_Archive,
 }
 
-impl CtruUserSaveArchive {
+impl CtrArchive {
     pub fn open(title_id: u64) -> Result<Self> {
         let mut archive: FS_Archive = 0;
 
@@ -59,7 +59,7 @@ impl CtruUserSaveArchive {
     }
 }
 
-impl Drop for CtruUserSaveArchive {
+impl Drop for CtrArchive {
     fn drop(&mut self) {
         unsafe {
             let res = FSUSER_ControlArchive(
@@ -112,13 +112,13 @@ impl Drop for CtruUserSaveArchive {
 }
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct ArchiveFileLeaf {
+pub struct CtrArchiveLeaf {
     path: String,
-    ctx: Arc<CtruUserSaveArchive>,
+    ctx: Arc<CtrArchive>,
 }
 
-impl Leaf for ArchiveFileLeaf {
-    type Context = Arc<CtruUserSaveArchive>;
+impl Leaf for CtrArchiveLeaf {
+    type Context = Arc<CtrArchive>;
 
     fn new(path: impl AsRef<Path>, ctx: Self::Context) -> Result<Self, TreeError> {
         let path = path.as_ref().to_string_lossy().into_owned();
@@ -375,8 +375,8 @@ impl Leaf for ArchiveFileLeaf {
     }
 }
 
-pub fn walk_tree(title_id: u64) -> Result<Tree<ArchiveFileLeaf>> {
-    let ctx = Arc::new(CtruUserSaveArchive::open(title_id)?);
+pub fn walk_tree(title_id: u64) -> Result<Tree<CtrArchiveLeaf>> {
+    let ctx = Arc::new(CtrArchive::open(title_id)?);
     let mut results = HashMap::new();
 
     walk_sub("/\0".encode_utf16().collect(), &ctx, &mut results);
@@ -384,8 +384,8 @@ pub fn walk_tree(title_id: u64) -> Result<Tree<ArchiveFileLeaf>> {
     /// Note utf16 paths used here and converted when inserted to HashMap
     fn walk_sub(
         dir_path: Vec<u16>,
-        ctx: &<ArchiveFileLeaf as Leaf>::Context,
-        results: &mut HashMap<PathBuf, ArchiveFileLeaf>,
+        ctx: &<CtrArchiveLeaf as Leaf>::Context,
+        results: &mut HashMap<PathBuf, CtrArchiveLeaf>,
     ) -> Result<()> {
         let mut handle = 0;
 
@@ -435,7 +435,7 @@ pub fn walk_tree(title_id: u64) -> Result<Tree<ArchiveFileLeaf>> {
                     walk_sub(fq_path, ctx, results);
                 } else {
                     let fq_path = PathBuf::from(String::from_utf16_lossy(&fq_path));
-                    let leaf = ArchiveFileLeaf::new(&fq_path, ctx.clone()).expect("leaf created");
+                    let leaf = CtrArchiveLeaf::new(&fq_path, ctx.clone()).expect("leaf created");
                     results.insert(fq_path, leaf);
                 }
             }

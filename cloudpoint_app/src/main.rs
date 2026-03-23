@@ -31,7 +31,7 @@ use std::{
     fs::{self, File, create_dir_all},
 };
 
-use crate::archive::{ArchiveFileLeaf, walk_tree};
+use crate::archive::{CtrArchiveLeaf, walk_tree};
 use crate::config::{BASE_URL, USER_KEY};
 use crate::store::HttpStore;
 
@@ -184,8 +184,8 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
 
 fn ul(
     s: &mut SyncState,
-    local_ver: &Version<ArchiveFileLeaf>,
-    local_tree: &Tree<ArchiveFileLeaf>,
+    local_ver: &Version<CtrArchiveLeaf>,
+    local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     let mut store = HttpStore(BASE_URL.into());
     local_ver.copy_chunks(&local_tree, &mut store)?;
@@ -205,10 +205,10 @@ fn ul(
 
 fn dl(
     s: &mut SyncState,
-    local_ver: &Version<ArchiveFileLeaf>,
-    local_tree: Tree<ArchiveFileLeaf>,
+    local_ver: &Version<CtrArchiveLeaf>,
+    local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    let Ok(remote_ver) = VersionDirEntry::get_version::<ArchiveFileLeaf>(
+    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
         BASE_URL,
         USER_KEY,
         s.title_id,
