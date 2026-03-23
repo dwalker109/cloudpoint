@@ -49,14 +49,14 @@ impl VersionDirEntry {
     }
 
     pub fn get_version<T: Leaf>(
-        &self,
         base_url: &str,
         user_key: &str,
         title_id: u64,
+        fingerprint: u64,
     ) -> Result<Version<T>> {
         let url = format!(
             "{base_url}/sync/{user_key}/titles/{title_id}/save/{}",
-            self.name
+            fingerprint
         );
 
         let res = minreq::get(url).send()?;

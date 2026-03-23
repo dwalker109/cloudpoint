@@ -5,8 +5,9 @@ use ctru_sys::{
     ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_ATTRIBUTE_DIRECTORY, FS_Archive, FS_DirectoryEntry,
     FS_OPEN_CREATE, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, FSDIR_Read, FSFILE_Close,
     FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive,
-    FSUSER_ControlArchive, FSUSER_DeleteFile, FSUSER_OpenArchive, FSUSER_OpenDirectory,
-    FSUSER_OpenFile, PATH_ASCII, PATH_BINARY, PATH_UTF16, R_FAILED, fsInit, fsMakePath,
+    FSUSER_ControlArchive, FSUSER_ControlSecureSave, FSUSER_DeleteFile, FSUSER_OpenArchive,
+    FSUSER_OpenDirectory, FSUSER_OpenFile, PATH_ASCII, PATH_BINARY, PATH_UTF16, R_FAILED,
+    SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD, fsExit, fsInit, fsMakePath,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -28,7 +29,11 @@ impl CtruUserSaveArchive {
         let mut archive: FS_Archive = 0;
 
         unsafe {
-            fsInit();
+            let res = fsInit();
+
+            if R_FAILED(res) {
+                bail!("could not fsInit");
+            }
 
             let data: [u32; 3] = [
                 MediaType::Sd as u32,
@@ -45,7 +50,8 @@ impl CtruUserSaveArchive {
             let res = FSUSER_OpenArchive(&mut archive, ArchiveID::UserSavedata as u32, path);
 
             if R_FAILED(res) {
-                bail!("Could not open archive for {}", title_id);
+                fsExit();
+                bail!("could not open archive for {}", title_id);
             }
         }
 
@@ -66,17 +72,41 @@ impl Drop for CtruUserSaveArchive {
             );
 
             if R_FAILED(res) {
+                fsExit();
                 panic!(
                     "failed to commit archive {} for title {}",
                     self.archive, self.title_id
                 );
             }
 
+            let mut out: u8 = 0;
+            let low_id = self.title_id as u32;
+            let mut secure_value: u64 =
+                ((SECUREVALUE_SLOT_SD as u64) << 32) | ((low_id & 0xFFFFFF00) as u64);
+            let res = FSUSER_ControlSecureSave(
+                SECURESAVE_ACTION_DELETE,
+                &mut secure_value as *mut u64 as *mut _,
+                8,
+                &mut out as *mut u8 as *mut _,
+                1,
+            );
+
+            if R_FAILED(res) {
+                fsExit();
+                panic!(
+                    "failed to reset secure save metadata for title {}",
+                    self.title_id
+                );
+            }
+
             let res = FSUSER_CloseArchive(self.archive);
 
             if R_FAILED(res) {
-                panic!("Could not close archive for {}", self.title_id)
+                fsExit();
+                panic!("failed to close archive for {}", self.title_id)
             }
+
+            fsExit();
         }
     }
 }

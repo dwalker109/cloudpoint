@@ -8,6 +8,7 @@ mod config {
 use anyhow::{Context, Result, anyhow};
 use chunktree::{
     store::MemStore,
+    tree::Tree,
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
@@ -64,8 +65,8 @@ fn main() -> Result<()> {
         }
 
         if hid.keys_down().contains(KeyPad::A) {
-            let results = do_sync(installed_sync_states.clone());
-            println!("Results: {:?}", results);
+            let res = do_sync(&apt, &mut hid, &gfx, installed_sync_states.clone());
+            println!("Results: {:?}", res);
         }
     }
 
@@ -112,100 +113,129 @@ fn get_installed_sync_states(
         .collect()
 }
 
-fn do_sync(active_sync_states: Vec<SyncState>) -> Result<Vec<Result<String>>> {
-    let mut results = Vec::new();
-
+fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncState>) -> Result<()> {
     for mut s in active_sync_states {
         let list = cloudpoint_lib::version::VersionDirList::try_get(BASE_URL, "dw", s.title_id)?;
-        let remote_version_meta = list.latest();
+        s.remote_fp = list.latest().and_then(|e| e.fingerprint().ok());
 
-        if let Some(existing) = remote_version_meta {
-            match existing.fingerprint() {
-                Ok(f) => s.remote_fp = Some(f),
-                Err(e) => {
-                    results.push(Err(anyhow!(
-                        "latest version listing for {} has bad fingerprint: {}",
-                        s.title_id,
-                        e
-                    )));
-                    continue;
-                }
-            }
-        } else {
-            s.remote_fp = None;
-        }
+        println!(
+            "Using remote version {:0x} for title {:0x}",
+            s.remote_fp.unwrap_or_default(),
+            s.title_id
+        );
 
         let Ok(local_tree) = walk_tree(s.title_id) else {
             //TODO! Check it actually has an archive? Or just assume on error we pull it down if it is there?
-            results.push(Err(anyhow!(
-                "failed to build local version for title {}, run once to init and retry",
+            println!(
+                "Failed to get archive for title {:0x}, run once to init and retry",
                 s.title_id
-            )));
+            );
             continue;
         };
 
         let local_ver = Version::new(&local_tree, HashMap::default(), 128, 512, 1024)?;
         s.local_fp = Some(local_ver.fingerprint());
 
-        println!("");
-        dbg!(remote_version_meta);
-        dbg!(&s);
+        println!(
+            "Using local version {:0x} for title {:0x}",
+            s.local_fp.unwrap_or_default(),
+            s.title_id
+        );
 
         match s.get_action() {
             SyncAction::Nothing => {
-                results.push(Ok(format!("Nothing to do for title {}", s.title_id)))
+                println!("Nothing to do for title {:0x}", s.title_id);
             }
-            SyncAction::Conflict => results.push(Ok(format!(
-                "Conflict exists for title {}, cannot sync",
-                s.title_id
-            ))),
+            SyncAction::Conflict => {
+                println!("Title {:0x} changed on server and locally!", s.title_id);
+                println!("Press DPAD UP to upload (local wins)");
+                println!("Press DPAD DOWN to download (remote wins)");
+                println!("Press DPAD LEFT or DPAD RIGHT to skip (come back later)");
+
+                while apt.main_loop() {
+                    gfx.wait_for_vblank();
+                    hid.scan_input();
+
+                    if hid.keys_down().contains(KeyPad::DPAD_UP) {
+                        ul(&mut s, &local_ver, &local_tree)?;
+                        break;
+                    } else if hid.keys_down().contains(KeyPad::DPAD_DOWN) {
+                        dl(&mut s, &local_ver, local_tree)?;
+                        break;
+                    } else if hid
+                        .keys_down()
+                        .intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT)
+                    {
+                        break;
+                    }
+                }
+            }
             SyncAction::Upload => {
-                let mut store = HttpStore(BASE_URL.into());
-                local_ver.copy_chunks(&local_tree, &mut store)?;
-                VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, &local_ver)?;
-
-                s.last_fp = Some(local_ver.fingerprint());
-                fs::write(
-                    format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
-                    serde_json::to_string_pretty(&s)?,
-                )
-                .context("writing local db state")?;
-
-                results.push(Ok(format!("Uploaded save for title {}", s.title_id)));
+                ul(&mut s, &local_ver, &local_tree)?;
             }
             SyncAction::Download => {
-                let Ok(remote_ver) = remote_version_meta
-                    .expect("only reachable when this is Some<_> ")
-                    .get_version::<ArchiveFileLeaf>(BASE_URL, USER_KEY, s.title_id)
-                else {
-                    results.push(Err(anyhow!(
-                        "failed to fetch version manifest for {}",
-                        s.title_id
-                    )));
-                    continue;
-                };
-
-                let diff = Diff::new(&local_ver, &remote_ver);
-                let cache = MemStore::default();
-                let store = HttpStore(BASE_URL.into());
-                let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
-
-                while !u.is_terminal() {
-                    //TODO! Move archive commit logic out of Drop impl so we can rollback...
-                    u.update_next()?;
-                }
-
-                s.last_fp = Some(remote_ver.fingerprint());
-                fs::write(
-                    format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
-                    serde_json::to_string_pretty(&s)?,
-                )
-                .context("writing local db state")?;
-
-                results.push(Ok(format!("Downloaded save for title {}", s.title_id)));
+                dl(&mut s, &local_ver, local_tree)?;
             }
         }
     }
 
-    Ok(results)
+    Ok(())
+}
+
+fn ul(
+    s: &mut SyncState,
+    local_ver: &Version<ArchiveFileLeaf>,
+    local_tree: &Tree<ArchiveFileLeaf>,
+) -> Result<()> {
+    let mut store = HttpStore(BASE_URL.into());
+    local_ver.copy_chunks(&local_tree, &mut store)?;
+    VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, &local_ver)?;
+
+    s.last_fp = Some(local_ver.fingerprint());
+    fs::write(
+        format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
+        serde_json::to_string_pretty(&s)?,
+    )
+    .context("writing local db state")?;
+
+    println!("Uploaded save for title {:0x}", s.title_id);
+
+    Ok(())
+}
+
+fn dl(
+    s: &mut SyncState,
+    local_ver: &Version<ArchiveFileLeaf>,
+    local_tree: Tree<ArchiveFileLeaf>,
+) -> Result<()> {
+    let Ok(remote_ver) = VersionDirEntry::get_version::<ArchiveFileLeaf>(
+        BASE_URL,
+        USER_KEY,
+        s.title_id,
+        s.remote_fp
+            .expect("unreachable without a remote version available"),
+    ) else {
+        println!("failed to fetch version manifest for {:0x}", s.title_id);
+        return Ok(());
+    };
+
+    let diff = Diff::new(&local_ver, &remote_ver);
+    let cache = MemStore::default();
+    let store = HttpStore(BASE_URL.into());
+    let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
+
+    while !u.is_terminal() {
+        u.update_next()?;
+    }
+
+    s.last_fp = Some(remote_ver.fingerprint());
+    fs::write(
+        format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
+        serde_json::to_string_pretty(&s)?,
+    )
+    .context("writing local db state")?;
+
+    println!("Downloaded save for title {:0x}", s.title_id);
+
+    Ok(())
 }
