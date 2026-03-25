@@ -5,14 +5,14 @@ mod config {
     pub const USER_KEY: &'static str = "dw";
 }
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use chunktree::{
     store::MemStore,
     tree::Tree,
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    sync::{SyncAction, SyncState},
+    sync::{CtrArchiveMode, SyncAction, SyncState},
     version::VersionDirEntry,
 };
 use ctru::{
@@ -28,7 +28,7 @@ use ctru::{
 };
 use std::{
     collections::HashMap,
-    fs::{self, File, create_dir_all},
+    fs::{self, File, create_dir_all, read_to_string},
 };
 
 use crate::archive::{CtrArchiveLeaf, walk_tree};
@@ -45,10 +45,14 @@ fn main() -> Result<()> {
 
     // soc.redirect_to_3dslink(true, true)?;
 
-    setup_sdmc()?;
-    let sync_states = get_sync_states()?;
     let installed_titles = get_installed_titles(&am)?;
-    let installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
+
+    setup_sdmc()?;
+    autoadd(&installed_titles, CtrArchiveMode::Savedata)?;
+    autoadd(&installed_titles, CtrArchiveMode::Extdata)?;
+
+    let mut sync_states = get_sync_states()?;
+    let mut installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
 
     println!("Available sync states: {:?}", sync_states.len());
     println!("Active sync states: {:?}", installed_sync_states.len());
@@ -67,6 +71,9 @@ fn main() -> Result<()> {
         if hid.keys_down().contains(KeyPad::A) {
             let res = do_sync(&apt, &mut hid, &gfx, installed_sync_states.clone());
             println!("Results: {:?}", res);
+
+            sync_states = get_sync_states()?;
+            installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
         }
     }
 
@@ -74,9 +81,44 @@ fn main() -> Result<()> {
 }
 
 fn setup_sdmc() -> Result<()> {
-    let paths = ["sdmc:/3ds/Cloudpoint", "sdmc:/3ds/Cloudpoint/db"];
+    let paths = [
+        "sdmc:/3ds/Cloudpoint",
+        "sdmc:/3ds/Cloudpoint/db",
+        "sdmc:/3ds/Cloudpoint/autoadd",
+    ];
     for p in paths {
         create_dir_all(p).with_context(|| format!("fatal: failed to create directory {p}"))?;
+    }
+
+    Ok(())
+}
+
+fn autoadd(installed_titles: &[Title], archive_mode: CtrArchiveMode) -> Result<()> {
+    for add_code in
+        read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd/{archive_mode}.txt"))?.lines()
+    {
+        if let Some((title_id, product_code)) = installed_titles
+            .iter()
+            .map(|t| (t.id(), t.product_code().trim_end_matches('\0').to_string()))
+            .find(|t| t.1 == add_code)
+        {
+            let state = SyncState {
+                title_id,
+                product_code,
+                archive_mode,
+                last_fp: None,
+                local_fp: None,
+                remote_fp: None,
+            };
+
+            let path = format!(
+                "sdmc:/3ds/Cloudpoint/db/{}.{}",
+                state.product_code, state.archive_mode
+            );
+            if !fs::exists(&path)? {
+                fs::write(path, serde_json::to_string_pretty(&state)?)?;
+            }
+        }
     }
 
     Ok(())
@@ -115,39 +157,44 @@ fn get_installed_sync_states(
 
 fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncState>) -> Result<()> {
     for mut s in active_sync_states {
-        let list = cloudpoint_lib::version::VersionDirList::try_get(BASE_URL, "dw", s.title_id)?;
+        let list = cloudpoint_lib::version::VersionDirList::try_get(
+            BASE_URL,
+            "dw",
+            s.title_id,
+            s.archive_mode,
+        )?;
         s.remote_fp = list.latest().and_then(|e| e.fingerprint().ok());
 
         println!(
-            "Using remote version {:0x} for title {:0x}",
+            "Using remote version {:016x} for title {:016x}",
             s.remote_fp.unwrap_or_default(),
             s.title_id
         );
 
-        let Ok(local_tree) = walk_tree(s.title_id) else {
+        let Ok(local_tree) = walk_tree(s.title_id, s.archive_mode) else {
             //TODO! Check it actually has an archive? Or just assume on error we pull it down if it is there?
             println!(
-                "Failed to get archive for title {:0x}, run once to init and retry",
-                s.title_id
+                "Failed to get {:?} archive for title {:016x}, run once to init and retry",
+                s.archive_mode, s.title_id
             );
             continue;
         };
 
-        let local_ver = Version::new(&local_tree, HashMap::default(), 128, 512, 1024)?;
+        let local_ver = Version::new(&local_tree, HashMap::default(), 128_000, 512_000, 1024_000)?;
         s.local_fp = Some(local_ver.fingerprint());
 
         println!(
-            "Using local version {:0x} for title {:0x}",
+            "Using local version {:016x} for title {:016x}",
             s.local_fp.unwrap_or_default(),
             s.title_id
         );
 
         match s.get_action() {
             SyncAction::Nothing => {
-                println!("Nothing to do for title {:0x}", s.title_id);
+                println!("Nothing to do for title {:016x}", s.title_id);
             }
             SyncAction::Conflict => {
-                println!("Title {:0x} changed on server and locally!", s.title_id);
+                println!("Title {:016x} changed on server and locally!", s.title_id);
                 println!("Press DPAD UP to upload (local wins)");
                 println!("Press DPAD DOWN to download (remote wins)");
                 println!("Press DPAD LEFT or DPAD RIGHT to skip (come back later)");
@@ -189,16 +236,19 @@ fn ul(
 ) -> Result<()> {
     let mut store = HttpStore(BASE_URL.into());
     local_ver.copy_chunks(&local_tree, &mut store)?;
-    VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, &local_ver)?;
+    VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, s.archive_mode, &local_ver)?;
 
     s.last_fp = Some(local_ver.fingerprint());
     fs::write(
-        format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
+        format!(
+            "sdmc:/3ds/Cloudpoint/db/{}.{}",
+            s.product_code, s.archive_mode
+        ),
         serde_json::to_string_pretty(&s)?,
     )
     .context("writing local db state")?;
 
-    println!("Uploaded save for title {:0x}", s.title_id);
+    println!("Uploaded save for title {:016x}", s.title_id);
 
     Ok(())
 }
@@ -212,10 +262,11 @@ fn dl(
         BASE_URL,
         USER_KEY,
         s.title_id,
+        s.archive_mode,
         s.remote_fp
             .expect("unreachable without a remote version available"),
     ) else {
-        println!("failed to fetch version manifest for {:0x}", s.title_id);
+        println!("failed to fetch version manifest for {:016x}", s.title_id);
         return Ok(());
     };
 
@@ -230,12 +281,15 @@ fn dl(
 
     s.last_fp = Some(remote_ver.fingerprint());
     fs::write(
-        format!("sdmc:/3ds/Cloudpoint/db/{}", s.product_code),
+        format!(
+            "sdmc:/3ds/Cloudpoint/db/{}.{}",
+            s.product_code, s.archive_mode
+        ),
         serde_json::to_string_pretty(&s)?,
     )
     .context("writing local db state")?;
 
-    println!("Downloaded save for title {:0x}", s.title_id);
+    println!("Downloaded save for title {:016x}", s.title_id);
 
     Ok(())
 }

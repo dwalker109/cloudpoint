@@ -1,9 +1,12 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncState {
     pub title_id: u64,
     pub product_code: String,
+    pub archive_mode: CtrArchiveMode,
     pub last_fp: Option<u64>,
     #[serde(skip)]
     pub local_fp: Option<u64>,
@@ -28,6 +31,21 @@ impl SyncState {
                     (true, true) => SyncAction::Conflict,
                 }
             }
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+pub enum CtrArchiveMode {
+    Savedata,
+    Extdata,
+}
+
+impl Display for CtrArchiveMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CtrArchiveMode::Savedata => write!(f, "save"),
+            CtrArchiveMode::Extdata => write!(f, "extdata"),
         }
     }
 }
@@ -159,6 +177,7 @@ mod tests {
         SyncState {
             title_id: 0x00040000_1234ABCD,
             product_code: "XTR-X-ABCD".into(),
+            archive_mode: CtrArchiveMode::Savedata,
             last_fp: None,
             local_fp: None,
             remote_fp: None,
