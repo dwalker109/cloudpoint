@@ -1,18 +1,19 @@
-mod archive;
+mod ctr_archive;
+mod ffi;
 mod store;
 mod config {
     pub const BASE_URL: &'static str = "http://192.168.1.45:8080";
     pub const USER_KEY: &'static str = "dw";
 }
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chunktree::{
     store::MemStore,
     tree::Tree,
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    sync::{CtrArchiveMode, SyncAction, SyncState},
+    sync::{CtrArchiveKind, SyncAction, SyncState},
     version::VersionDirEntry,
 };
 use ctru::{
@@ -31,8 +32,8 @@ use std::{
     fs::{self, File, create_dir_all, read_to_string},
 };
 
-use crate::archive::{CtrArchiveLeaf, walk_tree};
 use crate::config::{BASE_URL, USER_KEY};
+use crate::ctr_archive::{CtrArchiveLeaf, walk_tree};
 use crate::store::HttpStore;
 
 fn main() -> Result<()> {
@@ -48,8 +49,7 @@ fn main() -> Result<()> {
     let installed_titles = get_installed_titles(&am)?;
 
     setup_sdmc()?;
-    autoadd(&installed_titles, CtrArchiveMode::Savedata)?;
-    autoadd(&installed_titles, CtrArchiveMode::Extdata)?;
+    autoadd(&installed_titles)?;
 
     let mut sync_states = get_sync_states()?;
     let mut installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
@@ -93,9 +93,11 @@ fn setup_sdmc() -> Result<()> {
     Ok(())
 }
 
-fn autoadd(installed_titles: &[Title], archive_mode: CtrArchiveMode) -> Result<()> {
-    for add_code in
-        read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd/{archive_mode}.txt"))?.lines()
+fn autoadd(installed_titles: &[Title]) -> Result<()> {
+    for (add_code, mode) in read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd.txt"))
+        .unwrap()
+        .lines()
+        .map(|l| l.split_once(',').unwrap())
     {
         if let Some((title_id, product_code)) = installed_titles
             .iter()
@@ -105,7 +107,11 @@ fn autoadd(installed_titles: &[Title], archive_mode: CtrArchiveMode) -> Result<(
             let state = SyncState {
                 title_id,
                 product_code,
-                archive_mode,
+                archive_mode: match mode {
+                    "savedata" => CtrArchiveKind::Savedata,
+                    "extdata" => CtrArchiveKind::Extdata,
+                    _ => bail!("there is a malformed entry in autoadd.txt ({})", add_code),
+                },
                 last_fp: None,
                 local_fp: None,
                 remote_fp: None,
@@ -137,7 +143,7 @@ fn get_sync_states() -> Result<Vec<SyncState>> {
     Ok(states)
 }
 
-fn get_installed_titles(am: &Am) -> Result<Vec<Title>> {
+fn get_installed_titles<'a>(am: &'a Am) -> Result<Vec<Title<'a>>> {
     let titles = am.title_list(MediaType::Sd)?;
 
     Ok(titles)
