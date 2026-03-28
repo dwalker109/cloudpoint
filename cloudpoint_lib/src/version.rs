@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
 use itertools::Itertools;
 
-use crate::sync::CtrArchiveMode;
+use crate::sync::CtrArchiveKind;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
@@ -13,7 +13,7 @@ impl VersionDirList {
         base_url: &str,
         user_key: &str,
         title_id: u64,
-        mode: CtrArchiveMode,
+        mode: CtrArchiveKind,
     ) -> Result<VersionDirList> {
         let url = format!("{base_url}/sync/{user_key}/titles/{title_id}/{mode}/");
 
@@ -59,7 +59,7 @@ impl VersionDirEntry {
         base_url: &str,
         user_key: &str,
         title_id: u64,
-        mode: CtrArchiveMode,
+        mode: CtrArchiveKind,
         fingerprint: u64,
     ) -> Result<Version<T>> {
         let url = format!("{base_url}/sync/{user_key}/titles/{title_id}/{mode}/{fingerprint}",);
@@ -80,7 +80,7 @@ impl VersionDirEntry {
         base_url: &str,
         user_key: &str,
         title_id: u64,
-        mode: CtrArchiveMode,
+        mode: CtrArchiveKind,
         version: &Version<T>,
     ) -> Result<()> {
         let url = format!(
@@ -153,7 +153,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
         );
 
         assert!(res.is_ok());
@@ -171,7 +171,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
         );
 
         assert!(res.is_ok());
@@ -189,7 +189,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
         );
 
         assert!(res.is_ok());
@@ -223,7 +223,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
             12345678,
         );
 
@@ -244,7 +244,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
             12345678,
         );
 
@@ -263,7 +263,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
             12345678,
         );
 
@@ -294,7 +294,7 @@ mod tests {
             &srv.base_url(),
             USER_KEY,
             TITLE_ID,
-            CtrArchiveMode::Savedata,
+            CtrArchiveKind::Savedata,
             &v,
         );
 

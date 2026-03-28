@@ -1,88 +1,21 @@
-use crate::ctr_archive::CtrArchive;
+use crate::ctr::{CtrArchive, CtrArchivePath, CtrFilePath};
 use anyhow::anyhow;
 use cloudpoint_lib::sync::CtrArchiveKind;
-use ctru::services::fs::{ArchiveID, MediaType};
+use ctru::services::fs::MediaType;
 use ctru_sys::{
-    AM_GetTitleExtDataId, ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_Archive, FS_DirectoryEntry, FS_Path,
+    AM_GetTitleExtDataId, ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_Archive, FS_DirectoryEntry,
     FSDIR_Close, FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize,
     FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave,
     FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive,
-    FSUSER_OpenDirectory, FSUSER_OpenFile, Handle, PATH_ASCII, PATH_BINARY, R_FAILED,
-    SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD, fsMakePath,
+    FSUSER_OpenDirectory, FSUSER_OpenFile, Handle, R_FAILED, SECURESAVE_ACTION_DELETE,
+    SECUREVALUE_SLOT_SD,
 };
-use std::ffi::c_void;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
-pub use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
-
-pub struct CtrArchivePath {
-    pub title_id: u64,
-    buffer: [u32; 3],
-    pub archive_id: ArchiveID,
-}
-
-impl CtrArchivePath {
-    pub fn new(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
-        let (buffer, archive_id) = match kind {
-            CtrArchiveKind::Savedata => (
-                [
-                    MediaType::Sd as u32,
-                    title_id as u32,
-                    (title_id >> 32) as u32,
-                ],
-                ArchiveID::UserSavedata,
-            ),
-            CtrArchiveKind::Extdata => {
-                let mut extdata_id: u64 = 0;
-
-                let res =
-                    unsafe { AM_GetTitleExtDataId(&mut extdata_id, MediaType::Sd as u8, title_id) };
-
-                if R_FAILED(res) {
-                    return Err(IoError::new(
-                        IoErrorKind::Other,
-                        anyhow!(
-                            "could not retrieve extdata_id for title {:016X} [{:#010X}]",
-                            title_id,
-                            res
-                        ),
-                    ));
-                }
-
-                (
-                    [MediaType::Sd as u32, extdata_id as u32, 0],
-                    ArchiveID::Extdata,
-                )
-            }
-        };
-
-        Ok(Self {
-            title_id,
-            buffer,
-            archive_id,
-        })
-    }
-
-    pub fn fs_path(&self) -> FS_Path {
-        FS_Path {
-            type_: PATH_BINARY,
-            size: 12,
-            data: self.buffer.as_ptr() as *const c_void,
-        }
-    }
-}
-
-pub struct CtrFilePath(String);
-
-impl CtrFilePath {
-    pub fn new(path: &str) -> Self {
-        Self(path.into())
-    }
-
-    pub fn fs_path(&self) -> FS_Path {
-        unsafe { fsMakePath(PATH_ASCII, self.0.as_ptr() as *const _) }
-    }
-}
+pub use ctru_sys::{
+    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, PATH_ASCII,
+    PATH_BINARY, fsMakePath,
+};
 
 pub fn ctr_open_archive(path: &CtrArchivePath) -> Result<FS_Archive, IoError> {
     let mut archive_handle: FS_Archive = 0;
@@ -455,4 +388,23 @@ pub fn ctr_reset_secure_save_meta(title_id: u64) -> Result<(), IoError> {
     }
 
     Ok(())
+}
+
+pub fn ctr_getr_ext_data_id_for_title(title_id: u64) -> Result<u64, IoError> {
+    let mut extdata_id: u64 = 0;
+
+    let res = unsafe { AM_GetTitleExtDataId(&mut extdata_id, MediaType::Sd as u8, title_id) };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not retrieve extdata_id for title {:016X} [{:#010X}]",
+                title_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(extdata_id)
 }

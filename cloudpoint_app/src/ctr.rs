@@ -1,16 +1,19 @@
 use crate::ffi::{
-    CtrArchivePath, CtrFilePath, FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE,
-    FS_WRITE_FLUSH, ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
-    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
-    ctr_open_directory, ctr_open_file, ctr_read_directory, ctr_read_file,
-    ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
+    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, PATH_ASCII,
+    PATH_BINARY, ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
+    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
+    ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory, ctr_open_file,
+    ctr_read_directory, ctr_read_file, ctr_reset_secure_save_meta, ctr_set_file_size,
+    ctr_write_file, fsMakePath,
 };
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
 use cloudpoint_lib::sync::CtrArchiveKind;
+use ctru::services::fs::{ArchiveID, MediaType};
 use std::{
     collections::HashMap,
-    io::{self, Cursor, Read},
+    ffi::c_void,
+    io::{self, Cursor},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -46,6 +49,61 @@ impl Drop for CtrArchive {
     }
 }
 
+pub struct CtrArchivePath {
+    pub title_id: u64,
+    buffer: [u32; 3],
+    pub archive_id: ArchiveID,
+}
+
+impl CtrArchivePath {
+    pub fn new(title_id: u64, kind: CtrArchiveKind) -> Result<Self> {
+        let (buffer, archive_id) = match kind {
+            CtrArchiveKind::Savedata => (
+                [
+                    MediaType::Sd as u32,
+                    title_id as u32,
+                    (title_id >> 32) as u32,
+                ],
+                ArchiveID::UserSavedata,
+            ),
+            CtrArchiveKind::Extdata => {
+                let extdata_id = ctr_getr_ext_data_id_for_title(title_id)?;
+
+                (
+                    [MediaType::Sd as u32, extdata_id as u32, 0],
+                    ArchiveID::Extdata,
+                )
+            }
+        };
+
+        Ok(Self {
+            title_id,
+            buffer,
+            archive_id,
+        })
+    }
+
+    pub fn fs_path(&self) -> FS_Path {
+        FS_Path {
+            type_: PATH_BINARY,
+            size: 12,
+            data: self.buffer.as_ptr() as *const c_void,
+        }
+    }
+}
+
+pub struct CtrFilePath(pub String);
+
+impl CtrFilePath {
+    pub fn new(path: &str) -> Self {
+        Self(path.into())
+    }
+
+    pub fn fs_path(&self) -> FS_Path {
+        unsafe { fsMakePath(PATH_ASCII, self.0.as_ptr() as *const _) }
+    }
+}
+
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct CtrArchiveLeaf {
     path: String,
@@ -66,30 +124,34 @@ impl Leaf for CtrArchiveLeaf {
 
     fn pad(&mut self, length: u64) -> Result<(), TreeError> {
         let path = CtrFilePath::new(&self.path);
-        let open_result = ctr_open_file(&self.ctx, &path, FS_OPEN_READ);
 
-        match open_result {
+        match ctr_open_file(&self.ctx, &path, FS_OPEN_READ) {
+            // File exists, check size and resize if needed
             Ok(handle) => {
                 let curr_length = ctr_get_file_size(handle)?;
                 ctr_close_file(handle)?;
 
                 if curr_length != length {
                     match self.ctx.kind {
+                        // Savedata supports resize in place
                         CtrArchiveKind::Savedata => {
                             let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
                             ctr_set_file_size(handle, length)?;
                             ctr_close_file(handle)?;
                         }
+                        // Extdata requires recreating the file with a new length, resizes aren't supported
                         CtrArchiveKind::Extdata => {
-                            let mut curr_data = vec![0x00; curr_length as usize];
-                            self.data()?.read_exact(&mut curr_data)?;
-                            curr_data.resize(length as usize, 0x00);
+                            let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
+                            let mut buffer = ctr_read_file(handle, 0, curr_length)?;
+                            buffer.resize(length as usize, 0x00);
+                            ctr_close_file(handle)?;
 
-                            self.delete()?;
-
+                            ctr_delete_file(&self.ctx, &path)?;
                             ctr_create_file(&self.ctx, &path, length)?;
 
-                            self.write_chunk(0, &mut Cursor::new(curr_data))?;
+                            let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
+                            ctr_write_file(handle, 0, &buffer, FS_WRITE_FLUSH)?;
+                            ctr_close_file(handle)?;
                         }
                     }
                 }
