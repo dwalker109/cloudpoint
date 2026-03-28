@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct SyncState {
     pub title_id: u64,
     pub product_code: String,
-    pub archive_mode: CtrArchiveMode,
+    pub archive_kind: CtrArchiveKind,
     pub last_fp: Option<u64>,
     #[serde(skip)]
     pub local_fp: Option<u64>,
@@ -20,6 +20,7 @@ impl SyncState {
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
             (None, None) => SyncAction::Nothing,
+            (Some(l), Some(r)) if l == r => SyncAction::Nothing,
             (Some(_), Some(_)) => {
                 let changed_local = self.local_fp != self.last_fp;
                 let changed_remote = self.remote_fp != self.last_fp;
@@ -36,16 +37,16 @@ impl SyncState {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub enum CtrArchiveMode {
+pub enum CtrArchiveKind {
     Savedata,
     Extdata,
 }
 
-impl Display for CtrArchiveMode {
+impl Display for CtrArchiveKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CtrArchiveMode::Savedata => write!(f, "save"),
-            CtrArchiveMode::Extdata => write!(f, "extdata"),
+            CtrArchiveKind::Savedata => write!(f, "save"),
+            CtrArchiveKind::Extdata => write!(f, "extdata"),
         }
     }
 }
@@ -177,7 +178,7 @@ mod tests {
         SyncState {
             title_id: 0x00040000_1234ABCD,
             product_code: "XTR-X-ABCD".into(),
-            archive_mode: CtrArchiveMode::Savedata,
+            archive_kind: CtrArchiveKind::Savedata,
             last_fp: None,
             local_fp: None,
             remote_fp: None,
