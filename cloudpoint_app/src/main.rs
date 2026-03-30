@@ -32,9 +32,12 @@ use std::{
     fs::{self, File, create_dir_all, read_to_string},
 };
 
-use crate::config::{BASE_URL, USER_KEY};
 use crate::ctr::{CtrArchiveLeaf, walk_tree};
 use crate::store::HttpStore;
+use crate::{
+    config::{BASE_URL, USER_KEY},
+    ffi::ctr_reset_secure_save_meta,
+};
 
 fn main() -> Result<()> {
     let am = Am::new()?;
@@ -43,8 +46,6 @@ fn main() -> Result<()> {
     let gfx = Gfx::new()?;
     let _console = Console::new(gfx.top_screen.borrow_mut());
     let mut _soc = Soc::new()?;
-
-    // soc.redirect_to_3dslink(true, true)?;
 
     let installed_titles = get_installed_titles(&am)?;
 
@@ -290,6 +291,10 @@ fn dl(
 
     while !u.is_terminal() {
         u.update_next()?;
+    }
+
+    if s.archive_kind == CtrArchiveKind::Savedata {
+        ctr_reset_secure_save_meta(s.title_id)?;
     }
 
     s.last_fp = Some(remote_ver.fingerprint());

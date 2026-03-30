@@ -1,4 +1,4 @@
-use crate::ctr::{CtrArchive, CtrArchivePath, CtrFilePath};
+use crate::ctr::{CtrArchive, CtrArchivePath, CtrDirectory, CtrFile, CtrFsPath};
 use anyhow::anyhow;
 use cloudpoint_lib::sync::CtrArchiveKind;
 use ctru::services::fs::MediaType;
@@ -7,14 +7,13 @@ use ctru_sys::{
     FSDIR_Close, FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize,
     FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave,
     FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive,
-    FSUSER_OpenDirectory, FSUSER_OpenFile, Handle, R_FAILED, SECURESAVE_ACTION_DELETE,
-    SECUREVALUE_SLOT_SD,
+    FSUSER_OpenDirectory, FSUSER_OpenFile, R_FAILED, SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
 };
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
 pub use ctru_sys::{
-    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, PATH_ASCII,
-    PATH_BINARY, fsMakePath,
+    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, Handle,
+    PATH_ASCII, PATH_BINARY, fsMakePath,
 };
 
 pub fn ctr_open_archive(path: &CtrArchivePath) -> Result<FS_Archive, IoError> {
@@ -54,7 +53,7 @@ pub fn ctr_close_archive(archive: &CtrArchive) -> Result<(), IoError> {
     Ok(())
 }
 
-pub fn ctr_open_directory(archive: &CtrArchive, path: &CtrFilePath) -> Result<Handle, IoError> {
+pub fn ctr_open_directory(archive: &CtrArchive, path: &CtrFsPath) -> Result<CtrDirectory, IoError> {
     let mut handle: Handle = 0;
 
     let res = unsafe { FSUSER_OpenDirectory(&mut handle, archive.handle, path.fs_path()) };
@@ -71,16 +70,16 @@ pub fn ctr_open_directory(archive: &CtrArchive, path: &CtrFilePath) -> Result<Ha
         ));
     }
 
-    Ok(handle)
+    Ok(CtrDirectory { handle })
 }
 
-pub fn ctr_read_directory(handle: Handle) -> Result<Vec<FS_DirectoryEntry>, IoError> {
-    let mut entries: Vec<FS_DirectoryEntry> = vec![unsafe { std::mem::zeroed() }; 256];
+pub fn ctr_read_directory(directory: &CtrDirectory) -> Result<Vec<FS_DirectoryEntry>, IoError> {
+    let mut entries: Vec<FS_DirectoryEntry> = vec![unsafe { std::mem::zeroed() }; 32];
     let mut entries_read = 0;
 
     let res = unsafe {
         FSDIR_Read(
-            handle,
+            directory.handle,
             &mut entries_read,
             entries.len() as u32,
             entries.as_mut_ptr(),
@@ -92,7 +91,7 @@ pub fn ctr_read_directory(handle: Handle) -> Result<Vec<FS_DirectoryEntry>, IoEr
             IoErrorKind::Other,
             anyhow!(
                 "could not read directory handle \"{}\" [{:#010X}]",
-                handle,
+                directory.handle,
                 res
             ),
         ));
@@ -103,7 +102,7 @@ pub fn ctr_read_directory(handle: Handle) -> Result<Vec<FS_DirectoryEntry>, IoEr
     Ok(entries)
 }
 
-pub fn ctr_create_directory(archive: &CtrArchive, path: &CtrFilePath) -> Result<(), IoError> {
+pub fn ctr_create_directory(archive: &CtrArchive, path: &CtrFsPath) -> Result<(), IoError> {
     let res = unsafe { FSUSER_CreateDirectory(archive.handle, path.fs_path(), 0) };
 
     if R_FAILED(res) {
@@ -121,13 +120,17 @@ pub fn ctr_create_directory(archive: &CtrArchive, path: &CtrFilePath) -> Result<
     Ok(())
 }
 
-pub fn ctr_close_directory(handle: Handle) -> Result<(), IoError> {
-    let res = unsafe { FSDIR_Close(handle) };
+pub fn ctr_close_directory(directory: &CtrDirectory) -> Result<(), IoError> {
+    let res = unsafe { FSDIR_Close(directory.handle) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
             IoErrorKind::Other,
-            anyhow!("could not close directory handle {} [{:010X}]", handle, res),
+            anyhow!(
+                "could not close directory handle {} [{:010X}]",
+                directory.handle,
+                res
+            ),
         ));
     }
 
@@ -136,9 +139,9 @@ pub fn ctr_close_directory(handle: Handle) -> Result<(), IoError> {
 
 pub fn ctr_open_file(
     archive: &CtrArchive,
-    path: &CtrFilePath,
+    path: &CtrFsPath,
     flags: u8,
-) -> Result<Handle, IoError> {
+) -> Result<CtrFile, IoError> {
     let mut handle: Handle = 0;
 
     let res =
@@ -156,16 +159,16 @@ pub fn ctr_open_file(
         ));
     }
 
-    Ok(handle)
+    Ok(CtrFile { handle })
 }
 
-pub fn ctr_read_file(handle: Handle, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
+pub fn ctr_read_file(file: &CtrFile, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
     let mut buffer = vec![0u8; length as usize];
     let mut bytes_read: u32 = 0;
 
     let res = unsafe {
         FSFILE_Read(
-            handle,
+            file.handle,
             &mut bytes_read,
             offset,
             buffer.as_mut_ptr() as *mut _,
@@ -180,7 +183,7 @@ pub fn ctr_read_file(handle: Handle, offset: u64, length: u64) -> Result<Vec<u8>
                 "could not read bytes {} to {} of handle {} [{:#010X}]",
                 offset,
                 offset + length,
-                handle,
+                file.handle,
                 res
             ),
         ));
@@ -193,7 +196,7 @@ pub fn ctr_read_file(handle: Handle, offset: u64, length: u64) -> Result<Vec<u8>
                 "wrong amount of bytes were read ({}/{}) of handle {} [{:#010X}]",
                 length,
                 bytes_read,
-                handle,
+                file.handle,
                 res
             ),
         ));
@@ -203,7 +206,7 @@ pub fn ctr_read_file(handle: Handle, offset: u64, length: u64) -> Result<Vec<u8>
 }
 
 pub fn ctr_write_file(
-    handle: Handle,
+    file: &CtrFile,
     offset: u64,
     buffer: &[u8],
     flags: u16,
@@ -212,7 +215,7 @@ pub fn ctr_write_file(
 
     let res = unsafe {
         FSFILE_Write(
-            handle,
+            file.handle,
             &mut bytes_written,
             offset,
             buffer.as_ptr() as *const _,
@@ -226,7 +229,7 @@ pub fn ctr_write_file(
             IoErrorKind::Other,
             anyhow!(
                 "could not write source buffer to handle {} [{:#010X}]",
-                handle,
+                file.handle,
                 res
             ),
         ));
@@ -239,7 +242,7 @@ pub fn ctr_write_file(
                 "wrong amount of bytes were written ({}/{}) to handle {} [{:#010X}]",
                 buffer.len(),
                 bytes_written,
-                handle,
+                file.handle,
                 res
             ),
         ));
@@ -248,7 +251,7 @@ pub fn ctr_write_file(
     Ok(())
 }
 
-pub fn ctr_create_file(archive: &CtrArchive, path: &CtrFilePath, size: u64) -> Result<(), IoError> {
+pub fn ctr_create_file(archive: &CtrArchive, path: &CtrFsPath, size: u64) -> Result<(), IoError> {
     let res = unsafe { FSUSER_CreateFile(archive.handle, path.fs_path(), 0, size) };
 
     if R_FAILED(res) {
@@ -266,20 +269,24 @@ pub fn ctr_create_file(archive: &CtrArchive, path: &CtrFilePath, size: u64) -> R
     Ok(())
 }
 
-pub fn ctr_close_file(handle: Handle) -> Result<(), IoError> {
-    let res = unsafe { FSFILE_Close(handle) };
+pub fn ctr_close_file(file: &CtrFile) -> Result<(), IoError> {
+    let res = unsafe { FSFILE_Close(file.handle) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
             IoErrorKind::Other,
-            anyhow!("could not close file handle {:?} [{:010X}]", handle, res),
+            anyhow!(
+                "could not close file handle {:?} [{:010X}]",
+                file.handle,
+                res
+            ),
         ));
     }
 
     Ok(())
 }
 
-pub fn ctr_delete_file(archive: &CtrArchive, path: &CtrFilePath) -> Result<(), IoError> {
+pub fn ctr_delete_file(archive: &CtrArchive, path: &CtrFsPath) -> Result<(), IoError> {
     let res = unsafe { FSUSER_DeleteFile(archive.handle, path.fs_path()) };
 
     if R_FAILED(res) {
@@ -292,16 +299,16 @@ pub fn ctr_delete_file(archive: &CtrArchive, path: &CtrFilePath) -> Result<(), I
     Ok(())
 }
 
-pub fn ctr_get_file_size(handle: Handle) -> Result<u64, IoError> {
+pub fn ctr_get_file_size(file: &CtrFile) -> Result<u64, IoError> {
     let mut output = 0;
-    let res = unsafe { FSFILE_GetSize(handle, &mut output) };
+    let res = unsafe { FSFILE_GetSize(file.handle, &mut output) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
                 "could not get size of file at handle {:?} [{:010X}]",
-                handle,
+                file.handle,
                 res
             ),
         ));
@@ -310,15 +317,15 @@ pub fn ctr_get_file_size(handle: Handle) -> Result<u64, IoError> {
     Ok(output)
 }
 
-pub fn ctr_set_file_size(handle: Handle, size: u64) -> Result<(), IoError> {
-    let res = unsafe { FSFILE_SetSize(handle, size) };
+pub fn ctr_set_file_size(file: &CtrFile, size: u64) -> Result<(), IoError> {
+    let res = unsafe { FSFILE_SetSize(file.handle, size) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
                 "could not set size of file at handle {:?} to {} bytes [{:010X}]",
-                handle,
+                file.handle,
                 size,
                 res
             ),
