@@ -1,0 +1,12 @@
+[package]
+name = "libz-sys"
+version = "1.1.25"
+edition = "2021"
+links = "z"
+
+[features]
+libc = []
+default = []
+
+[lib]
+name = "libz_sys"
