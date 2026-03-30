@@ -1,10 +1,9 @@
 use crate::ffi::{
-    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, PATH_ASCII,
-    PATH_BINARY, ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
-    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
+    FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, Handle,
+    PATH_ASCII, PATH_BINARY, ctr_close_archive, ctr_close_directory, ctr_close_file,
+    ctr_commit_archive, ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
     ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory, ctr_open_file,
-    ctr_read_directory, ctr_read_file, ctr_reset_secure_save_meta, ctr_set_file_size,
-    ctr_write_file, fsMakePath,
+    ctr_read_directory, ctr_read_file, ctr_set_file_size, ctr_write_file, fsMakePath,
 };
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
@@ -41,8 +40,8 @@ impl CtrArchive {
 impl Drop for CtrArchive {
     fn drop(&mut self) {
         if self.kind == CtrArchiveKind::Savedata {
+            // TODO! Only do this when something has actually been changed.
             ctr_commit_archive(&self).expect("save archive committed");
-            ctr_reset_secure_save_meta(self.title_id).expect("secure save meta reset");
         }
 
         ctr_close_archive(&self).expect("archive closed");
@@ -92,15 +91,35 @@ impl CtrArchivePath {
     }
 }
 
-pub struct CtrFilePath(pub String);
+pub struct CtrFsPath(pub String);
 
-impl CtrFilePath {
+impl CtrFsPath {
     pub fn new(path: &str) -> Self {
         Self(path.into())
     }
 
     pub fn fs_path(&self) -> FS_Path {
         unsafe { fsMakePath(PATH_ASCII, self.0.as_ptr() as *const _) }
+    }
+}
+
+pub struct CtrFile {
+    pub handle: Handle,
+}
+
+impl Drop for CtrFile {
+    fn drop(&mut self) {
+        ctr_close_file(self).expect("could not close file");
+    }
+}
+
+pub struct CtrDirectory {
+    pub handle: Handle,
+}
+
+impl Drop for CtrDirectory {
+    fn drop(&mut self) {
+        ctr_close_directory(self).expect("could not close directory");
     }
 }
 
@@ -123,35 +142,33 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn pad(&mut self, length: u64) -> Result<(), TreeError> {
-        let path = CtrFilePath::new(&self.path);
+        let path = CtrFsPath::new(&self.path);
 
         match ctr_open_file(&self.ctx, &path, FS_OPEN_READ) {
             // File exists, check size and resize if needed
-            Ok(handle) => {
-                let curr_length = ctr_get_file_size(handle)?;
-                ctr_close_file(handle)?;
+            Ok(file) => {
+                let curr_length = ctr_get_file_size(&file)?;
+                drop(file);
 
                 if curr_length != length {
                     match self.ctx.kind {
                         // Savedata supports resize in place
                         CtrArchiveKind::Savedata => {
-                            let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
-                            ctr_set_file_size(handle, length)?;
-                            ctr_close_file(handle)?;
+                            let file = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
+                            ctr_set_file_size(&file, length)?;
                         }
                         // Extdata requires recreating the file with a new length, resizes aren't supported
                         CtrArchiveKind::Extdata => {
-                            let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
-                            let mut buffer = ctr_read_file(handle, 0, curr_length)?;
+                            let file = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
+                            let mut buffer = ctr_read_file(&file, 0, curr_length)?;
                             buffer.resize(length as usize, 0x00);
-                            ctr_close_file(handle)?;
+                            drop(file);
 
                             ctr_delete_file(&self.ctx, &path)?;
                             ctr_create_file(&self.ctx, &path, length)?;
 
-                            let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
-                            ctr_write_file(handle, 0, &buffer, FS_WRITE_FLUSH)?;
-                            ctr_close_file(handle)?;
+                            let file = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
+                            ctr_write_file(&file, 0, &buffer, FS_WRITE_FLUSH)?;
                         }
                     }
                 }
@@ -166,11 +183,9 @@ impl Leaf for CtrArchiveLeaf {
                     .collect::<Vec<_>>();
 
                 for sep in path_separators {
-                    let dir_path = CtrFilePath::new(&format!("{}\0", &self.path[0..=sep]));
+                    let dir_path = CtrFsPath::new(&format!("{}\0", &self.path[0..=sep]));
 
-                    if let Ok(h) = ctr_open_directory(&self.ctx, &dir_path) {
-                        ctr_close_directory(h)?;
-                    } else {
+                    if let Err(_) = ctr_open_directory(&self.ctx, &dir_path) {
                         ctr_create_directory(&self.ctx, &dir_path)?;
                     }
                 }
@@ -183,7 +198,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn delete(&mut self) -> Result<(), TreeError> {
-        let path = CtrFilePath::new(&self.path);
+        let path = CtrFsPath::new(&self.path);
         ctr_delete_file(&self.ctx, &path)?;
 
         Ok(())
@@ -194,20 +209,18 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
-        let path = CtrFilePath::new(&self.path);
-        let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
-        let file_size = ctr_get_file_size(handle)?;
-        let data = ctr_read_file(handle, 0, file_size)?;
-        ctr_close_file(handle)?;
+        let path = CtrFsPath::new(&self.path);
+        let file = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
+        let file_size = ctr_get_file_size(&file)?;
+        let data = ctr_read_file(&file, 0, file_size)?;
 
         Ok(Cursor::new(data))
     }
 
     fn length(&self) -> Result<u64, TreeError> {
-        let path = CtrFilePath::new(&self.path);
-        let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
-        let file_size = ctr_get_file_size(handle)?;
-        ctr_close_file(handle)?;
+        let path = CtrFsPath::new(&self.path);
+        let file = ctr_open_file(&self.ctx, &path, FS_OPEN_READ)?;
+        let file_size = ctr_get_file_size(&file)?;
 
         Ok(file_size)
     }
@@ -216,10 +229,9 @@ impl Leaf for CtrArchiveLeaf {
         let mut buf = Vec::new();
         source.read_to_end(&mut buf)?;
 
-        let path = CtrFilePath::new(&self.path);
-        let handle = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
-        ctr_write_file(handle, offset, &buf, FS_WRITE_FLUSH)?;
-        ctr_close_file(handle)?;
+        let path = CtrFsPath::new(&self.path);
+        let file = ctr_open_file(&self.ctx, &path, FS_OPEN_WRITE)?;
+        ctr_write_file(&file, offset, &buf, FS_WRITE_FLUSH)?;
 
         Ok(())
     }
@@ -237,9 +249,9 @@ pub fn walk_tree(title_id: u64, mode: CtrArchiveKind) -> Result<Tree<CtrArchiveL
         results: &mut HashMap<PathBuf, CtrArchiveLeaf>,
     ) -> Result<()> {
         let with_null = format!("{dir_path}\0");
-        let path = CtrFilePath::new(&with_null);
-        let handle = ctr_open_directory(&ctx, &path)?;
-        let entries = ctr_read_directory(handle)?;
+        let path = CtrFsPath::new(&with_null);
+        let directory = ctr_open_directory(&ctx, &path)?;
+        let entries = ctr_read_directory(&directory)?;
 
         for entry in entries {
             let fq_path = format!(
