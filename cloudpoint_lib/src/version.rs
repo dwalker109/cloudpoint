@@ -97,223 +97,238 @@ impl VersionDirEntry {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::collections::{BTreeSet, HashMap};
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeSet, HashMap};
 
-//     use super::*;
-//     use chunktree::tree::{MemLeaf, Tree};
-//     use httpmock::prelude::*;
-//     use serde::Serialize;
+    use super::*;
+    use chunktree::tree::{MemLeaf, Tree};
+    use httpmock::prelude::*;
+    use serde::Serialize;
 
-//     const USER_KEY: &str = "test_user_key";
-//     const TITLE_ID: u64 = 0x000400001234ABCD;
+    const USER_KEY: &str = "test_user_key";
+    const TITLE_ID: u64 = 0x000400001234ABCD;
 
-//     #[test]
-//     fn fingerprint_fails_on_malformed_name() {
-//         let e = VersionDirEntry {
-//             name: "foobar".into(),
-//             mtime: Default::default(),
-//         };
+    #[test]
+    fn fingerprint_fails_on_malformed_name() {
+        let e = VersionDirEntry {
+            name: "foobar".into(),
+            mtime: Default::default(),
+        };
 
-//         assert!(e.fingerprint().is_err());
-//     }
+        assert!(e.fingerprint().is_err());
+    }
 
-//     #[test]
-//     fn fingerprint_ok_on_valid_name() {
-//         let e = VersionDirEntry {
-//             name: "987654321".into(),
-//             mtime: Default::default(),
-//         };
+    #[test]
+    fn fingerprint_ok_on_valid_name() {
+        let e = VersionDirEntry {
+            name: "987654321".into(),
+            mtime: Default::default(),
+        };
 
-//         assert_eq!(e.fingerprint().unwrap(), 987654321);
-//     }
+        assert_eq!(e.fingerprint().unwrap(), 987654321);
+    }
 
-//     #[test]
-//     fn can_get_dir_listing() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET")
-//                 .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/"));
-//             then.status(200).body(
-//                 r#"[
-//                     {"name":"12345678","size":123,"mtime":"2026-03-16T14:26:22.425706984Z"},
-//                     {"name":"abcde123","size":456,"mtime":"2026-03-17T12:04:29.799632917Z"}
-//                 ]"#,
-//             );
-//         });
+    #[test]
+    fn can_get_dir_listing() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET")
+                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/"));
+            then.status(200).body(
+                r#"[
+                    {"name":"12345678","size":123,"mtime":123456789},
+                    {"name":"abcde123","size":456,"mtime":345678912}
+                ]"#,
+            );
+        });
 
-//         let res = VersionDirList::try_get(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//         );
+        let client = Client::new().unwrap();
+        let res = VersionDirList::try_get(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+        );
 
-//         assert!(res.is_ok());
-//         assert_eq!(res.unwrap().0.len(), 2);
-//     }
+        dbg!(&res);
 
-//     #[test]
-//     fn can_get_empty_dir_listing_for_200() {
-//         let srv = MockServer::start();
-//         srv.mock(|_, then| {
-//             then.status(200).body("{}");
-//         });
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().0.len(), 2);
+    }
 
-//         let res = VersionDirList::try_get(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//         );
+    #[test]
+    fn can_get_empty_dir_listing_for_200() {
+        let srv = MockServer::start();
+        srv.mock(|_, then| {
+            then.status(200).body("[]");
+        });
 
-//         assert!(res.is_ok());
-//         assert_eq!(res.unwrap().0.len(), 0);
-//     }
+        let client = Client::new().unwrap();
+        let res = VersionDirList::try_get(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+        );
 
-//     #[test]
-//     fn can_get_empty_dir_listing_for_404() {
-//         let srv = MockServer::start();
-//         srv.mock(|_, then| {
-//             then.status(404);
-//         });
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().0.len(), 0);
+    }
 
-//         let res = VersionDirList::try_get(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//         );
+    #[test]
+    fn can_get_empty_dir_listing_for_404() {
+        let srv = MockServer::start();
+        srv.mock(|_, then| {
+            then.status(404);
+        });
 
-//         assert!(res.is_ok());
-//         assert_eq!(res.unwrap().0.len(), 0);
-//     }
+        let client = Client::new().unwrap();
+        let res = VersionDirList::try_get(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+        );
 
-//     #[test]
-//     fn can_get_version() {
-//         //TODO! Get a fixture for this instead of duck typing something
-//         #[derive(Serialize)]
-//         struct DuckVersion {
-//             payload: BTreeSet<()>,
-//             meta: HashMap<String, ()>,
-//         }
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().0.len(), 0);
+    }
 
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET").path(format!(
-//                 "/sync/{USER_KEY}/titles/{TITLE_ID}/extdata/12345678"
-//             ));
-//             then.status(200).body(
-//                 postcard::to_allocvec(&DuckVersion {
-//                     payload: BTreeSet::default(),
-//                     meta: HashMap::default(),
-//                 })
-//                 .unwrap(),
-//             );
-//         });
+    #[test]
+    fn can_get_version() {
+        //TODO! Get a fixture for this instead of duck typing something
+        #[derive(Serialize)]
+        struct DuckVersion {
+            payload: BTreeSet<()>,
+            meta: HashMap<String, ()>,
+        }
 
-//         let res = VersionDirEntry::get_version::<MemLeaf>(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//             12345678,
-//         );
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET")
+                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/12345678"));
+            then.status(200).body(
+                postcard::to_allocvec(&DuckVersion {
+                    payload: BTreeSet::default(),
+                    meta: HashMap::default(),
+                })
+                .unwrap(),
+            );
+        });
 
-//         assert!(res.is_ok());
-//     }
+        let client = Client::new().unwrap();
+        let res = VersionDirEntry::get_version::<MemLeaf>(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+            12345678,
+        );
+        dbg!(&res);
+        assert!(res.is_ok());
+    }
 
-//     #[test]
-//     fn version_get_fails_on_malformed_data() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET")
-//                 .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/12345678"));
-//             then.status(200)
-//                 .body(postcard::to_allocvec(b"junk bytes").unwrap());
-//         });
+    #[test]
+    fn version_get_fails_on_malformed_data() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET")
+                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/12345678"));
+            then.status(200)
+                .body(postcard::to_allocvec(b"junk bytes").unwrap());
+        });
 
-//         let res = VersionDirEntry::get_version::<MemLeaf>(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//             12345678,
-//         );
+        let client = Client::new().unwrap();
+        let res = VersionDirEntry::get_version::<MemLeaf>(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+            12345678,
+        );
 
-//         assert!(res.is_err());
-//     }
+        assert!(res.is_err());
+    }
 
-//     #[test]
-//     fn version_get_fails_on_missing_data() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET");
-//             then.status(404);
-//         });
+    #[test]
+    fn version_get_fails_on_missing_data() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET");
+            then.status(404);
+        });
 
-//         let res = VersionDirEntry::get_version::<MemLeaf>(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//             12345678,
-//         );
+        let client = Client::new().unwrap();
+        let res = VersionDirEntry::get_version::<MemLeaf>(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+            12345678,
+        );
 
-//         assert!(res.is_err());
-//     }
+        assert!(res.is_err());
+    }
 
-//     #[test]
-//     fn version_put_succeeds_on_new_file() {
-//         let v = Version::<MemLeaf>::new(
-//             &Tree::new(Vec::default(), ()),
-//             HashMap::default(),
-//             128,
-//             512,
-//             1024,
-//         )
-//         .unwrap();
+    #[test]
+    fn version_put_succeeds_on_new_file() {
+        let v = Version::<MemLeaf>::new(
+            &Tree::new(Vec::default(), ()),
+            HashMap::default(),
+            128,
+            512,
+            1024,
+        )
+        .unwrap();
 
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("PUT").path(format!(
-//                 "/sync/{USER_KEY}/titles/{TITLE_ID}/save/{}",
-//                 v.fingerprint()
-//             ));
-//             then.status(201);
-//         });
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("PUT").path(format!(
+                "/sync/{USER_KEY}/titles/{TITLE_ID}/save/{}",
+                v.fingerprint()
+            ));
+            then.status(201);
+        });
 
-//         let res = VersionDirEntry::put_version(
-//             &srv.base_url(),
-//             USER_KEY,
-//             TITLE_ID,
-//             CtrArchiveKind::Savedata,
-//             &v,
-//         );
+        let client = Client::new().unwrap();
+        let res = VersionDirEntry::put_version(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Savedata,
+            &v,
+        );
 
-//         assert!(res.is_ok());
-//     }
+        assert!(res.is_ok());
+    }
 
-//     // #[test]
-//     // fn version_put_fails_on_existing_file() {
-//     //     let v = Version::<MemLeaf>::new(
-//     //         &Tree::new(Vec::default(), ()),
-//     //         HashMap::default(),
-//     //         128,
-//     //         512,
-//     //         1024,
-//     //     )
-//     //     .unwrap();
+    // #[test]
+    // fn version_put_fails_on_existing_file() {
+    //     let v = Version::<MemLeaf>::new(
+    //         &Tree::new(Vec::default(), ()),
+    //         HashMap::default(),
+    //         128,
+    //         512,
+    //         1024,
+    //     )
+    //     .unwrap();
 
-//     //     let srv = MockServer::start();
-//     //     srv.mock(|when, then| {
-//     //         when.method("PUT");
-//     //         then.status(403);
-//     //     });
+    //     let srv = MockServer::start();
+    //     srv.mock(|when, then| {
+    //         when.method("PUT");
+    //         then.status(403);
+    //     });
 
-//     //     let res = VersionDirEntry::put_version(&srv.base_url(), USER_KEY, TITLE_ID, &v);
+    //     let res = VersionDirEntry::put_version(&srv.base_url(), USER_KEY, TITLE_ID, &v);
 
-//     //     assert!(res.is_err());
-//     // }
-// }
+    //     assert!(res.is_err());
+    // }
+}
