@@ -1,11 +1,9 @@
-mod ctr;
-mod ffi;
-mod store;
-mod config {
-    pub const BASE_URL: &'static str = "http://192.168.1.45:8080";
-    pub const USER_KEY: &'static str = "dw";
-}
-
+use crate::ctr_fs::CtrArchiveLeaf;
+use crate::store::HttpStore;
+use crate::{
+    config::{BASE_URL, USER_KEY},
+    ctr_fs::CtrArchive,
+};
 use anyhow::{Context, Result, bail};
 use chunktree::{
     store::MemStore,
@@ -30,14 +28,15 @@ use ctru::{
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, create_dir_all, read_to_string},
+    sync::Arc,
 };
 
-use crate::ctr::{CtrArchiveLeaf, walk_tree};
-use crate::store::HttpStore;
-use crate::{
-    config::{BASE_URL, USER_KEY},
-    ffi::ctr_reset_secure_save_meta,
-};
+mod ctr_fs;
+mod store;
+mod config {
+    pub const BASE_URL: &'static str = "http://192.168.1.45:8080";
+    pub const USER_KEY: &'static str = "dw";
+}
 
 fn main() -> Result<()> {
     let am = Am::new()?;
@@ -185,11 +184,12 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
         )?;
         s.remote_fp = list.latest().and_then(|e| e.fingerprint().ok());
 
-        let Ok(local_tree) = walk_tree(s.title_id, s.archive_kind) else {
-            //TODO! Check it actually has an archive? Or just assume on error we pull it down if it is there?
+        let archive = Arc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
+
+        let Ok(local_tree) = ctr_fs::walk_tree(Arc::clone(&archive)) else {
             println!(
-                "Cannot open {:?} archive, run once to init and retry",
-                s.archive_kind
+                "Cannot open {:?} archive for title {:016x}, run once to init and retry",
+                s.archive_kind, s.title_id
             );
 
             continue;
@@ -219,7 +219,7 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
                         ul(&mut s, &local_ver, &local_tree)?;
                         break;
                     } else if hid.keys_down().contains(KeyPad::DPAD_DOWN) {
-                        dl(&mut s, &local_ver, local_tree)?;
+                        dl(&mut s, Arc::clone(&archive), &local_ver, local_tree)?;
                         break;
                     } else if hid
                         .keys_down()
@@ -233,7 +233,7 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
                 ul(&mut s, &local_ver, &local_tree)?;
             }
             SyncAction::Download => {
-                dl(&mut s, &local_ver, local_tree)?;
+                dl(&mut s, Arc::clone(&archive), &local_ver, local_tree)?;
             }
         }
     }
@@ -268,6 +268,7 @@ fn ul(
 
 fn dl(
     s: &mut SyncState,
+    archive: Arc<CtrArchive>,
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
@@ -293,9 +294,7 @@ fn dl(
         u.update_next()?;
     }
 
-    if s.archive_kind == CtrArchiveKind::Savedata {
-        ctr_reset_secure_save_meta(s.title_id)?;
-    }
+    archive.finalise()?;
 
     s.last_fp = Some(remote_ver.fingerprint());
     fs::write(
