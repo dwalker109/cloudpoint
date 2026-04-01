@@ -5,6 +5,7 @@ use chunktree::tree::{Leaf, Tree, TreeError};
 use cloudpoint_lib::sync::CtrArchiveKind;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
 use std::io::{self, Cursor};
+use std::rc::Rc;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -19,7 +20,7 @@ pub struct CtrArchiveLeaf {
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct CtrArchiveLeafContext {
-    archive: Arc<CtrArchive>,
+    archive: Rc<CtrArchive>,
 }
 
 impl Leaf for CtrArchiveLeaf {
@@ -130,7 +131,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 }
 
-pub fn from_archive(archive: Arc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
+pub fn from_archive(archive: Rc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
     let ctx = CtrArchiveLeafContext { archive };
     let mut results = HashMap::new();
 
