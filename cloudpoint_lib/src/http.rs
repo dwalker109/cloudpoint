@@ -27,7 +27,6 @@ pub struct CurlHttpClient {
 
 // Single-threaded CTR homebrew only.
 unsafe impl Send for CurlHttpClient {}
-unsafe impl Sync for CurlHttpClient {}
 
 fn check(code: CURLcode) -> Result<()> {
     if code == CURLE_OK {
