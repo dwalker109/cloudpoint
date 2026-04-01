@@ -35,7 +35,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn pad(&mut self, length: u64) -> Result<(), TreeError> {
-        let path = CtrFsPath::new(&self.path);
+        let path = CtrFsPath::new(&self.path)?;
 
         match self.ctx.archive.open_file(&path, FS_OPEN_READ) {
             // File exists, check size and resize if needed
@@ -76,7 +76,7 @@ impl Leaf for CtrArchiveLeaf {
                     .collect::<Vec<_>>();
 
                 for sep in path_separators {
-                    let dir_path = CtrFsPath::new(&format!("{}\0", &self.path[0..=sep]));
+                    let dir_path = CtrFsPath::new(&format!("{}\0", &self.path[0..=sep]))?;
 
                     if let Err(_) = self.ctx.archive.open_directory(&dir_path) {
                         self.ctx.archive.create_directory(&dir_path)?;
@@ -91,7 +91,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn delete(&mut self) -> Result<(), TreeError> {
-        let path = CtrFsPath::new(&self.path);
+        let path = CtrFsPath::new(&self.path)?;
         self.ctx.archive.delete_file(&path)?;
 
         Ok(())
@@ -102,7 +102,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
-        let path = CtrFsPath::new(&self.path);
+        let path = CtrFsPath::new(&self.path)?;
         let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
         let file_size = file.size()?;
         let data = file.read(0, file_size)?;
@@ -111,7 +111,7 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn length(&self) -> Result<u64, TreeError> {
-        let path = CtrFsPath::new(&self.path);
+        let path = CtrFsPath::new(&self.path)?;
         let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
         let file_size = file.size()?;
 
@@ -122,7 +122,7 @@ impl Leaf for CtrArchiveLeaf {
         let mut buf = Vec::new();
         source.read_to_end(&mut buf)?;
 
-        let path = CtrFsPath::new(&self.path);
+        let path = CtrFsPath::new(&self.path)?;
         let file = self.ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
         file.write(offset, &buf, FS_WRITE_FLUSH)?;
 
@@ -134,29 +134,30 @@ pub fn from_archive(archive: Arc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
     let ctx = CtrArchiveLeafContext { archive };
     let mut results = HashMap::new();
 
-    walk_sub("/".into(), &ctx, &mut results)?;
+    walk_sub("/", &ctx, &mut results)?;
 
     fn walk_sub(
-        dir_path: String,
+        dir_path: &str,
         ctx: &<CtrArchiveLeaf as Leaf>::Context,
         results: &mut HashMap<PathBuf, CtrArchiveLeaf>,
     ) -> Result<()> {
-        let with_null = format!("{dir_path}\0");
-        let path = CtrFsPath::new(&with_null);
+        let path = CtrFsPath::new(dir_path)?;
         let directory = ctx.archive.open_directory(&path)?;
         let entries = directory.read()?;
 
         for entry in entries {
-            let fq_path = format!(
-                "{dir_path}{}",
-                String::from_utf16_lossy(&entry.name).trim_end_matches('\0')
-            );
+            let mut fq_path = [
+                dir_path,
+                String::from_utf16(&entry.name)?.trim_end_matches('\0'),
+            ]
+            .join("");
 
             if entry.attributes & FS_ATTRIBUTE_DIRECTORY != 0 {
-                walk_sub(format!("{fq_path}/"), ctx, results)?;
+                fq_path.push('/');
+                walk_sub(&fq_path, ctx, results)?;
             } else {
-                let fq_path = PathBuf::from(format!("{fq_path}\0"));
-                let leaf = CtrArchiveLeaf::new(&fq_path, ctx.clone()).expect("leaf created");
+                let fq_path = PathBuf::from(fq_path);
+                let leaf = CtrArchiveLeaf::new(&fq_path, ctx.clone())?;
                 results.insert(fq_path, leaf);
             }
         }
