@@ -123,7 +123,7 @@ mod tests {
         let s = SyncState {
             last_fp: Some(1),
             local_fp: Some(2),
-            remote_fp: Some(2),
+            remote_fp: Some(3),
             ..fixture()
         };
 
@@ -166,6 +166,19 @@ mod tests {
             last_fp: Some(1),
             local_fp: None,
             remote_fp: None,
+            ..fixture()
+        };
+
+        let res = s.get_action();
+
+        assert!(matches!(res, SyncAction::Nothing));
+    }
+    #[test]
+    fn matching_local_and_remote_always_no_action() {
+        let s = SyncState {
+            last_fp: Some(1),
+            local_fp: Some(2),
+            remote_fp: Some(2),
             ..fixture()
         };
 

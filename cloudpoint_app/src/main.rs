@@ -11,6 +11,7 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
+    http::CurlHttpClient,
     sync::{CtrArchiveKind, SyncAction, SyncState},
     version::VersionDirEntry,
 };
@@ -175,9 +176,12 @@ fn get_installed_sync_states(
 }
 
 fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncState>) -> Result<()> {
+    let client = Arc::new(CurlHttpClient::new()?);
+
     for mut s in active_sync_states {
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
         let list = cloudpoint_lib::version::VersionDirList::try_get(
+            &client,
             BASE_URL,
             "dw",
             s.title_id,
@@ -217,10 +221,16 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
                     hid.scan_input();
 
                     if hid.keys_down().contains(KeyPad::DPAD_UP) {
-                        ul(&mut s, &local_ver, &local_tree)?;
+                        ul(&mut s, Arc::clone(&client), &local_ver, &local_tree)?;
                         break;
                     } else if hid.keys_down().contains(KeyPad::DPAD_DOWN) {
-                        dl(&mut s, Arc::clone(&archive), &local_ver, local_tree)?;
+                        dl(
+                            &mut s,
+                            Arc::clone(&client),
+                            Arc::clone(&archive),
+                            &local_ver,
+                            local_tree,
+                        )?;
                         break;
                     } else if hid
                         .keys_down()
@@ -231,10 +241,16 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
                 }
             }
             SyncAction::Upload => {
-                ul(&mut s, &local_ver, &local_tree)?;
+                ul(&mut s, Arc::clone(&client), &local_ver, &local_tree)?;
             }
             SyncAction::Download => {
-                dl(&mut s, Arc::clone(&archive), &local_ver, local_tree)?;
+                dl(
+                    &mut s,
+                    Arc::clone(&client),
+                    Arc::clone(&archive),
+                    &local_ver,
+                    local_tree,
+                )?;
             }
         }
     }
@@ -246,12 +262,21 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
 
 fn ul(
     s: &mut SyncState,
+    client: Arc<CurlHttpClient>,
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    let mut store = HttpStore(BASE_URL.into());
+    let mut store = HttpStore(Arc::clone(&client), BASE_URL.into());
     local_ver.copy_chunks(&local_tree, &mut store)?;
-    VersionDirEntry::put_version(BASE_URL, USER_KEY, s.title_id, s.archive_kind, &local_ver)?;
+
+    VersionDirEntry::put_version(
+        &client,
+        BASE_URL,
+        USER_KEY,
+        s.title_id,
+        s.archive_kind,
+        &local_ver,
+    )?;
 
     s.last_fp = Some(local_ver.fingerprint());
     fs::write(
@@ -269,11 +294,13 @@ fn ul(
 
 fn dl(
     s: &mut SyncState,
+    client: Arc<CurlHttpClient>,
     archive: Arc<CtrArchive>,
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
+        &client,
         BASE_URL,
         USER_KEY,
         s.title_id,
@@ -288,7 +315,7 @@ fn dl(
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
-    let store = HttpStore(BASE_URL.into());
+    let store = HttpStore(client, BASE_URL.into());
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
 
     while !u.is_terminal() {
