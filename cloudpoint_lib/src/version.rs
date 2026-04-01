@@ -3,14 +3,14 @@ use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
 use itertools::Itertools;
 
-use crate::{http::Client, sync::CtrArchiveKind};
+use crate::{http::CurlHttpClient, sync::CtrArchiveKind};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
 
 impl VersionDirList {
     pub fn try_get(
-        client: &Client,
+        client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
@@ -54,7 +54,7 @@ impl VersionDirEntry {
     }
 
     pub fn get_version<T: Leaf>(
-        client: &Client,
+        client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
@@ -72,7 +72,7 @@ impl VersionDirEntry {
     }
 
     pub fn put_version<T: Leaf>(
-        client: &Client,
+        client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
@@ -143,7 +143,7 @@ mod tests {
             );
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
@@ -165,7 +165,7 @@ mod tests {
             then.status(200).body("[]");
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
@@ -185,7 +185,7 @@ mod tests {
             then.status(404);
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
@@ -220,7 +220,7 @@ mod tests {
             );
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf>(
             &client,
             &srv.base_url(),
@@ -243,7 +243,7 @@ mod tests {
                 .body(postcard::to_allocvec(b"junk bytes").unwrap());
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf>(
             &client,
             &srv.base_url(),
@@ -264,7 +264,7 @@ mod tests {
             then.status(404);
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf>(
             &client,
             &srv.base_url(),
@@ -297,7 +297,7 @@ mod tests {
             then.status(201);
         });
 
-        let client = Client::new().unwrap();
+        let client = CurlHttpClient::new().unwrap();
         let res = VersionDirEntry::put_version(
             &client,
             &srv.base_url(),

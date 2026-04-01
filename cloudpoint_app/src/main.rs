@@ -11,7 +11,7 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    http::Client,
+    http::CurlHttpClient,
     sync::{CtrArchiveKind, SyncAction, SyncState},
     version::VersionDirEntry,
 };
@@ -46,7 +46,7 @@ fn main() -> Result<()> {
     let mut hid = Hid::new()?;
     let gfx = Gfx::new()?;
     let _console = Console::new(gfx.top_screen.borrow_mut());
-    let mut soc = Soc::new()?;
+    let mut _soc = Soc::new()?;
 
     let installed_titles = get_installed_titles(&am)?;
 
@@ -176,7 +176,7 @@ fn get_installed_sync_states(
 }
 
 fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncState>) -> Result<()> {
-    let client = Arc::new(Client::new()?);
+    let client = Arc::new(CurlHttpClient::new()?);
 
     for mut s in active_sync_states {
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
@@ -262,7 +262,7 @@ fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncStat
 
 fn ul(
     s: &mut SyncState,
-    client: Arc<Client>,
+    client: Arc<CurlHttpClient>,
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
@@ -294,7 +294,7 @@ fn ul(
 
 fn dl(
     s: &mut SyncState,
-    client: Arc<Client>,
+    client: Arc<CurlHttpClient>,
     archive: Arc<CtrArchive>,
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: Tree<CtrArchiveLeaf>,
