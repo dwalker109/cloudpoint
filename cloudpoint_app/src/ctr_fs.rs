@@ -9,7 +9,7 @@ use ffi::{
     ctr_read_directory, ctr_read_file, ctr_reset_secure_save_meta, ctr_set_file_size,
     ctr_write_file,
 };
-use std::ffi::c_void;
+use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
 
 mod ffi;
@@ -125,11 +125,11 @@ impl Drop for CtrArchive {
     }
 }
 
-pub struct CtrFsPath(pub String);
+pub struct CtrFsPath(CString);
 
 impl CtrFsPath {
-    pub fn new(path: &str) -> Self {
-        Self(path.into())
+    pub fn new(path: &str) -> Result<Self, IoError> {
+        Ok(Self(CString::new(path)?))
     }
 
     pub fn fs_path(&self) -> FS_Path {
