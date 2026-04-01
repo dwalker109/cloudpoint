@@ -3,10 +3,16 @@ use chunktree::store::{StoreError, StoreRead, StoreWrite};
 use cloudpoint_lib::http::CurlHttpClient;
 use std::{
     io::{self, Cursor, Read},
-    sync::Arc,
+    rc::Rc,
 };
 
-pub struct HttpStore(pub Arc<CurlHttpClient>, pub String);
+pub struct HttpStore(Rc<CurlHttpClient>, String);
+
+impl HttpStore {
+    pub fn new(client: Rc<CurlHttpClient>, base_url: String) -> Self {
+        Self(client, base_url)
+    }
+}
 
 impl StoreRead for HttpStore {
     fn get_chunk(&self, hash: u64) -> Result<impl Read, StoreError> {
