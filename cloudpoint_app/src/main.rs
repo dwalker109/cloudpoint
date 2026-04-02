@@ -26,6 +26,7 @@ use ctru::{
         soc::Soc,
     },
 };
+use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, create_dir_all, read_to_string},
@@ -48,23 +49,21 @@ fn main() -> Result<()> {
     let _console = Console::new(gfx.top_screen.borrow_mut());
     let mut _soc = Soc::new()?;
 
-    let installed_titles = get_installed_titles(&am)?;
-
     setup_sdmc()?;
-    autoadd(&installed_titles)?;
 
-    let mut sync_states = get_sync_states()?;
-    let mut installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
+    let installed_titles = get_installed_titles(&am)?;
+    autoadd(&installed_titles)?;
+    let mut sync_states = load_db(&installed_titles)?;
 
     println!("\x1b[20CCloudpoint\n");
     println!(
         "Ready to sync {} states across {} titles",
-        installed_sync_states
+        sync_states.len(),
+        sync_states
             .iter()
             .map(|s| s.title_id)
             .collect::<HashSet<_>>()
             .len(),
-        installed_sync_states.len()
     );
     println!("Press (A) to sync");
     println!("Press Start to exit");
@@ -79,11 +78,8 @@ fn main() -> Result<()> {
         }
 
         if hid.keys_down().contains(KeyPad::A) {
-            let res = do_sync(&apt, &mut hid, &gfx, installed_sync_states.clone());
+            let res = do_sync(&apt, &mut hid, &gfx, &mut sync_states);
             println!("Results: {:?}", res);
-
-            sync_states = get_sync_states()?;
-            installed_sync_states = get_installed_sync_states(&sync_states, &installed_titles);
         }
     }
 
@@ -109,23 +105,21 @@ fn autoadd(installed_titles: &[Title]) -> Result<()> {
         .map(|t| (t.product_code().trim_end_matches('\0').to_string(), t.id()))
         .collect::<HashMap<_, _>>();
 
-    for (product_code, kind) in read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd.txt"))
-        .unwrap_or_default()
+    for (product_code, archive_kind) in read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd.txt"))?
         .lines()
-        .map(|l| l.split_once(',').unwrap_or_default())
+        .filter_map(|l| l.split_once(','))
+        .filter_map(
+            |(product_code, kind)| match CtrArchiveKind::try_from(kind) {
+                Ok(kind) => Some((product_code.to_string(), kind)),
+                Err(_) => None,
+            },
+        )
     {
-        if let Some(&title_id) = titles.get(product_code) {
+        if let Some(&title_id) = titles.get(&product_code) {
             let state = SyncState {
                 title_id,
-                product_code: product_code.to_string(),
-                archive_kind: match kind {
-                    "save" => CtrArchiveKind::Savedata,
-                    "extdata" => CtrArchiveKind::Extdata,
-                    _ => bail!(
-                        "there is a malformed entry in autoadd.txt ({})",
-                        product_code
-                    ),
-                },
+                product_code,
+                archive_kind,
                 last_fp: None,
                 local_fp: None,
                 remote_fp: None,
@@ -135,26 +129,18 @@ fn autoadd(installed_titles: &[Title]) -> Result<()> {
                 "sdmc:/3ds/Cloudpoint/db/{}.{}",
                 state.product_code, state.archive_kind
             );
-            if !fs::exists(&path)? {
-                fs::write(path, serde_json::to_string_pretty(&state)?)?;
+
+            if let Ok(mut file) = fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path)
+            {
+                file.write_all(&postcard::to_allocvec(&state)?)?;
             }
         }
     }
 
     Ok(())
-}
-
-fn get_sync_states() -> Result<Vec<SyncState>> {
-    let mut states: Vec<SyncState> = Vec::new();
-
-    for f in fs::read_dir("sdmc:/3ds/Cloudpoint/db")? {
-        let f = f?;
-        if let Ok(s) = serde_json::from_reader(File::open(f.path())?) {
-            states.push(s);
-        }
-    }
-
-    Ok(states)
 }
 
 fn get_installed_titles<'a>(am: &'a Am) -> Result<Vec<Title<'a>>> {
@@ -163,19 +149,31 @@ fn get_installed_titles<'a>(am: &'a Am) -> Result<Vec<Title<'a>>> {
     Ok(titles)
 }
 
-fn get_installed_sync_states(
-    sync_states: &[SyncState],
-    installed_titles: &[Title],
-) -> Vec<SyncState> {
+fn load_db(installed_titles: &[Title]) -> Result<Vec<SyncState>> {
     let ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
-    sync_states
-        .iter()
-        .filter(|&s| ids.contains(&s.title_id))
-        .cloned()
-        .collect()
+
+    let mut states: Vec<SyncState> = Vec::new();
+
+    for f in fs::read_dir("sdmc:/3ds/Cloudpoint/db")? {
+        let f = f?;
+        let bytes = fs::read(f.path())?;
+        if let Ok(s) = postcard::from_bytes(&bytes) {
+            states.push(s);
+        }
+    }
+
+    Ok(states
+        .into_iter()
+        .filter(|s| ids.contains(&s.title_id))
+        .collect())
 }
 
-fn do_sync(apt: &Apt, hid: &mut Hid, gfx: &Gfx, active_sync_states: Vec<SyncState>) -> Result<()> {
+fn do_sync(
+    apt: &Apt,
+    hid: &mut Hid,
+    gfx: &Gfx,
+    active_sync_states: &mut Vec<SyncState>,
+) -> Result<()> {
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in active_sync_states {

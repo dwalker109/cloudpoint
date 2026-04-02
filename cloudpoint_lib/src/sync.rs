@@ -36,7 +36,7 @@ impl SyncState {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum CtrArchiveKind {
     Savedata,
     Extdata,
@@ -47,6 +47,18 @@ impl Display for CtrArchiveKind {
         match self {
             CtrArchiveKind::Savedata => write!(f, "save"),
             CtrArchiveKind::Extdata => write!(f, "extdata"),
+        }
+    }
+}
+
+impl TryFrom<&str> for CtrArchiveKind {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "save" => Ok(CtrArchiveKind::Savedata),
+            "extdata" => Ok(CtrArchiveKind::Extdata),
+            _ => Err(()),
         }
     }
 }
