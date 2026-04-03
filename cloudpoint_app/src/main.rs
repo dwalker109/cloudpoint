@@ -26,10 +26,9 @@ use ctru::{
         soc::Soc,
     },
 };
-use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
-    fs::{self, File, create_dir_all, read_to_string},
+    fs::{self, create_dir_all, read_to_string},
     rc::Rc,
 };
 
@@ -210,8 +209,13 @@ fn do_sync(
         println!("\x1b[5C{:016x} Remote", s.remote_fp.unwrap_or_default());
 
         match s.get_action() {
-            SyncAction::Nothing => {
-                println!("Nothing to do!");
+            SyncAction::NoData => {
+                println!("Nothing to do, no local or remote data!");
+            }
+            SyncAction::NoChange => {
+                println!("Local and remote data match!");
+                s.last_fp = s.local_fp;
+                write_db(s)?;
             }
             SyncAction::Conflict => {
                 println!("Changed on server and locally!");

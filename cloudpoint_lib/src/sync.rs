@@ -19,8 +19,8 @@ impl SyncState {
         match (self.local_fp, self.remote_fp) {
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
-            (None, None) => SyncAction::Nothing,
-            (Some(l), Some(r)) if l == r => SyncAction::Nothing,
+            (None, None) => SyncAction::NoData,
+            (Some(l), Some(r)) if l == r => SyncAction::NoChange,
             (Some(_), Some(_)) => {
                 let changed_local = self.local_fp != self.last_fp;
                 let changed_remote = self.remote_fp != self.last_fp;
@@ -28,8 +28,8 @@ impl SyncState {
                 match (changed_local, changed_remote) {
                     (false, true) => SyncAction::Download,
                     (true, false) => SyncAction::Upload,
-                    (false, false) => SyncAction::Nothing,
                     (true, true) => SyncAction::Conflict,
+                    (false, false) => unreachable!(),
                 }
             }
         }
@@ -45,7 +45,7 @@ pub enum CtrArchiveKind {
 impl Display for CtrArchiveKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CtrArchiveKind::Savedata => write!(f, "save"),
+            CtrArchiveKind::Savedata => write!(f, "savedata"),
             CtrArchiveKind::Extdata => write!(f, "extdata"),
         }
     }
@@ -56,7 +56,7 @@ impl TryFrom<&str> for CtrArchiveKind {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "save" => Ok(CtrArchiveKind::Savedata),
+            "savedata" => Ok(CtrArchiveKind::Savedata),
             "extdata" => Ok(CtrArchiveKind::Extdata),
             _ => Err(()),
         }
@@ -65,7 +65,8 @@ impl TryFrom<&str> for CtrArchiveKind {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SyncAction {
-    Nothing,
+    NoData,
+    NoChange,
     Conflict,
     Upload,
     Download,
@@ -93,13 +94,6 @@ mod tests {
         let res = s.get_action();
 
         assert!(matches!(res, SyncAction::Download));
-    }
-
-    #[test]
-    fn no_change() {
-        let s = fixture();
-
-        assert!(matches!(s.get_action(), SyncAction::Nothing))
     }
 
     #[test]
@@ -173,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn no_remote_no_local_always_no_action() {
+    fn no_remote_no_local_always_no_data() {
         let s = SyncState {
             last_fp: Some(1),
             local_fp: None,
@@ -183,10 +177,11 @@ mod tests {
 
         let res = s.get_action();
 
-        assert!(matches!(res, SyncAction::Nothing));
+        assert!(matches!(res, SyncAction::NoData));
     }
+
     #[test]
-    fn matching_local_and_remote_always_no_action() {
+    fn matching_local_and_remote_always_no_change() {
         let s = SyncState {
             last_fp: Some(1),
             local_fp: Some(2),
@@ -196,7 +191,7 @@ mod tests {
 
         let res = s.get_action();
 
-        assert!(matches!(res, SyncAction::Nothing));
+        assert!(matches!(res, SyncAction::NoChange));
     }
 
     fn fixture() -> SyncState {

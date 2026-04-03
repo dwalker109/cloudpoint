@@ -134,7 +134,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET")
-                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/"));
+                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/"));
             then.status(200).body(
                 r#"[
                     {"name":"12345678","size":123,"mtime":123456789},
@@ -209,8 +209,9 @@ mod tests {
 
         let srv = MockServer::start();
         srv.mock(|when, then| {
-            when.method("GET")
-                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/12345678"));
+            when.method("GET").path(format!(
+                "/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/12345678"
+            ));
             then.status(200).body(
                 postcard::to_allocvec(&DuckVersion {
                     payload: BTreeSet::default(),
@@ -291,7 +292,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID}/save/{}",
+                "/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/{}",
                 v.fingerprint()
             ));
             then.status(201);
