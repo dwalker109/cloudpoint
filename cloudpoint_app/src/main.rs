@@ -52,15 +52,15 @@ fn main() -> Result<()> {
     setup_sdmc()?;
 
     let installed_titles = get_installed_titles(&am)?;
-    autoadd(&installed_titles)?;
-    let mut sync_states = load_db(&installed_titles)?;
+    let mut sync_states = load_db_all(&installed_titles)?;
+    append_autoadd(&installed_titles, &mut sync_states)?;
 
     println!("\x1b[20CCloudpoint\n");
     println!(
         "Ready to sync {} states across {} titles",
         sync_states.len(),
         sync_states
-            .iter()
+            .values()
             .map(|s| s.title_id)
             .collect::<HashSet<_>>()
             .len(),
@@ -99,7 +99,10 @@ fn setup_sdmc() -> Result<()> {
     Ok(())
 }
 
-fn autoadd(installed_titles: &[Title]) -> Result<()> {
+fn append_autoadd(
+    installed_titles: &[Title],
+    sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
+) -> Result<()> {
     let titles = installed_titles
         .iter()
         .map(|t| (t.product_code().trim_end_matches('\0').to_string(), t.id()))
@@ -108,14 +111,15 @@ fn autoadd(installed_titles: &[Title]) -> Result<()> {
     for (product_code, archive_kind) in read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd.txt"))?
         .lines()
         .filter_map(|l| l.split_once(','))
-        .filter_map(
-            |(product_code, kind)| match CtrArchiveKind::try_from(kind) {
-                Ok(kind) => Some((product_code.to_string(), kind)),
-                Err(_) => None,
-            },
-        )
+        .filter_map(|(product_code, kind)| {
+            CtrArchiveKind::try_from(kind)
+                .ok()
+                .and_then(|kind| Some((product_code.to_string(), kind)))
+        })
     {
-        if let Some(&title_id) = titles.get(&product_code) {
+        if let Some(&title_id) = titles.get(&product_code)
+            && !sync_states.contains_key(&(title_id, archive_kind))
+        {
             let state = SyncState {
                 title_id,
                 product_code,
@@ -125,18 +129,7 @@ fn autoadd(installed_titles: &[Title]) -> Result<()> {
                 remote_fp: None,
             };
 
-            let path = format!(
-                "sdmc:/3ds/Cloudpoint/db/{}.{}",
-                state.product_code, state.archive_kind
-            );
-
-            if let Ok(mut file) = fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path)
-            {
-                file.write_all(&postcard::to_allocvec(&state)?)?;
-            }
+            sync_states.insert((title_id, archive_kind), state);
         }
     }
 
@@ -149,15 +142,14 @@ fn get_installed_titles<'a>(am: &'a Am) -> Result<Vec<Title<'a>>> {
     Ok(titles)
 }
 
-fn load_db(installed_titles: &[Title]) -> Result<Vec<SyncState>> {
+fn load_db_all(installed_titles: &[Title]) -> Result<HashMap<(u64, CtrArchiveKind), SyncState>> {
     let ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
 
     let mut states: Vec<SyncState> = Vec::new();
 
     for f in fs::read_dir("sdmc:/3ds/Cloudpoint/db")? {
         let f = f?;
-        let bytes = fs::read(f.path())?;
-        if let Ok(s) = postcard::from_bytes(&bytes) {
+        if let Ok(s) = postcard::from_bytes(&fs::read(f.path())?) {
             states.push(s);
         }
     }
@@ -165,18 +157,31 @@ fn load_db(installed_titles: &[Title]) -> Result<Vec<SyncState>> {
     Ok(states
         .into_iter()
         .filter(|s| ids.contains(&s.title_id))
+        .map(|s| ((s.title_id, s.archive_kind), s))
         .collect())
+}
+
+fn write_db(s: &SyncState) -> Result<()> {
+    fs::write(
+        format!(
+            "sdmc:/3ds/Cloudpoint/db/{}.{}",
+            s.product_code, s.archive_kind
+        ),
+        postcard::to_allocvec(&s)?,
+    )?;
+
+    Ok(())
 }
 
 fn do_sync(
     apt: &Apt,
     hid: &mut Hid,
     gfx: &Gfx,
-    active_sync_states: &mut Vec<SyncState>,
+    active_sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
 ) -> Result<()> {
     let client = Rc::new(CurlHttpClient::new()?);
 
-    for mut s in active_sync_states {
+    for mut s in active_sync_states.values_mut() {
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
@@ -277,13 +282,8 @@ fn ul(
     )?;
 
     s.last_fp = Some(local_ver.fingerprint());
-    fs::write(
-        format!(
-            "sdmc:/3ds/Cloudpoint/db/{}.{}",
-            s.product_code, s.archive_kind
-        ),
-        serde_json::to_string_pretty(&s)?,
-    )?;
+
+    write_db(s)?;
 
     println!("Uploaded {}!", s.archive_kind);
 
@@ -323,13 +323,8 @@ fn dl(
     archive.finalise()?;
 
     s.last_fp = Some(remote_ver.fingerprint());
-    fs::write(
-        format!(
-            "sdmc:/3ds/Cloudpoint/db/{}.{}",
-            s.product_code, s.archive_kind
-        ),
-        serde_json::to_string_pretty(&s)?,
-    )?;
+
+    write_db(s)?;
 
     println!("Downloaded {}!", s.archive_kind);
 
