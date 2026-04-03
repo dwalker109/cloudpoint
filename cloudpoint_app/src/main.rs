@@ -41,6 +41,10 @@ mod config {
 }
 
 fn main() -> Result<()> {
+    flexi_logger::Logger::try_with_str("debug")?
+        .log_to_file(flexi_logger::FileSpec::default().directory("sdmc:/3ds/Cloudpoint/logs"))
+        .start()?;
+
     let am = Am::new()?;
     let apt = Apt::new()?;
     let mut hid = Hid::new()?;
@@ -89,11 +93,13 @@ fn setup_sdmc() -> Result<()> {
     let paths = [
         "sdmc:/3ds/Cloudpoint",
         "sdmc:/3ds/Cloudpoint/db",
-        "sdmc:/3ds/Cloudpoint/autoadd",
+        "sdmc:/3ds/Cloudpoint/logs",
     ];
     for p in paths {
         create_dir_all(p).with_context(|| format!("fatal: failed to create directory {p}"))?;
     }
+
+    log::debug!("Created paths");
 
     Ok(())
 }
