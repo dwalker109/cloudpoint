@@ -35,6 +35,8 @@ pub fn sync_states(services: &CtrSysServices) -> Result<HashMap<(u64, CtrArchive
     let mut sync_states = load_db_all(&installed_titles)?;
     append_autoadd(&installed_titles, &mut sync_states)?;
 
+    log::info!("Loaded {} sync states", sync_states.len());
+
     Ok(sync_states)
 }
 

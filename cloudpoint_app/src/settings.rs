@@ -8,18 +8,14 @@ pub struct Settings {
     pub log: String,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            base_url: String::new(),
-            user_key: String::new(),
-            log: String::from("off"),
-        }
-    }
-}
-
 pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
     config::Config::builder()
+        .set_default("base_url", "http://192.168.1.45:8080")
+        .unwrap()
+        .set_default("user_key", "foobarbaz")
+        .unwrap()
+        .set_default("log", "off")
+        .unwrap()
         .add_source(config::File::from_str(
             &fs::read_to_string("sdmc:/3ds/Cloudpoint/settings.ini").unwrap_or_default(),
             config::FileFormat::Ini,
@@ -27,5 +23,5 @@ pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
         .build()
         .unwrap_or_default()
         .try_deserialize::<Settings>()
-        .unwrap_or_default()
+        .unwrap()
 });

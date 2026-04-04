@@ -27,7 +27,10 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in active_sync_states.values_mut() {
+        log::info!("Starting sync for {:016x} {}", s.title_id, s.archive_kind);
+
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
+
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
             &SETTINGS.base_url,
@@ -40,6 +43,12 @@ pub fn run(
         let archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
 
         let Ok(local_tree) = tree::from_archive(Rc::clone(&archive)) else {
+            log::info!(
+                "{} archive does not exist for title {:016x}",
+                s.archive_kind,
+                s.title_id
+            );
+
             println!(
                 "Cannot open {:?} archive for title {:016x}, run once to init and retry",
                 s.archive_kind, s.title_id
@@ -56,14 +65,30 @@ pub fn run(
 
         match s.get_action() {
             SyncAction::NoData => {
+                log::info!(
+                    "No local or remote data for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
+                );
+
                 println!("Nothing to do, no local or remote data!");
             }
             SyncAction::NoChange => {
-                println!("Local and remote data match!");
-                s.last_fp = s.local_fp;
-                write_db(s)?;
+                log::info!(
+                    "Local and remote data match for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
+                );
+
+                println!("Nothing to do, local and remote data match!");
             }
             SyncAction::Conflict => {
+                log::info!(
+                    "Changed on server and locally for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
+                );
+
                 println!("Changed on server and locally!");
                 println!("DPAD UP to upload (local wins)");
                 println!("DPAD DOWN to download (remote wins)");
@@ -107,6 +132,8 @@ pub fn run(
                 )?;
             }
         }
+
+        log::info!("Sync completed for {:016x} {}", s.title_id, s.archive_kind);
     }
 
     println!("\nDone!");
@@ -120,6 +147,8 @@ fn ul(
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
+    log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
+
     let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
@@ -136,7 +165,7 @@ fn ul(
 
     write_db(s)?;
 
-    println!("Uploaded {}!", s.archive_kind);
+    println!("Uploaded!");
 
     Ok(())
 }
@@ -148,6 +177,8 @@ fn dl(
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
+    log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
+
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
         &client,
         &SETTINGS.base_url,
@@ -177,12 +208,14 @@ fn dl(
 
     write_db(s)?;
 
-    println!("Downloaded {}!", s.archive_kind);
+    println!("Downloaded!");
 
     Ok(())
 }
 
 fn write_db(s: &SyncState) -> Result<()> {
+    log::info!("Writing db for {:016x} {}", s.title_id, s.archive_kind);
+
     fs::write(
         format!(
             "sdmc:/3ds/Cloudpoint/db/{}.{}",

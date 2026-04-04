@@ -16,10 +16,9 @@ fn main() -> Result<()> {
 
     let mut sys_services = services::CtrSysServices::init()?;
     let gfx_services = services::CtrGfxServices::init()?;
+    let _console = Console::new(gfx_services.gfx.top_screen.borrow_mut());
 
     let mut sync_states = setup::sync_states(&sys_services)?;
-
-    let _console = Console::new(gfx_services.gfx.top_screen.borrow_mut());
 
     println!("\x1b[20CCloudpoint\n");
     println!(
@@ -45,6 +44,11 @@ fn main() -> Result<()> {
 
         if sys_services.hid.keys_down().contains(KeyPad::A) {
             let res = sync::run(&mut sys_services, &gfx_services, &mut sync_states);
+
+            if res.is_err() {
+                log::error!("Error occurred during sync: {res:?}");
+            }
+
             println!("Results: {:?}", res);
         }
     }
