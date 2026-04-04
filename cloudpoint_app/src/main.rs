@@ -182,8 +182,8 @@ fn do_sync(
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
-            &SETTINGS.base_url,
-            "dw",
+            SETTINGS.base_url(),
+            SETTINGS.user_key(),
             s.title_id,
             s.archive_kind,
         )?;
@@ -271,13 +271,13 @@ fn ul(
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
+    let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url().into());
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
     VersionDirEntry::put_version(
         &client,
-        &SETTINGS.base_url,
-        &SETTINGS.user_key,
+        SETTINGS.base_url(),
+        SETTINGS.user_key(),
         s.title_id,
         s.archive_kind,
         &local_ver,
@@ -301,8 +301,8 @@ fn dl(
 ) -> Result<()> {
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
         &client,
-        &SETTINGS.base_url,
-        &SETTINGS.user_key,
+        SETTINGS.base_url(),
+        SETTINGS.user_key(),
         s.title_id,
         s.archive_kind,
         s.remote_fp
@@ -315,7 +315,7 @@ fn dl(
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
-    let store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
+    let store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url().into());
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
 
     while !u.is_terminal() {

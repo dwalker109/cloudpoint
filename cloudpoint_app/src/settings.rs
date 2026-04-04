@@ -2,9 +2,19 @@ use serde::{Deserialize, Serialize};
 use std::{fs, sync::LazyLock};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
-struct Settings {
+pub struct Settings {
     base_url: String,
     user_key: String,
+}
+
+impl Settings {
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn user_key(&self) -> &str {
+        &self.user_key
+    }
 }
 
 pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
