@@ -1,19 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::{fs, sync::LazyLock};
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
-    base_url: String,
-    user_key: String,
+    pub base_url: String,
+    pub user_key: String,
+    pub log: String,
 }
 
-impl Settings {
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
-    pub fn user_key(&self) -> &str {
-        &self.user_key
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            base_url: String::new(),
+            user_key: String::new(),
+            log: String::from("off"),
+        }
     }
 }
 
