@@ -1,10 +1,5 @@
-use crate::store::HttpStore;
-use crate::tree::CtrArchiveLeaf;
-use crate::{
-    config::{BASE_URL, USER_KEY},
-    ctr_fs::CtrArchive,
-};
-use anyhow::{Context, Result, bail};
+use crate::{ctr_fs::CtrArchive, settings::SETTINGS, store::HttpStore, tree::CtrArchiveLeaf};
+use anyhow::{Context, Result};
 use chunktree::{
     store::MemStore,
     tree::Tree,
@@ -33,12 +28,9 @@ use std::{
 };
 
 mod ctr_fs;
+mod settings;
 mod store;
 mod tree;
-mod config {
-    pub const BASE_URL: &'static str = "http://192.168.1.45:8080";
-    pub const USER_KEY: &'static str = "dw";
-}
 
 fn main() -> Result<()> {
     flexi_logger::Logger::try_with_str("debug")?
@@ -190,7 +182,7 @@ fn do_sync(
         println!("\n{:016x} {}", s.title_id, s.archive_kind);
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
-            BASE_URL,
+            &SETTINGS.base_url,
             "dw",
             s.title_id,
             s.archive_kind,
@@ -279,13 +271,13 @@ fn ul(
     local_ver: &Version<CtrArchiveLeaf>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    let mut store = HttpStore::new(Rc::clone(&client), BASE_URL.into());
+    let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
     VersionDirEntry::put_version(
         &client,
-        BASE_URL,
-        USER_KEY,
+        &SETTINGS.base_url,
+        &SETTINGS.user_key,
         s.title_id,
         s.archive_kind,
         &local_ver,
@@ -309,8 +301,8 @@ fn dl(
 ) -> Result<()> {
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
         &client,
-        BASE_URL,
-        USER_KEY,
+        &SETTINGS.base_url,
+        &SETTINGS.user_key,
         s.title_id,
         s.archive_kind,
         s.remote_fp
@@ -323,7 +315,7 @@ fn dl(
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
-    let store = HttpStore::new(Rc::clone(&client), BASE_URL.into());
+    let store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
 
     while !u.is_terminal() {

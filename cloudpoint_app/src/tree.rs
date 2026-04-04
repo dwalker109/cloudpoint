@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
