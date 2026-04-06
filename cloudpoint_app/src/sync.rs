@@ -225,7 +225,7 @@ fn dl(
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = PathBuf::from(format!(
-        "sdmc:/3ds/Cloudpoint/backups/{:16X}/{:16X}",
+        "sdmc:/3ds/Cloudpoint/backups/{:016X}/{:016X}",
         sync_state.title_id,
         sync_state
             .local_fp

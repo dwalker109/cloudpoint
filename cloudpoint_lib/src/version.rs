@@ -48,9 +48,7 @@ pub struct VersionDirEntry {
 
 impl VersionDirEntry {
     pub fn fingerprint(&self) -> Result<u64> {
-        self.name
-            .parse()
-            .context("{self.name} is not named with a valid fingerprint")
+        Ok(u64::from_str_radix(&self.name, 16)?)
     }
 
     pub fn get_version<T: Leaf>(
