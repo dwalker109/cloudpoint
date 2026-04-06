@@ -16,7 +16,7 @@ impl VersionDirList {
         title_id: u64,
         mode: CtrArchiveKind,
     ) -> Result<VersionDirList> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id}/{mode}/");
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/");
 
         let res = client.get(&url, &[("Accept", "application/json")])?;
 
@@ -48,9 +48,7 @@ pub struct VersionDirEntry {
 
 impl VersionDirEntry {
     pub fn fingerprint(&self) -> Result<u64> {
-        self.name
-            .parse()
-            .context("{self.name} is not named with a valid fingerprint")
+        Ok(u64::from_str_radix(&self.name, 16)?)
     }
 
     pub fn get_version<T: Leaf>(
@@ -61,7 +59,8 @@ impl VersionDirEntry {
         mode: CtrArchiveKind,
         fingerprint: u64,
     ) -> Result<Version<T>> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id}/{mode}/{fingerprint}",);
+        let url =
+            format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
 
         let res = client.get(&url, &[])?;
 
@@ -80,8 +79,8 @@ impl VersionDirEntry {
         version: &Version<T>,
     ) -> Result<()> {
         let url = format!(
-            "{base_url}/sync/{user_key}/titles/{title_id}/{mode}/{}",
-            version.fingerprint(),
+            "{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",
+            fingerprint = version.fingerprint(),
         );
 
         let body = postcard::to_allocvec(&version)?;
@@ -134,7 +133,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET")
-                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/"));
+                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/"));
             then.status(200).body(
                 r#"[
                     {"name":"12345678","size":123,"mtime":123456789},
@@ -210,7 +209,8 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/12345678"
+                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/{fingerprint:016X}",
+                fingerprint = 12345678
             ));
             then.status(200).body(
                 postcard::to_allocvec(&DuckVersion {
@@ -230,7 +230,7 @@ mod tests {
             CtrArchiveKind::Savedata,
             12345678,
         );
-        dbg!(&res);
+
         assert!(res.is_ok());
     }
 
@@ -238,8 +238,10 @@ mod tests {
     fn version_get_fails_on_malformed_data() {
         let srv = MockServer::start();
         srv.mock(|when, then| {
-            when.method("GET")
-                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID}/save/12345678"));
+            when.method("GET").path(format!(
+                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/save/{fingerprint:016X}",
+                fingerprint = 12345678
+            ));
             then.status(200)
                 .body(postcard::to_allocvec(b"junk bytes").unwrap());
         });
@@ -292,8 +294,8 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID}/savedata/{}",
-                v.fingerprint()
+                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/{fingerprint:016X}",
+                fingerprint = v.fingerprint()
             ));
             then.status(201);
         });

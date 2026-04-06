@@ -6,6 +6,7 @@ pub struct Settings {
     pub base_url: String,
     pub user_key: String,
     pub log: String,
+    pub backup: bool,
 }
 
 pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
@@ -15,6 +16,8 @@ pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
         .set_default("user_key", "foobarbaz")
         .unwrap()
         .set_default("log", "off")
+        .unwrap()
+        .set_default("backup", true)
         .unwrap()
         .add_source(config::File::from_str(
             &fs::read_to_string("sdmc:/3ds/Cloudpoint/settings.ini").unwrap_or_default(),
