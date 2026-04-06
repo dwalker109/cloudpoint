@@ -116,12 +116,7 @@ impl CtrArchive {
 
 impl Drop for CtrArchive {
     fn drop(&mut self) {
-        if self.kind == CtrArchiveKind::Savedata {
-            // TODO! Only do this when something has actually been changed.
-            ctr_commit_archive(self.archive_handle).expect("save archive committed");
-        }
-
-        ctr_close_archive(self.archive_handle).expect("archive closed");
+        ctr_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
 
@@ -161,7 +156,7 @@ impl CtrFile {
 
 impl Drop for CtrFile {
     fn drop(&mut self) {
-        ctr_close_file(self.file_handle).expect("could not close file");
+        ctr_close_file(self.file_handle).expect("file should be closable");
     }
 }
 
@@ -177,6 +172,6 @@ impl CtrDirectory {
 
 impl Drop for CtrDirectory {
     fn drop(&mut self) {
-        ctr_close_directory(self.directory_handle).expect("could not close directory");
+        ctr_close_directory(self.directory_handle).expect("dir should be closable");
     }
 }

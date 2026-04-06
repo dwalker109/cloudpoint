@@ -8,7 +8,7 @@ use crate::{
 use anyhow::Result;
 use chunktree::{
     store::MemStore,
-    tree::Tree,
+    tree::{Leaf, Tree},
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
@@ -16,8 +16,14 @@ use cloudpoint_lib::{
     sync::{CtrArchiveKind, SyncAction, SyncState},
     version::VersionDirEntry,
 };
-use ctru::services::hid::KeyPad;
-use std::{collections::HashMap, fs, rc::Rc};
+use ctru::services::{am::Title, hid::KeyPad};
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::{self, BufWriter},
+    path::PathBuf,
+    rc::Rc,
+};
 
 pub fn run(
     services: &mut CtrSysServices,
@@ -193,6 +199,10 @@ fn dl(
         return Ok(());
     };
 
+    if SETTINGS.backup {
+        backup(&local_tree, &s)?;
+    }
+
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
     let store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
@@ -209,6 +219,35 @@ fn dl(
     write_db(s)?;
 
     println!("Downloaded!");
+
+    Ok(())
+}
+
+fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
+    let root_dir = PathBuf::from(format!(
+        "sdmc:/3ds/Cloudpoint/backups/{:016X}/{:016X}",
+        sync_state.title_id,
+        sync_state
+            .local_fp
+            .expect("Unreachable without local fingerprint")
+    ));
+
+    log::info!("Backing up to {:?}", root_dir);
+
+    for leaf in local_tree.leaves() {
+        let dst_path: PathBuf = root_dir.join(
+            leaf.path()
+                .components()
+                .filter(|c| matches!(c, std::path::Component::Normal(_)))
+                .collect::<PathBuf>(),
+        );
+
+        fs::create_dir_all(dst_path.parent().expect("file has parent directory"))?;
+        let mut writer = BufWriter::new(File::create(dst_path)?);
+        io::copy(&mut leaf.data()?, &mut writer)?;
+    }
+
+    log::info!("Backup complete");
 
     Ok(())
 }

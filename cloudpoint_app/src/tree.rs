@@ -76,7 +76,7 @@ impl Leaf for CtrArchiveLeaf {
                     .collect::<Vec<_>>();
 
                 for sep in path_separators {
-                    let dir_path = CtrFsPath::new(&format!("{}\0", &self.path[0..=sep]))?;
+                    let dir_path = CtrFsPath::new(&self.path[0..=sep])?;
 
                     if let Err(_) = self.ctx.archive.open_directory(&dir_path) {
                         self.ctx.archive.create_directory(&dir_path)?;

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ctru::{console::Console, services::hid::KeyPad};
+use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
 use std::collections::HashSet;
 
 mod ctr_fs;
@@ -11,6 +11,8 @@ mod sync;
 mod tree;
 
 fn main() -> Result<()> {
+    set_panic_hook(false);
+
     setup::logging()?;
     setup::sdmc()?;
 
