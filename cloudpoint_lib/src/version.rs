@@ -1,7 +1,8 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use crate::{http::CurlHttpClient, sync::CtrArchiveKind};
 
@@ -58,7 +59,7 @@ impl VersionDirEntry {
         title_id: u64,
         mode: CtrArchiveKind,
         fingerprint: u64,
-    ) -> Result<Version<T>> {
+    ) -> Result<Version<T, CtrMeta>> {
         let url =
             format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
 
@@ -76,7 +77,7 @@ impl VersionDirEntry {
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
-        version: &Version<T>,
+        version: &Version<T, CtrMeta>,
     ) -> Result<()> {
         let url = format!(
             "{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",
@@ -92,6 +93,44 @@ impl VersionDirEntry {
                 "version file upload failed fatally, HTTP {}",
                 res.status,
             )),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum CtrMeta {
+    Unavailable,
+    NotInitialized {
+        title_version: u16,
+    },
+    Initialized {
+        title_version: u16,
+        total_size: u32,
+        num_directories: u32,
+        num_files: u32,
+        duplicate_data: bool,
+    },
+}
+
+impl CtrMeta {
+    pub fn title_version(&self) -> Option<u16> {
+        match self {
+            CtrMeta::NotInitialized { title_version }
+            | CtrMeta::Initialized { title_version, .. } => Some(*title_version),
+            _ => None,
+        }
+    }
+
+    pub fn format_options(&self) -> Option<(u32, u32, u32, bool)> {
+        match self {
+            CtrMeta::Initialized {
+                total_size,
+                num_directories,
+                num_files,
+                duplicate_data,
+                ..
+            } => Some((*total_size, *num_directories, *num_files, *duplicate_data)),
+            _ => None,
         }
     }
 }
@@ -284,7 +323,13 @@ mod tests {
     fn version_put_succeeds_on_new_file() {
         let v = Version::<MemLeaf>::new(
             &Tree::new(Vec::default(), ()),
-            HashMap::default(),
+            CtrMeta::Initialized {
+                title_version: 0x01,
+                total_size: 128,
+                num_directories: 2,
+                num_files: 2,
+                duplicate_data: true,
+            },
             128,
             512,
             1024,

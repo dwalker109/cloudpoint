@@ -1,14 +1,140 @@
 use anyhow::anyhow;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{
-    AM_GetTitleExtDataId, ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_Archive, FS_DirectoryEntry, FS_Path,
-    FSDIR_Close, FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize,
-    FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave,
-    FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive,
-    FSUSER_OpenDirectory, FSUSER_OpenFile, Handle, R_FAILED, SECURESAVE_ACTION_DELETE,
-    SECUREVALUE_SLOT_SD,
+    AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, ARCHIVE_ACTION_COMMIT_SAVE_DATA,
+    FS_Archive, FS_DirectoryEntry, FS_ExtSaveDataInfo, FS_Path, FSDIR_Close, FSDIR_Read,
+    FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive,
+    FSUSER_ControlArchive, FSUSER_ControlSecureSave, FSUSER_CreateDirectory,
+    FSUSER_CreateExtSaveData, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_FormatSaveData,
+    FSUSER_GetFormatInfo, FSUSER_OpenArchive, FSUSER_OpenDirectory, FSUSER_OpenFile, Handle,
+    MEDIATYPE_SD, R_FAILED, SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
 };
-use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::{
+    io::{Error as IoError, ErrorKind as IoErrorKind},
+    ptr::null,
+};
+
+pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16, IoError> {
+    let mut title_info: AM_TitleInfo = unsafe { std::mem::zeroed() };
+
+    let res = unsafe {
+        AM_GetTitleInfo(
+            MEDIATYPE_SD,
+            1,
+            &title_id as *const u64 as _,
+            &mut title_info,
+        )
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not get titlei info for title {} [{:#010X}]",
+                title_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(title_info.version)
+}
+
+pub(super) fn ctr_get_format_info(
+    archive_id: ArchiveID,
+    path: FS_Path,
+) -> Result<(u32, u32, u32, bool), IoError> {
+    let mut total_size = 0u32;
+    let mut directories = 0u32;
+    let mut files = 0u32;
+    let mut duplicate_data = false;
+
+    let res = unsafe {
+        FSUSER_GetFormatInfo(
+            &mut total_size,
+            &mut directories,
+            &mut files,
+            &mut duplicate_data,
+            archive_id as u32,
+            path,
+        )
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not get format info for archive of kind {:?} at path {:?} [{:#010X}]",
+                archive_id,
+                path,
+                res
+            ),
+        ));
+    }
+
+    Ok((total_size, directories, files, duplicate_data))
+}
+
+pub(super) fn ctr_format_savedata(
+    path: FS_Path,
+    blocks: u32,
+    directories: u32,
+    files: u32,
+    duplicate_data: bool,
+) -> Result<(), IoError> {
+    let res = unsafe {
+        FSUSER_FormatSaveData(
+            ArchiveID::Savedata as u32,
+            path,
+            blocks,
+            directories,
+            files,
+            0,
+            0,
+            duplicate_data,
+        )
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not format save data at path {:?} [{:#010X}]",
+                path,
+                res
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+pub(super) fn ctr_create_ext_save_data(
+    save_id: u64,
+    directories: u32,
+    files: u32,
+) -> Result<(), IoError> {
+    let mut info = FS_ExtSaveDataInfo::default();
+    info.set_mediaType(MEDIATYPE_SD as u8);
+    info.saveId = save_id;
+
+    let mut smdh = 0;
+
+    let res = unsafe { FSUSER_CreateExtSaveData(info, directories, files, 0, 0, &mut smdh) };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not create extdata with id {} [{:#010X}]",
+                save_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(())
+}
 
 pub(super) fn ctr_open_archive(
     archive_id: ArchiveID,

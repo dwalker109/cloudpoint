@@ -1,5 +1,6 @@
 use anyhow::Result;
 use cloudpoint_lib::sync::CtrArchiveKind;
+use cloudpoint_lib::version::CtrMeta;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
@@ -11,6 +12,10 @@ use ffi::{
 };
 use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
+
+use crate::ctr_fs::ffi::{
+    ctr_create_ext_save_data, ctr_format_savedata, ctr_get_format_info, ctr_get_title_version,
+};
 
 mod ffi;
 
@@ -65,6 +70,49 @@ pub struct CtrArchive {
 }
 
 impl CtrArchive {
+    pub fn meta(title_id: u64, kind: CtrArchiveKind) -> Result<CtrMeta, IoError> {
+        let Ok(title_version) = ctr_get_title_version(title_id) else {
+            return Ok(CtrMeta::Unavailable);
+        };
+
+        let path = CtrArchivePath::new(title_id, kind)?;
+
+        let Ok((total_size, num_directories, num_files, duplicate_data)) =
+            ctr_get_format_info(path.archive_id, path.fs_path())
+        else {
+            return Ok(CtrMeta::NotInitialized { title_version });
+        };
+
+        Ok(CtrMeta::Initialized {
+            title_version,
+            total_size,
+            num_directories,
+            num_files,
+            duplicate_data,
+        })
+    }
+
+    pub fn format_new(title_id: u64, kind: CtrArchiveKind, meta: CtrMeta) -> Result<(), IoError> {
+        let (size, directories, files, duplicate_data) = meta
+            .format_options()
+            .expect("format options should be provided");
+
+        let path = CtrArchivePath::new(title_id, kind)?;
+
+        match kind {
+            CtrArchiveKind::Savedata => {
+                ctr_format_savedata(path.fs_path(), size, directories, files, duplicate_data)?;
+            }
+            CtrArchiveKind::Extdata => {
+                let extdata_id = ctr_getr_ext_data_id_for_title(title_id)?;
+
+                ctr_create_ext_save_data(extdata_id, directories, files)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn open(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
         let path = CtrArchivePath::new(title_id, kind)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
@@ -112,6 +160,16 @@ impl CtrArchive {
 
         Ok(())
     }
+}
+
+fn ctr_format_extdata(
+    extdata_id: u64,
+    size: u32,
+    directories: u32,
+    files: u32,
+    duplicate_data: bool,
+) -> std::result::Result<(), IoError> {
+    todo!()
 }
 
 impl Drop for CtrArchive {
