@@ -1,6 +1,5 @@
 use anyhow::Result;
 use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta, CtrSmdh};
-use cloudpoint_lib::utils::decode_utf16;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
@@ -11,7 +10,7 @@ use ffi::{
     ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
-use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::io::Error as IoError;
 
 use crate::ctr_fs::ffi::ctr_read_title_smdh;
 

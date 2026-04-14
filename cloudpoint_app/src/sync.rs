@@ -12,7 +12,7 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrArchiveKind, CtrMeta},
+    ctr::{CtrArchiveKind, CtrMeta, CtrSmdh, SmdhLanguage},
     http::CurlHttpClient,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
@@ -34,9 +34,21 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in active_sync_states.values_mut() {
-        log::info!("Starting sync for {:016x} {}", s.title_id, s.archive_kind);
+        let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
 
-        println!("\n{:016x} {}", s.title_id, s.archive_kind);
+        log::info!(
+            "Starting sync for {} ({:016x}) {}",
+            smdh.title_short(SmdhLanguage::English),
+            s.title_id,
+            s.archive_kind
+        );
+
+        println!(
+            "\n{} ({})",
+            smdh.title_short(SmdhLanguage::English),
+            smdh.title_publisher(SmdhLanguage::English)
+        );
+        println!("{:016x} {}", s.title_id, s.archive_kind);
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,

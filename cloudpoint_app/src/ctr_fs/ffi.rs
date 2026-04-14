@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use cloudpoint_lib::ctr::CtrSmdh;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{
     AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, ARCHIVE_ACTION_COMMIT_SAVE_DATA,
@@ -39,29 +38,31 @@ pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16, IoError> {
 }
 
 pub(super) fn ctr_read_title_smdh(title_id: u64) -> Result<Vec<u8>, IoError> {
+    let archive_path_data = [
+        title_id as u32,
+        (title_id >> 32) as u32,
+        MediaType::Sd as u32,
+        0x00000000u32,
+    ];
+
     let archive_path = FS_Path {
         type_: PATH_BINARY,
         size: 16u32,
-        data: [
-            title_id as u32,
-            (title_id >> 32) as u32,
-            MediaType::Sd as u32,
-            0x00000000u32,
-        ]
-        .as_ptr() as *const _,
+        data: archive_path_data.as_ptr() as *const _,
     };
+
+    let file_path_data = [
+        0x00000000u32,
+        0x00000000,
+        0x00000002,
+        0x6E6F6369,
+        0x00000000,
+    ];
 
     let file_path = FS_Path {
         type_: PATH_BINARY,
         size: 20u32,
-        data: [
-            0x00000000u32,
-            0x00000000,
-            0x00000002,
-            0x6E6F6369,
-            0x00000000,
-        ]
-        .as_ptr() as *const _,
+        data: file_path_data.as_ptr() as *const _,
     };
 
     let mut file_handle: Handle = 0;
