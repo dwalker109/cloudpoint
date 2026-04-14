@@ -1,5 +1,6 @@
 use anyhow::Result;
-use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta};
+use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta, CtrSmdh};
+use cloudpoint_lib::utils::decode_utf16;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
@@ -10,7 +11,9 @@ use ffi::{
     ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+
+use crate::ctr_fs::ffi::ctr_read_title_smdh;
 
 mod ffi;
 
@@ -69,13 +72,13 @@ impl CtrArchive {
         Ok(CtrMeta::new(ctr_get_title_version(title_id)?))
     }
 
-    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<Smdh, IoError> {
+    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<CtrSmdh, IoError> {
         match kind {
-            CtrArchiveKind::Savedata => unimplemented!(),
+            CtrArchiveKind::Savedata => Ok(ctr_read_title_smdh(title_id)?.into()),
             CtrArchiveKind::Extdata => {
                 let save_id = ctr_getr_ext_data_id_for_title(title_id)?;
 
-                Ok(Smdh(ctr_read_ext_smdh(save_id)?))
+                Ok(ctr_read_ext_smdh(save_id)?.into())
             }
         }
     }
@@ -134,8 +137,6 @@ impl Drop for CtrArchive {
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
-
-pub struct Smdh([u8; 0x36c0]);
 
 pub struct CtrFsPath(CString);
 
