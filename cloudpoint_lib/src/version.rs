@@ -1,9 +1,11 @@
-use anyhow::{Context, Result, anyhow};
+use crate::{ctr::CtrArchiveKind, http::CurlHttpClient};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use chunktree::{tree::Leaf, version::Version};
+use chunktree::{
+    tree::Leaf,
+    version::{Meta, Version},
+};
 use itertools::Itertools;
-
-use crate::{http::CurlHttpClient, sync::CtrArchiveKind};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
@@ -14,9 +16,9 @@ impl VersionDirList {
         base_url: &str,
         user_key: &str,
         title_id: u64,
-        mode: CtrArchiveKind,
+        kind: CtrArchiveKind,
     ) -> Result<VersionDirList> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/");
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{kind}/");
 
         let res = client.get(&url, &[("Accept", "application/json")])?;
 
@@ -51,14 +53,14 @@ impl VersionDirEntry {
         Ok(u64::from_str_radix(&self.name, 16)?)
     }
 
-    pub fn get_version<T: Leaf>(
+    pub fn get_version<T: Leaf, K: Meta>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
         fingerprint: u64,
-    ) -> Result<Version<T>> {
+    ) -> Result<Version<T, K>> {
         let url =
             format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
 
@@ -70,13 +72,13 @@ impl VersionDirEntry {
         }
     }
 
-    pub fn put_version<T: Leaf>(
+    pub fn put_version<T: Leaf, K: Meta>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
-        version: &Version<T>,
+        version: &Version<T, K>,
     ) -> Result<()> {
         let url = format!(
             "{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",
@@ -121,11 +123,11 @@ mod tests {
     #[test]
     fn fingerprint_ok_on_valid_name() {
         let e = VersionDirEntry {
-            name: "987654321".into(),
+            name: "000400000007AF00".into(),
             mtime: Default::default(),
         };
 
-        assert_eq!(e.fingerprint().unwrap(), 987654321);
+        assert_eq!(e.fingerprint().unwrap(), 0x000400000007AF00);
     }
 
     #[test]
@@ -282,9 +284,15 @@ mod tests {
 
     #[test]
     fn version_put_succeeds_on_new_file() {
-        let v = Version::<MemLeaf>::new(
+        let v = Version::<MemLeaf, CtrMeta>::new(
             &Tree::new(Vec::default(), ()),
-            HashMap::default(),
+            CtrMeta::Initialized {
+                title_version: 0x01,
+                total_size: 128,
+                num_directories: 2,
+                num_files: 2,
+                duplicate_data: true,
+            },
             128,
             512,
             1024,
@@ -312,26 +320,4 @@ mod tests {
 
         assert!(res.is_ok());
     }
-
-    // #[test]
-    // fn version_put_fails_on_existing_file() {
-    //     let v = Version::<MemLeaf>::new(
-    //         &Tree::new(Vec::default(), ()),
-    //         HashMap::default(),
-    //         128,
-    //         512,
-    //         1024,
-    //     )
-    //     .unwrap();
-
-    //     let srv = MockServer::start();
-    //     srv.mock(|when, then| {
-    //         when.method("PUT");
-    //         then.status(403);
-    //     });
-
-    //     let res = VersionDirEntry::put_version(&srv.base_url(), USER_KEY, TITLE_ID, &v);
-
-    //     assert!(res.is_err());
-    // }
 }

@@ -1,14 +1,127 @@
 use anyhow::anyhow;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{
-    AM_GetTitleExtDataId, ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_Archive, FS_DirectoryEntry, FS_Path,
-    FSDIR_Close, FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize,
-    FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave,
-    FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive,
-    FSUSER_OpenDirectory, FSUSER_OpenFile, Handle, R_FAILED, SECURESAVE_ACTION_DELETE,
-    SECUREVALUE_SLOT_SD,
+    AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, ARCHIVE_ACTION_COMMIT_SAVE_DATA,
+    FS_Archive, FS_DirectoryEntry, FS_ExtSaveDataInfo, FS_OPEN_READ, FS_Path, FSDIR_Close,
+    FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write,
+    FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave, FSUSER_CreateDirectory,
+    FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive, FSUSER_OpenDirectory,
+    FSUSER_OpenFile, FSUSER_OpenFileDirectly, FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD,
+    PATH_BINARY, R_FAILED, SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
 };
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+
+pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16, IoError> {
+    let mut title_info: AM_TitleInfo = unsafe { std::mem::zeroed() };
+
+    let res = unsafe {
+        AM_GetTitleInfo(
+            MEDIATYPE_SD,
+            1,
+            &title_id as *const u64 as _,
+            &mut title_info,
+        )
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not get title info for title {} [{:#010X}]",
+                title_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(title_info.version)
+}
+
+pub(super) fn ctr_read_title_smdh(title_id: u64) -> Result<Vec<u8>, IoError> {
+    let archive_path_data = [
+        title_id as u32,
+        (title_id >> 32) as u32,
+        MediaType::Sd as u32,
+        0x00000000u32,
+    ];
+
+    let archive_path = FS_Path {
+        type_: PATH_BINARY,
+        size: 16u32,
+        data: archive_path_data.as_ptr() as *const _,
+    };
+
+    let file_path_data = [
+        0x00000000u32,
+        0x00000000,
+        0x00000002,
+        0x6E6F6369,
+        0x00000000,
+    ];
+
+    let file_path = FS_Path {
+        type_: PATH_BINARY,
+        size: 20u32,
+        data: file_path_data.as_ptr() as *const _,
+    };
+
+    let mut file_handle: Handle = 0;
+
+    let res = unsafe {
+        FSUSER_OpenFileDirectly(
+            &mut file_handle,
+            ArchiveID::SaveDataAndContent as u32,
+            archive_path,
+            file_path,
+            FS_OPEN_READ as u32,
+            0u32,
+        )
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not open smdh icon file for title {} [{:#010X}]",
+                title_id,
+                res
+            ),
+        ));
+    }
+
+    let smdh = ctr_read_file(file_handle, 0, 0x36c0)?;
+
+    ctr_close_file(file_handle)?;
+
+    Ok(smdh)
+}
+
+pub(super) fn ctr_read_ext_smdh(save_id: u64) -> Result<Vec<u8>, IoError> {
+    let mut bytes_read = 0;
+
+    let mut info: FS_ExtSaveDataInfo = unsafe { std::mem::zeroed() };
+    info.set_mediaType(MEDIATYPE_SD as u8);
+    info.saveId = save_id;
+
+    let mut smdh = [0u8; 0x36c0];
+
+    let res = unsafe {
+        FSUSER_ReadExtSaveDataIcon(&mut bytes_read, info, 0x36c0, &mut smdh as *mut u8 as _)
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not read extdata smdh for id {} [{:#010X}]",
+                save_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(smdh.to_vec())
+}
 
 pub(super) fn ctr_open_archive(
     archive_id: ArchiveID,

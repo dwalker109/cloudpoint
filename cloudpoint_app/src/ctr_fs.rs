@@ -1,16 +1,18 @@
 use anyhow::Result;
-use cloudpoint_lib::sync::CtrArchiveKind;
+use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta, CtrSmdh};
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
-    ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory, ctr_open_file,
-    ctr_read_directory, ctr_read_file, ctr_reset_secure_save_meta, ctr_set_file_size,
-    ctr_write_file,
+    ctr_get_title_version, ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory,
+    ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
+    ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
+
+use crate::ctr_fs::ffi::ctr_read_title_smdh;
 
 mod ffi;
 
@@ -65,6 +67,21 @@ pub struct CtrArchive {
 }
 
 impl CtrArchive {
+    pub fn meta(title_id: u64) -> Result<CtrMeta, IoError> {
+        Ok(CtrMeta::new(ctr_get_title_version(title_id)?))
+    }
+
+    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<CtrSmdh, IoError> {
+        match kind {
+            CtrArchiveKind::Savedata => Ok(ctr_read_title_smdh(title_id)?.into()),
+            CtrArchiveKind::Extdata => {
+                let save_id = ctr_getr_ext_data_id_for_title(title_id)?;
+
+                Ok(ctr_read_ext_smdh(save_id)?.into())
+            }
+        }
+    }
+
     pub fn open(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
         let path = CtrArchivePath::new(title_id, kind)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
