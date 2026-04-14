@@ -1,7 +1,8 @@
 use crate::services::CtrSysServices;
 use crate::settings::SETTINGS;
 use anyhow::{Context, Result};
-use cloudpoint_lib::sync::{CtrArchiveKind, SyncState};
+use cloudpoint_lib::ctr::CtrArchiveKind;
+use cloudpoint_lib::sync::SyncState;
 use ctru::services::am::{Am, Title};
 use ctru::services::fs::MediaType;
 use std::collections::HashMap;

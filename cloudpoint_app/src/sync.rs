@@ -12,11 +12,12 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
+    ctr::{CtrArchiveKind, CtrMeta, CtrSmdh, SmdhLanguage},
     http::CurlHttpClient,
-    sync::{CtrArchiveKind, SyncAction, SyncState},
+    sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
-use ctru::services::{am::Title, hid::KeyPad};
+use ctru::services::hid::KeyPad;
 use std::{
     collections::HashMap,
     fs::{self, File},
@@ -33,9 +34,21 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in active_sync_states.values_mut() {
-        log::info!("Starting sync for {:016x} {}", s.title_id, s.archive_kind);
+        let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
 
-        println!("\n{:016x} {}", s.title_id, s.archive_kind);
+        log::info!(
+            "Starting sync for {} ({:016x}) {}",
+            smdh.title_short(SmdhLanguage::English),
+            s.title_id,
+            s.archive_kind
+        );
+
+        println!(
+            "\n{} ({})",
+            smdh.title_short(SmdhLanguage::English),
+            smdh.title_publisher(SmdhLanguage::English)
+        );
+        println!("{:016x} {}", s.title_id, s.archive_kind);
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
@@ -44,26 +57,24 @@ pub fn run(
             s.title_id,
             s.archive_kind,
         )?;
-        s.remote_fp = list.latest().and_then(|e| e.fingerprint().ok());
 
-        let archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
+        let remote_ver = list.latest();
+        s.remote_fp = remote_ver.and_then(|e| e.fingerprint().ok());
 
-        let Ok(local_tree) = tree::from_archive(Rc::clone(&archive)) else {
+        let local_meta = CtrArchive::meta(s.title_id)?;
+        let local_archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
+
+        let Ok(local_tree) = tree::from_archive(Rc::clone(&local_archive)) else {
             log::info!(
                 "{} archive does not exist for title {:016x}",
                 s.archive_kind,
                 s.title_id
             );
 
-            println!(
-                "Cannot open {:?} archive for title {:016x}, run once to init and retry",
-                s.archive_kind, s.title_id
-            );
-
             continue;
         };
 
-        let local_ver = Version::new(&local_tree, HashMap::default(), 128_000, 512_000, 1024_000)?;
+        let local_ver = Version::new(&local_tree, local_meta, 128_000, 512_000, 1024_000)?;
         s.local_fp = Some(local_ver.fingerprint());
 
         print!("Local {:016x}", s.local_fp.unwrap_or_default());
@@ -111,7 +122,8 @@ pub fn run(
                         dl(
                             &mut s,
                             Rc::clone(&client),
-                            Rc::clone(&archive),
+                            Rc::clone(&local_archive),
+                            &local_meta,
                             &local_ver,
                             local_tree,
                         )?;
@@ -132,7 +144,8 @@ pub fn run(
                 dl(
                     &mut s,
                     Rc::clone(&client),
-                    Rc::clone(&archive),
+                    Rc::clone(&local_archive),
+                    &local_meta,
                     &local_ver,
                     local_tree,
                 )?;
@@ -150,7 +163,7 @@ pub fn run(
 fn ul(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
-    local_ver: &Version<CtrArchiveLeaf>,
+    local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
@@ -180,12 +193,13 @@ fn dl(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
     archive: Rc<CtrArchive>,
-    local_ver: &Version<CtrArchiveLeaf>,
+    local_meta: &CtrMeta,
+    local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
 
-    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
+    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &SETTINGS.base_url,
         &SETTINGS.user_key,
@@ -198,6 +212,22 @@ fn dl(
 
         return Ok(());
     };
+
+    if local_meta.title_version() != remote_ver.meta().title_version() {
+        log::info!(
+            "title versions do not match, cannot sync: local={:?} remote={:?}",
+            local_meta.title_version(),
+            remote_ver.meta().title_version()
+        );
+
+        println!(
+            "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
+            local_meta.title_version(),
+            remote_ver.meta().title_version()
+        );
+
+        return Ok(());
+    }
 
     if SETTINGS.backup {
         backup(&local_tree, &s)?;

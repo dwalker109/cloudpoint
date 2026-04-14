@@ -1,8 +1,6 @@
-use std::fmt::Display;
+use crate::ctr::CtrArchiveKind;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
     pub title_id: u64,
     pub product_code: String,
@@ -32,33 +30,6 @@ impl SyncState {
                     (false, false) => unreachable!(),
                 }
             }
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub enum CtrArchiveKind {
-    Savedata,
-    Extdata,
-}
-
-impl Display for CtrArchiveKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CtrArchiveKind::Savedata => write!(f, "savedata"),
-            CtrArchiveKind::Extdata => write!(f, "extdata"),
-        }
-    }
-}
-
-impl TryFrom<&str> for CtrArchiveKind {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "savedata" => Ok(CtrArchiveKind::Savedata),
-            "extdata" => Ok(CtrArchiveKind::Extdata),
-            _ => Err(()),
         }
     }
 }
