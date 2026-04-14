@@ -83,13 +83,40 @@ pub fn run(
                             s.archive_kind, s.title_id
                         );
 
+                        let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
+                            &client,
+                            &SETTINGS.base_url,
+                            &SETTINGS.user_key,
+                            s.title_id,
+                            s.archive_kind,
+                            s.remote_fp
+                                .expect("unreachable without a remote version available"),
+                        ) else {
+                            println!("Failed to fetch version manifest :(");
+
+                            return Ok(());
+                        };
+
+                        let smdh = match s.archive_kind {
+                            CtrArchiveKind::Savedata => None,
+                            CtrArchiveKind::Extdata => CtrMeta::get_smdh(
+                                &client,
+                                &SETTINGS.base_url,
+                                &SETTINGS.user_key,
+                                s.title_id,
+                                s.archive_kind,
+                            )
+                            .ok(),
+                        };
+
                         CtrArchive::format_new(
                             s.title_id,
                             s.archive_kind,
-                            remote_ver
-                                .expect("remote version should exist to initiate a download")
-                                .meta(),
+                            remote_ver.meta(),
+                            smdh,
                         )?;
+
+                        println!("Initialised, now try again");
                     }
                 }
 
@@ -212,6 +239,19 @@ fn ul(
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
+
+    if s.archive_kind == CtrArchiveKind::Extdata {
+        let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
+
+        CtrMeta::put_smdh(
+            &client,
+            &SETTINGS.base_url,
+            &SETTINGS.user_key,
+            s.title_id,
+            s.archive_kind,
+            &smdh,
+        )?;
+    }
 
     let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
     local_ver.copy_chunks(&local_tree, &mut store)?;

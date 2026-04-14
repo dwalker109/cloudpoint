@@ -97,7 +97,7 @@ impl VersionDirEntry {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum CtrMeta {
     Unavailable,
     NotInitialized {
@@ -133,6 +133,43 @@ impl CtrMeta {
             _ => None,
         }
     }
+
+    pub fn get_smdh(
+        client: &CurlHttpClient,
+        base_url: &str,
+        user_key: &str,
+        title_id: u64,
+        mode: CtrArchiveKind,
+    ) -> Result<[u8; 0x36c0]> {
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/smdh",);
+
+        let res = client.get(&url, &[])?;
+
+        match res.status {
+            200 => Ok(res.body.try_into().map_err(|_| {
+                anyhow!("smdh download not sized correctly, expected 0x36c0 bytes")
+            })?),
+            _ => Err(anyhow!("smdh download failed, HTTP {}", &res.status,)),
+        }
+    }
+
+    pub fn put_smdh(
+        client: &CurlHttpClient,
+        base_url: &str,
+        user_key: &str,
+        title_id: u64,
+        mode: CtrArchiveKind,
+        smdh: &[u8; 0x36c0],
+    ) -> Result<()> {
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/smdh",);
+
+        let res = client.put(&url, smdh, &[])?;
+
+        match res.status {
+            201 => Ok(()),
+            _ => Err(anyhow!("smdh upload failed fatally, HTTP {}", res.status,)),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -160,11 +197,11 @@ mod tests {
     #[test]
     fn fingerprint_ok_on_valid_name() {
         let e = VersionDirEntry {
-            name: "987654321".into(),
+            name: "000400000007AF00".into(),
             mtime: Default::default(),
         };
 
-        assert_eq!(e.fingerprint().unwrap(), 987654321);
+        assert_eq!(e.fingerprint().unwrap(), 0x000400000007AF00);
     }
 
     #[test]
@@ -321,7 +358,7 @@ mod tests {
 
     #[test]
     fn version_put_succeeds_on_new_file() {
-        let v = Version::<MemLeaf>::new(
+        let v = Version::<MemLeaf, CtrMeta>::new(
             &Tree::new(Vec::default(), ()),
             CtrMeta::Initialized {
                 title_version: 0x01,
@@ -358,25 +395,51 @@ mod tests {
         assert!(res.is_ok());
     }
 
-    // #[test]
-    // fn version_put_fails_on_existing_file() {
-    //     let v = Version::<MemLeaf>::new(
-    //         &Tree::new(Vec::default(), ()),
-    //         HashMap::default(),
-    //         128,
-    //         512,
-    //         1024,
-    //     )
-    //     .unwrap();
+    #[test]
+    fn can_get_smdh() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET").path(format!(
+                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/extdata/smdh",
+            ));
+            then.status(200).body(vec![255u8; 0x36c0]);
+        });
 
-    //     let srv = MockServer::start();
-    //     srv.mock(|when, then| {
-    //         when.method("PUT");
-    //         then.status(403);
-    //     });
+        let client = CurlHttpClient::new().unwrap();
+        let res = CtrMeta::get_smdh(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Extdata,
+        );
 
-    //     let res = VersionDirEntry::put_version(&srv.base_url(), USER_KEY, TITLE_ID, &v);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().len(), 0x36c0);
+    }
 
-    //     assert!(res.is_err());
-    // }
+    #[test]
+    fn can_put_smdh() {
+        let smdh = vec![255u8; 0x36c0];
+
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("PUT").path(format!(
+                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/extdata/smdh",
+            ));
+            then.status(201);
+        });
+
+        let client = CurlHttpClient::new().unwrap();
+        let res = CtrMeta::put_smdh(
+            &client,
+            &srv.base_url(),
+            USER_KEY,
+            TITLE_ID,
+            CtrArchiveKind::Extdata,
+            &smdh.try_into().unwrap(),
+        );
+        dbg!(&res);
+        assert!(res.is_ok());
+    }
 }

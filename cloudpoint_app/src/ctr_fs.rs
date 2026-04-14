@@ -15,6 +15,7 @@ use std::io::Error as IoError;
 
 use crate::ctr_fs::ffi::{
     ctr_create_ext_save_data, ctr_format_savedata, ctr_get_format_info, ctr_get_title_version,
+    ctr_read_ext_smdh,
 };
 
 mod ffi;
@@ -92,21 +93,40 @@ impl CtrArchive {
         })
     }
 
-    pub fn format_new(title_id: u64, kind: CtrArchiveKind, meta: CtrMeta) -> Result<(), IoError> {
+    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<[u8; 0x36c0], IoError> {
+        match kind {
+            CtrArchiveKind::Savedata => unimplemented!(),
+            CtrArchiveKind::Extdata => {
+                let save_id = ctr_getr_ext_data_id_for_title(title_id)?;
+                ctr_read_ext_smdh(save_id)
+            }
+        }
+    }
+
+    pub fn format_new(
+        title_id: u64,
+        kind: CtrArchiveKind,
+        meta: &CtrMeta,
+        smdh: Option<[u8; 0x36c0]>,
+    ) -> Result<(), IoError> {
         let (size, directories, files, duplicate_data) = meta
             .format_options()
             .expect("format options should be provided");
 
-        let path = CtrArchivePath::new(title_id, kind)?;
-
         match kind {
             CtrArchiveKind::Savedata => {
+                let path = CtrArchivePath::new(title_id, kind)?;
                 ctr_format_savedata(path.fs_path(), size, directories, files, duplicate_data)?;
             }
             CtrArchiveKind::Extdata => {
                 let extdata_id = ctr_getr_ext_data_id_for_title(title_id)?;
 
-                ctr_create_ext_save_data(extdata_id, directories, files)?;
+                ctr_create_ext_save_data(
+                    extdata_id,
+                    directories,
+                    files,
+                    &smdh.expect("smdh data should be provided"),
+                )?;
             }
         }
 

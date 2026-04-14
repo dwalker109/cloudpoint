@@ -6,8 +6,9 @@ use ctru_sys::{
     FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive,
     FSUSER_ControlArchive, FSUSER_ControlSecureSave, FSUSER_CreateDirectory,
     FSUSER_CreateExtSaveData, FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_FormatSaveData,
-    FSUSER_GetFormatInfo, FSUSER_OpenArchive, FSUSER_OpenDirectory, FSUSER_OpenFile, Handle,
-    MEDIATYPE_SD, R_FAILED, SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
+    FSUSER_GetFormatInfo, FSUSER_OpenArchive, FSUSER_OpenDirectory, FSUSER_OpenFile,
+    FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD, R_FAILED, SECURESAVE_ACTION_DELETE,
+    SECUREVALUE_SLOT_SD,
 };
 use std::{
     io::{Error as IoError, ErrorKind as IoErrorKind},
@@ -82,15 +83,60 @@ pub(super) fn ctr_format_savedata(
     files: u32,
     duplicate_data: bool,
 ) -> Result<(), IoError> {
+    fn next_prime(n: u32) -> u32 {
+        if n <= 2 {
+            return 2;
+        }
+        let mut candidate = if n % 2 == 0 { n + 1 } else { n };
+        while !is_prime(candidate) {
+            candidate += 2;
+        }
+        candidate
+    }
+
+    fn is_prime(n: u32) -> bool {
+        if n < 2 {
+            return false;
+        }
+        if n == 2 {
+            return true;
+        }
+        if n % 2 == 0 {
+            return false;
+        }
+        let mut i = 3;
+        while i * i <= n {
+            if n % i == 0 {
+                return false;
+            }
+            i += 2;
+        }
+        true
+    }
+
+    let directory_buckets = next_prime(directories);
+    let file_buckets = next_prime(files);
+
+    dbg!(
+        path,
+        blocks,
+        directories,
+        files,
+        directory_buckets,
+        file_buckets,
+        duplicate_data
+    );
+
     let res = unsafe {
         FSUSER_FormatSaveData(
             ArchiveID::Savedata as u32,
             path,
-            blocks,
+            // blocks / 512,
+            256,
             directories,
             files,
-            0,
-            0,
+            directory_buckets,
+            file_buckets,
             duplicate_data,
         )
     };
@@ -113,14 +159,22 @@ pub(super) fn ctr_create_ext_save_data(
     save_id: u64,
     directories: u32,
     files: u32,
+    smdh: &[u8; 0x36c0],
 ) -> Result<(), IoError> {
-    let mut info = FS_ExtSaveDataInfo::default();
+    let mut info: FS_ExtSaveDataInfo = unsafe { std::mem::zeroed() };
     info.set_mediaType(MEDIATYPE_SD as u8);
     info.saveId = save_id;
 
-    let mut smdh = 0;
-
-    let res = unsafe { FSUSER_CreateExtSaveData(info, directories, files, 0, 0, &mut smdh) };
+    let res = unsafe {
+        FSUSER_CreateExtSaveData(
+            info,
+            directories,
+            files,
+            0,
+            0x36c0,
+            smdh.as_ptr() as *mut u8,
+        )
+    };
 
     if R_FAILED(res) {
         return Err(IoError::new(
@@ -134,6 +188,33 @@ pub(super) fn ctr_create_ext_save_data(
     }
 
     Ok(())
+}
+
+pub(super) fn ctr_read_ext_smdh(save_id: u64) -> Result<[u8; 0x36c0], IoError> {
+    let mut bytes_read = 0;
+
+    let mut info: FS_ExtSaveDataInfo = unsafe { std::mem::zeroed() };
+    info.set_mediaType(MEDIATYPE_SD as u8);
+    info.saveId = save_id;
+
+    let mut smdh = [0u8; 0x36c0];
+
+    let res = unsafe {
+        FSUSER_ReadExtSaveDataIcon(&mut bytes_read, info, 0x36c0, &mut smdh as *mut u8 as _)
+    };
+
+    if R_FAILED(res) {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "could not read extdata smdh for id {} [{:#010X}]",
+                save_id,
+                res
+            ),
+        ));
+    }
+
+    Ok(smdh)
 }
 
 pub(super) fn ctr_open_archive(
