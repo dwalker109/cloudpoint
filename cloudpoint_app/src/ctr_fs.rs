@@ -1,22 +1,16 @@
 use anyhow::Result;
-use cloudpoint_lib::sync::CtrArchiveKind;
-use cloudpoint_lib::version::CtrMeta;
+use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta};
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
-    ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory, ctr_open_file,
-    ctr_read_directory, ctr_read_file, ctr_reset_secure_save_meta, ctr_set_file_size,
-    ctr_write_file,
+    ctr_get_title_version, ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory,
+    ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
+    ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
-
-use crate::ctr_fs::ffi::{
-    ctr_create_ext_save_data, ctr_format_savedata, ctr_get_format_info, ctr_get_title_version,
-    ctr_read_ext_smdh,
-};
 
 mod ffi;
 
@@ -71,66 +65,19 @@ pub struct CtrArchive {
 }
 
 impl CtrArchive {
-    pub fn meta(title_id: u64, kind: CtrArchiveKind) -> Result<CtrMeta, IoError> {
-        let Ok(title_version) = ctr_get_title_version(title_id) else {
-            return Ok(CtrMeta::Unavailable);
-        };
-
-        let path = CtrArchivePath::new(title_id, kind)?;
-
-        let Ok((total_size, num_directories, num_files, duplicate_data)) =
-            ctr_get_format_info(path.archive_id, path.fs_path())
-        else {
-            return Ok(CtrMeta::NotInitialized { title_version });
-        };
-
-        Ok(CtrMeta::Initialized {
-            title_version,
-            total_size,
-            num_directories,
-            num_files,
-            duplicate_data,
-        })
+    pub fn meta(title_id: u64) -> Result<CtrMeta, IoError> {
+        Ok(CtrMeta::new(ctr_get_title_version(title_id)?))
     }
 
-    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<[u8; 0x36c0], IoError> {
+    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<Smdh, IoError> {
         match kind {
             CtrArchiveKind::Savedata => unimplemented!(),
             CtrArchiveKind::Extdata => {
                 let save_id = ctr_getr_ext_data_id_for_title(title_id)?;
-                ctr_read_ext_smdh(save_id)
+
+                Ok(Smdh(ctr_read_ext_smdh(save_id)?))
             }
         }
-    }
-
-    pub fn format_new(
-        title_id: u64,
-        kind: CtrArchiveKind,
-        meta: &CtrMeta,
-        smdh: Option<[u8; 0x36c0]>,
-    ) -> Result<(), IoError> {
-        let (size, directories, files, duplicate_data) = meta
-            .format_options()
-            .expect("format options should be provided");
-
-        match kind {
-            CtrArchiveKind::Savedata => {
-                let path = CtrArchivePath::new(title_id, kind)?;
-                ctr_format_savedata(path.fs_path(), size, directories, files, duplicate_data)?;
-            }
-            CtrArchiveKind::Extdata => {
-                let extdata_id = ctr_getr_ext_data_id_for_title(title_id)?;
-
-                ctr_create_ext_save_data(
-                    extdata_id,
-                    directories,
-                    files,
-                    &smdh.expect("smdh data should be provided"),
-                )?;
-            }
-        }
-
-        Ok(())
     }
 
     pub fn open(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
@@ -182,21 +129,13 @@ impl CtrArchive {
     }
 }
 
-fn ctr_format_extdata(
-    extdata_id: u64,
-    size: u32,
-    directories: u32,
-    files: u32,
-    duplicate_data: bool,
-) -> std::result::Result<(), IoError> {
-    todo!()
-}
-
 impl Drop for CtrArchive {
     fn drop(&mut self) {
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
+
+pub struct Smdh([u8; 0x36c0]);
 
 pub struct CtrFsPath(CString);
 

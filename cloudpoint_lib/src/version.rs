@@ -1,10 +1,11 @@
+use crate::{ctr::CtrArchiveKind, http::CurlHttpClient};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use chunktree::{tree::Leaf, version::Version};
+use chunktree::{
+    tree::Leaf,
+    version::{Meta, Version},
+};
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-
-use crate::{http::CurlHttpClient, sync::CtrArchiveKind};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
@@ -15,9 +16,9 @@ impl VersionDirList {
         base_url: &str,
         user_key: &str,
         title_id: u64,
-        mode: CtrArchiveKind,
+        kind: CtrArchiveKind,
     ) -> Result<VersionDirList> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/");
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{kind}/");
 
         let res = client.get(&url, &[("Accept", "application/json")])?;
 
@@ -52,14 +53,14 @@ impl VersionDirEntry {
         Ok(u64::from_str_radix(&self.name, 16)?)
     }
 
-    pub fn get_version<T: Leaf>(
+    pub fn get_version<T: Leaf, K: Meta>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
         fingerprint: u64,
-    ) -> Result<Version<T, CtrMeta>> {
+    ) -> Result<Version<T, K>> {
         let url =
             format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
 
@@ -71,13 +72,13 @@ impl VersionDirEntry {
         }
     }
 
-    pub fn put_version<T: Leaf>(
+    pub fn put_version<T: Leaf, K: Meta>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
-        version: &Version<T, CtrMeta>,
+        version: &Version<T, K>,
     ) -> Result<()> {
         let url = format!(
             "{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",
@@ -93,81 +94,6 @@ impl VersionDirEntry {
                 "version file upload failed fatally, HTTP {}",
                 res.status,
             )),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub enum CtrMeta {
-    Unavailable,
-    NotInitialized {
-        title_version: u16,
-    },
-    Initialized {
-        title_version: u16,
-        total_size: u32,
-        num_directories: u32,
-        num_files: u32,
-        duplicate_data: bool,
-    },
-}
-
-impl CtrMeta {
-    pub fn title_version(&self) -> Option<u16> {
-        match self {
-            CtrMeta::NotInitialized { title_version }
-            | CtrMeta::Initialized { title_version, .. } => Some(*title_version),
-            _ => None,
-        }
-    }
-
-    pub fn format_options(&self) -> Option<(u32, u32, u32, bool)> {
-        match self {
-            CtrMeta::Initialized {
-                total_size,
-                num_directories,
-                num_files,
-                duplicate_data,
-                ..
-            } => Some((*total_size, *num_directories, *num_files, *duplicate_data)),
-            _ => None,
-        }
-    }
-
-    pub fn get_smdh(
-        client: &CurlHttpClient,
-        base_url: &str,
-        user_key: &str,
-        title_id: u64,
-        mode: CtrArchiveKind,
-    ) -> Result<[u8; 0x36c0]> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/smdh",);
-
-        let res = client.get(&url, &[])?;
-
-        match res.status {
-            200 => Ok(res.body.try_into().map_err(|_| {
-                anyhow!("smdh download not sized correctly, expected 0x36c0 bytes")
-            })?),
-            _ => Err(anyhow!("smdh download failed, HTTP {}", &res.status,)),
-        }
-    }
-
-    pub fn put_smdh(
-        client: &CurlHttpClient,
-        base_url: &str,
-        user_key: &str,
-        title_id: u64,
-        mode: CtrArchiveKind,
-        smdh: &[u8; 0x36c0],
-    ) -> Result<()> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/smdh",);
-
-        let res = client.put(&url, smdh, &[])?;
-
-        match res.status {
-            201 => Ok(()),
-            _ => Err(anyhow!("smdh upload failed fatally, HTTP {}", res.status,)),
         }
     }
 }
@@ -392,54 +318,6 @@ mod tests {
             &v,
         );
 
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn can_get_smdh() {
-        let srv = MockServer::start();
-        srv.mock(|when, then| {
-            when.method("GET").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/extdata/smdh",
-            ));
-            then.status(200).body(vec![255u8; 0x36c0]);
-        });
-
-        let client = CurlHttpClient::new().unwrap();
-        let res = CtrMeta::get_smdh(
-            &client,
-            &srv.base_url(),
-            USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Extdata,
-        );
-
-        assert!(res.is_ok());
-        assert_eq!(res.unwrap().len(), 0x36c0);
-    }
-
-    #[test]
-    fn can_put_smdh() {
-        let smdh = vec![255u8; 0x36c0];
-
-        let srv = MockServer::start();
-        srv.mock(|when, then| {
-            when.method("PUT").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/extdata/smdh",
-            ));
-            then.status(201);
-        });
-
-        let client = CurlHttpClient::new().unwrap();
-        let res = CtrMeta::put_smdh(
-            &client,
-            &srv.base_url(),
-            USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Extdata,
-            &smdh.try_into().unwrap(),
-        );
-        dbg!(&res);
         assert!(res.is_ok());
     }
 }

@@ -2,7 +2,7 @@ use crate::ctr_fs::{CtrArchive, CtrFsPath};
 
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
-use cloudpoint_lib::sync::CtrArchiveKind;
+use cloudpoint_lib::ctr::CtrArchiveKind;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
 use std::io::{self, Cursor};
 use std::rc::Rc;

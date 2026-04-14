@@ -5,7 +5,7 @@ pub struct CtrSysServices {
     pub am: Am,
     pub apt: Apt,
     pub hid: Hid,
-    pub soc: Soc,
+    pub _soc: Soc,
 }
 
 impl CtrSysServices {
@@ -13,9 +13,9 @@ impl CtrSysServices {
         let am = Am::new()?;
         let apt = Apt::new()?;
         let hid = Hid::new()?;
-        let soc = Soc::new()?;
+        let _soc = Soc::new()?;
 
-        Ok(Self { am, apt, hid, soc })
+        Ok(Self { am, apt, hid, _soc })
     }
 }
 

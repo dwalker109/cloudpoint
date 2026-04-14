@@ -12,9 +12,10 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
+    ctr::{CtrArchiveKind, CtrMeta},
     http::CurlHttpClient,
-    sync::{CtrArchiveKind, SyncAction, SyncState},
-    version::{CtrMeta, VersionDirEntry},
+    sync::{SyncAction, SyncState},
+    version::VersionDirEntry,
 };
 use ctru::services::hid::KeyPad;
 use std::{
@@ -48,169 +49,64 @@ pub fn run(
         let remote_ver = list.latest();
         s.remote_fp = remote_ver.and_then(|e| e.fingerprint().ok());
 
-        let local_meta = CtrArchive::meta(s.title_id, s.archive_kind)?;
-        match local_meta {
-            CtrMeta::Unavailable => {
-                log::info!("title {:016X} is not available on this system", s.title_id);
-                println!(
-                    "Title {:016X} does not seem to be installed, so its data cannot be synced yet",
-                    s.title_id
-                );
-            }
-            CtrMeta::NotInitialized { title_version } => {
-                match s.get_action() {
-                    SyncAction::NoData => {
-                        log::info!(
-                            "No local or remote data for {:016x} {}",
-                            s.title_id,
-                            s.archive_kind
-                        );
+        let local_meta = CtrArchive::meta(s.title_id)?;
+        let local_archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
 
-                        println!("Nothing to do, no local or remote data!");
-                    }
-                    SyncAction::NoChange | SyncAction::Conflict | SyncAction::Upload => {
-                        unreachable!()
-                    }
-                    SyncAction::Download => {
-                        log::info!(
-                            "initialising {} for title {:016X}",
-                            s.archive_kind,
-                            s.title_id
-                        );
+        let Ok(local_tree) = tree::from_archive(Rc::clone(&local_archive)) else {
+            log::info!(
+                "{} archive does not exist for title {:016x}",
+                s.archive_kind,
+                s.title_id
+            );
 
-                        println!(
-                            "Archive {} for title {:016X} is being initialised",
-                            s.archive_kind, s.title_id
-                        );
+            continue;
+        };
 
-                        let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
-                            &client,
-                            &SETTINGS.base_url,
-                            &SETTINGS.user_key,
-                            s.title_id,
-                            s.archive_kind,
-                            s.remote_fp
-                                .expect("unreachable without a remote version available"),
-                        ) else {
-                            println!("Failed to fetch version manifest :(");
+        let local_ver = Version::new(&local_tree, local_meta, 128_000, 512_000, 1024_000)?;
+        s.local_fp = Some(local_ver.fingerprint());
 
-                            return Ok(());
-                        };
+        print!("Local {:016x}", s.local_fp.unwrap_or_default());
+        println!("\x1b[5C{:016x} Remote", s.remote_fp.unwrap_or_default());
 
-                        let smdh = match s.archive_kind {
-                            CtrArchiveKind::Savedata => None,
-                            CtrArchiveKind::Extdata => CtrMeta::get_smdh(
-                                &client,
-                                &SETTINGS.base_url,
-                                &SETTINGS.user_key,
-                                s.title_id,
-                                s.archive_kind,
-                            )
-                            .ok(),
-                        };
-
-                        CtrArchive::format_new(
-                            s.title_id,
-                            s.archive_kind,
-                            remote_ver.meta(),
-                            smdh,
-                        )?;
-
-                        println!("Initialised, now try again");
-                    }
-                }
-
+        match s.get_action() {
+            SyncAction::NoData => {
                 log::info!(
-                    "initialising {} for title {:016X}",
-                    s.archive_kind,
-                    s.title_id
+                    "No local or remote data for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
                 );
 
-                println!(
-                    "Archive {} for title {:016X} is being initialised",
-                    s.archive_kind, s.title_id
-                );
+                println!("Nothing to do, no local or remote data!");
             }
-            CtrMeta::Initialized { .. } => {
-                let local_archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
+            SyncAction::NoChange => {
+                log::info!(
+                    "Local and remote data match for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
+                );
 
-                let Ok(local_tree) = tree::from_archive(Rc::clone(&local_archive)) else {
-                    log::info!(
-                        "{} archive does not exist for title {:016x}",
-                        s.archive_kind,
-                        s.title_id
-                    );
+                println!("Nothing to do, local and remote data match!");
+            }
+            SyncAction::Conflict => {
+                log::info!(
+                    "Changed on server and locally for {:016x} {}",
+                    s.title_id,
+                    s.archive_kind
+                );
 
-                    continue;
-                };
+                println!("Changed on server and locally!");
+                println!("DPAD UP to upload (local wins)");
+                println!("DPAD DOWN to download (remote wins)");
+                println!("DPAD LEFT or DPAD RIGHT to skip (come back later)");
 
-                let local_ver = Version::new(&local_tree, local_meta, 128_000, 512_000, 1024_000)?;
-                s.local_fp = Some(local_ver.fingerprint());
+                while services.apt.main_loop() {
+                    gfx_services.gfx.wait_for_vblank();
+                    services.hid.scan_input();
 
-                print!("Local {:016x}", s.local_fp.unwrap_or_default());
-                println!("\x1b[5C{:016x} Remote", s.remote_fp.unwrap_or_default());
-
-                match s.get_action() {
-                    SyncAction::NoData => {
-                        log::info!(
-                            "No local or remote data for {:016x} {}",
-                            s.title_id,
-                            s.archive_kind
-                        );
-
-                        println!("Nothing to do, no local or remote data!");
-                    }
-                    SyncAction::NoChange => {
-                        log::info!(
-                            "Local and remote data match for {:016x} {}",
-                            s.title_id,
-                            s.archive_kind
-                        );
-
-                        println!("Nothing to do, local and remote data match!");
-                    }
-                    SyncAction::Conflict => {
-                        log::info!(
-                            "Changed on server and locally for {:016x} {}",
-                            s.title_id,
-                            s.archive_kind
-                        );
-
-                        println!("Changed on server and locally!");
-                        println!("DPAD UP to upload (local wins)");
-                        println!("DPAD DOWN to download (remote wins)");
-                        println!("DPAD LEFT or DPAD RIGHT to skip (come back later)");
-
-                        while services.apt.main_loop() {
-                            gfx_services.gfx.wait_for_vblank();
-                            services.hid.scan_input();
-
-                            if services.hid.keys_down().contains(KeyPad::DPAD_UP) {
-                                ul(&mut s, Rc::clone(&client), &local_ver, &local_tree)?;
-                                break;
-                            } else if services.hid.keys_down().contains(KeyPad::DPAD_DOWN) {
-                                dl(
-                                    &mut s,
-                                    Rc::clone(&client),
-                                    Rc::clone(&local_archive),
-                                    &local_meta,
-                                    &local_ver,
-                                    local_tree,
-                                )?;
-                                break;
-                            } else if services
-                                .hid
-                                .keys_down()
-                                .intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT)
-                            {
-                                break;
-                            }
-                        }
-                    }
-                    SyncAction::Upload => {
+                    if services.hid.keys_down().contains(KeyPad::DPAD_UP) {
                         ul(&mut s, Rc::clone(&client), &local_ver, &local_tree)?;
-                    }
-                    SyncAction::Download => {
+                        break;
+                    } else if services.hid.keys_down().contains(KeyPad::DPAD_DOWN) {
                         dl(
                             &mut s,
                             Rc::clone(&client),
@@ -219,12 +115,32 @@ pub fn run(
                             &local_ver,
                             local_tree,
                         )?;
+                        break;
+                    } else if services
+                        .hid
+                        .keys_down()
+                        .intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT)
+                    {
+                        break;
                     }
                 }
-
-                log::info!("Sync completed for {:016x} {}", s.title_id, s.archive_kind);
             }
-        };
+            SyncAction::Upload => {
+                ul(&mut s, Rc::clone(&client), &local_ver, &local_tree)?;
+            }
+            SyncAction::Download => {
+                dl(
+                    &mut s,
+                    Rc::clone(&client),
+                    Rc::clone(&local_archive),
+                    &local_meta,
+                    &local_ver,
+                    local_tree,
+                )?;
+            }
+        }
+
+        log::info!("Sync completed for {:016x} {}", s.title_id, s.archive_kind);
     }
 
     println!("\nDone!");
@@ -239,19 +155,6 @@ fn ul(
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
-
-    if s.archive_kind == CtrArchiveKind::Extdata {
-        let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
-
-        CtrMeta::put_smdh(
-            &client,
-            &SETTINGS.base_url,
-            &SETTINGS.user_key,
-            s.title_id,
-            s.archive_kind,
-            &smdh,
-        )?;
-    }
 
     let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
     local_ver.copy_chunks(&local_tree, &mut store)?;
@@ -284,7 +187,7 @@ fn dl(
 ) -> Result<()> {
     log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
 
-    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf>(
+    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &SETTINGS.base_url,
         &SETTINGS.user_key,
