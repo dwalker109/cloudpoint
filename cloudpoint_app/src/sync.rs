@@ -1,8 +1,6 @@
 use crate::{
     ctr_fs::CtrArchive,
     services::{CtrGfxServices, CtrSysServices},
-    settings::SETTINGS,
-    store::HttpStore,
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::Result;
@@ -14,6 +12,8 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
+    settings::SETTINGS,
+    store::HttpStore,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
