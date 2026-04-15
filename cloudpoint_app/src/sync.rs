@@ -12,7 +12,7 @@ use chunktree::{
     version::{Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrArchiveKind, CtrMeta, CtrSmdh, SmdhLanguage},
+    ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
