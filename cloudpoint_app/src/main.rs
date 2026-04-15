@@ -4,9 +4,7 @@ use std::collections::HashSet;
 
 mod ctr_fs;
 mod services;
-mod settings;
 mod setup;
-mod store;
 mod sync;
 mod tree;
 
