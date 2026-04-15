@@ -1,11 +1,9 @@
 use crate::{ctr::CtrArchiveKind, http::CurlHttpClient};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use chunktree::{
-    tree::Leaf,
-    version::{Meta, Version},
-};
+use chunktree::{tree::Leaf, version::Version};
 use itertools::Itertools;
+use serde::{Serialize, de::DeserializeOwned};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
@@ -53,7 +51,7 @@ impl VersionDirEntry {
         Ok(u64::from_str_radix(&self.name, 16)?)
     }
 
-    pub fn get_version<T: Leaf, K: Meta>(
+    pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
@@ -72,7 +70,7 @@ impl VersionDirEntry {
         }
     }
 
-    pub fn put_version<T: Leaf, K: Meta>(
+    pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &str,
@@ -100,7 +98,7 @@ impl VersionDirEntry {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashMap};
+    use std::collections::BTreeSet;
 
     use super::*;
     use chunktree::tree::{MemLeaf, Tree};
@@ -205,7 +203,7 @@ mod tests {
         #[derive(Serialize)]
         struct DuckVersion {
             payload: BTreeSet<()>,
-            meta: HashMap<String, ()>,
+            meta: (),
         }
 
         let srv = MockServer::start();
@@ -217,14 +215,14 @@ mod tests {
             then.status(200).body(
                 postcard::to_allocvec(&DuckVersion {
                     payload: BTreeSet::default(),
-                    meta: HashMap::default(),
+                    meta: (),
                 })
                 .unwrap(),
             );
         });
 
         let client = CurlHttpClient::new().unwrap();
-        let res = VersionDirEntry::get_version::<MemLeaf>(
+        let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
             USER_KEY,
@@ -249,7 +247,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new().unwrap();
-        let res = VersionDirEntry::get_version::<MemLeaf>(
+        let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
             USER_KEY,
@@ -270,7 +268,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new().unwrap();
-        let res = VersionDirEntry::get_version::<MemLeaf>(
+        let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
             USER_KEY,
@@ -284,20 +282,8 @@ mod tests {
 
     #[test]
     fn version_put_succeeds_on_new_file() {
-        let v = Version::<MemLeaf, CtrMeta>::new(
-            &Tree::new(Vec::default(), ()),
-            CtrMeta::Initialized {
-                title_version: 0x01,
-                total_size: 128,
-                num_directories: 2,
-                num_files: 2,
-                duplicate_data: true,
-            },
-            128,
-            512,
-            1024,
-        )
-        .unwrap();
+        let v = Version::<MemLeaf, ()>::new(&Tree::new(Vec::default(), ()), (), 128, 512, 1024)
+            .unwrap();
 
         let srv = MockServer::start();
         srv.mock(|when, then| {

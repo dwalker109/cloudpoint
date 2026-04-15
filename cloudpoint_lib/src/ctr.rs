@@ -1,4 +1,3 @@
-use chunktree::version::Meta;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::decode_utf16;
@@ -44,8 +43,6 @@ impl CtrMeta {
         self.title_version
     }
 }
-
-impl Meta for CtrMeta {}
 
 pub struct CtrSmdh(Vec<u8>);
 
