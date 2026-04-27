@@ -7,7 +7,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 #[derive(Debug, serde::Deserialize)]
-pub struct VersionDirList(Vec<VersionDirEntry>);
+pub struct VersionDirList {
+    paths: Vec<VersionDirEntry>,
+}
 
 impl VersionDirList {
     pub fn try_get(
@@ -17,13 +19,12 @@ impl VersionDirList {
         title_id: u64,
         kind: CtrArchiveKind,
     ) -> Result<VersionDirList> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{kind}/");
+        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{kind}/?json");
 
-        let res = client.get(&url, &[("Accept", "application/json")])?;
+        let res = client.get(&url, &[])?;
 
         match res.status {
             200 => Ok(serde_json::from_slice(&res.body)?),
-            404 => Ok(VersionDirList(Vec::with_capacity(0))),
             _ => Err(anyhow!(
                 "version dir lookup failed fatally, HTTP {}",
                 res.status,
@@ -32,7 +33,7 @@ impl VersionDirList {
     }
 
     pub fn latest(&self) -> Option<&VersionDirEntry> {
-        self.0
+        self.paths
             .as_slice()
             .iter()
             .sorted_by(|a, b| a.mtime.cmp(&b.mtime))
@@ -61,7 +62,7 @@ impl VersionDirEntry {
         fingerprint: u128,
     ) -> Result<Version<T, K>> {
         let url =
-            format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
+            format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}");
 
         let res = client.get(&url, &[])?;
 
@@ -137,10 +138,10 @@ mod tests {
             when.method("GET")
                 .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/"));
             then.status(200).body(
-                r#"[
+                r#"{"paths": [
                     {"name":"12345678","size":123,"mtime":123456789},
                     {"name":"abcde123","size":456,"mtime":345678912}
-                ]"#,
+                ]}"#,
             );
         });
 
@@ -153,17 +154,15 @@ mod tests {
             CtrArchiveKind::Savedata,
         );
 
-        dbg!(&res);
-
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().0.len(), 2);
+        assert_eq!(res.unwrap().paths.len(), 2);
     }
 
     #[test]
     fn can_get_empty_dir_listing_for_200() {
         let srv = MockServer::start();
         srv.mock(|_, then| {
-            then.status(200).body("[]");
+            then.status(200).body(r#"{ "paths": [] }"#);
         });
 
         let client = CurlHttpClient::new().unwrap();
@@ -176,27 +175,7 @@ mod tests {
         );
 
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().0.len(), 0);
-    }
-
-    #[test]
-    fn can_get_empty_dir_listing_for_404() {
-        let srv = MockServer::start();
-        srv.mock(|_, then| {
-            then.status(404);
-        });
-
-        let client = CurlHttpClient::new().unwrap();
-        let res = VersionDirList::try_get(
-            &client,
-            &srv.base_url(),
-            &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
-        );
-
-        assert!(res.is_ok());
-        assert_eq!(res.unwrap().0.len(), 0);
+        assert_eq!(res.unwrap().paths.len(), 0);
     }
 
     #[test]
