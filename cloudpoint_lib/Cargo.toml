@@ -15,7 +15,7 @@ chunktree = { path = "../../chunktree", default-features = false }
 postcard = "1.1.3"
 log = "0.4.29"
 config = { version = "0.15.22", default-features = false, features = ["ini"] }
-
+uuid = { version = "1.23.1", features = ["v4"] }
 
 [dev-dependencies]
 httpmock = "0.8.3"
