@@ -47,8 +47,8 @@ pub struct VersionDirEntry {
 }
 
 impl VersionDirEntry {
-    pub fn fingerprint(&self) -> Result<u64> {
-        Ok(u64::from_str_radix(&self.name, 16)?)
+    pub fn fingerprint(&self) -> Result<u128> {
+        Ok(u128::from_str_radix(&self.name, 16)?)
     }
 
     pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
@@ -57,7 +57,7 @@ impl VersionDirEntry {
         user_key: &str,
         title_id: u64,
         mode: CtrArchiveKind,
-        fingerprint: u64,
+        fingerprint: u128,
     ) -> Result<Version<T, K>> {
         let url =
             format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",);
@@ -282,8 +282,13 @@ mod tests {
 
     #[test]
     fn version_put_succeeds_on_new_file() {
-        let v = Version::<MemLeaf, ()>::new(&Tree::new(Vec::default(), ()), (), 128, 512, 1024)
-            .unwrap();
+        let v = Version::<MemLeaf, ()>::new(
+            &Tree::new(Vec::default(), ()),
+            (),
+            chunktree::version::ChunkStrategy::Cdc(128, 512, 1024),
+            chunktree::version::Concurrency::Serial,
+        )
+        .unwrap();
 
         let srv = MockServer::start();
         srv.mock(|when, then| {

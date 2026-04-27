@@ -15,7 +15,7 @@ impl HttpStore {
 }
 
 impl StoreRead for HttpStore {
-    fn get_chunk(&self, hash: u64) -> Result<impl Read, StoreError> {
+    fn get_chunk(&self, hash: u128) -> Result<impl Read, StoreError> {
         let res = self
             .0
             .get(&format!("{}/chunks/{}", self.1, hash), &[])
@@ -31,7 +31,7 @@ impl StoreRead for HttpStore {
 }
 
 impl StoreWrite for HttpStore {
-    fn put_chunk(&mut self, hash: u64, data: &mut (impl Read + ?Sized)) -> Result<(), StoreError> {
+    fn put_chunk(&mut self, hash: u128, data: &mut (impl Read + ?Sized)) -> Result<(), StoreError> {
         let url = format!("{}/chunks/{}", self.1, hash);
 
         let should_upload = self

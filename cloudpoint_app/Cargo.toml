@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 cloudpoint_lib = { path = "../cloudpoint_lib" }
-chunktree = { path = "../../chunktree" }
+chunktree = { path = "../../chunktree", default-features = false, }
 anyhow = "1.0.102"
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 ctru-sys = { git = "https://github.com/rust3ds/ctru-rs" }
