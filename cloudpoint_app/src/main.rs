@@ -31,6 +31,7 @@ fn main() -> Result<()> {
             .len(),
     );
     println!("Press (A) to sync");
+    println!("Press (X) to autodiscover");
     println!("Press Start to exit");
 
     while sys_services.apt.main_loop() {
@@ -47,6 +48,16 @@ fn main() -> Result<()> {
 
             if res.is_err() {
                 log::error!("Error occurred during sync: {res:?}");
+            }
+
+            println!("Results: {:?}", res);
+        }
+
+        if sys_services.hid.keys_down().contains(KeyPad::X) {
+            let res = setup::append_discovered(&mut sys_services, &mut sync_states);
+
+            if res.is_err() {
+                log::error!("Error occurred during autodiscover: {res:?}");
             }
 
             println!("Results: {:?}", res);

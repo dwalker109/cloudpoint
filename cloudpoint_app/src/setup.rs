@@ -1,3 +1,4 @@
+use crate::ctr_fs::{self, CtrArchive};
 use crate::services::CtrSysServices;
 use anyhow::{Context, Result};
 use cloudpoint_lib::ctr::CtrArchiveKind;
@@ -33,8 +34,7 @@ pub fn sdmc() -> Result<()> {
 
 pub fn sync_states(services: &CtrSysServices) -> Result<HashMap<(u64, CtrArchiveKind), SyncState>> {
     let installed_titles = get_installed_titles(&services.am)?;
-    let mut sync_states = load_db_all(&installed_titles)?;
-    append_autoadd(&installed_titles, &mut sync_states)?;
+    let sync_states = load_db_all(&installed_titles)?;
 
     log::info!("Loaded {} sync states", sync_states.len());
 
@@ -66,38 +66,39 @@ fn load_db_all(installed_titles: &[Title]) -> Result<HashMap<(u64, CtrArchiveKin
         .collect())
 }
 
-fn append_autoadd(
-    installed_titles: &[Title],
+pub fn append_discovered(
+    services: &CtrSysServices,
     sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
 ) -> Result<()> {
-    let titles = installed_titles
-        .iter()
-        .map(|t| (t.product_code().trim_end_matches('\0').to_string(), t.id()))
-        .collect::<HashMap<_, _>>();
+    log::debug!("discovering savedata and extdata");
 
-    for (product_code, archive_kind) in
-        fs::read_to_string(format!("sdmc:/3ds/Cloudpoint/autoadd.txt"))?
-            .lines()
-            .filter_map(|l| l.split_once(','))
-            .filter_map(|(product_code, kind)| {
-                CtrArchiveKind::try_from(kind)
-                    .ok()
-                    .and_then(|kind| Some((product_code.to_string(), kind)))
-            })
-    {
-        if let Some(&title_id) = titles.get(&product_code)
-            && !sync_states.contains_key(&(title_id, archive_kind))
-        {
-            let state = SyncState {
-                title_id,
-                product_code,
-                archive_kind,
-                last_fp: None,
-                local_fp: None,
-                remote_fp: None,
-            };
+    let installed_titles = get_installed_titles(&services.am)?;
 
-            sync_states.insert((title_id, archive_kind), state);
+    for title in installed_titles {
+        let title_id = title.id();
+
+        log::debug!("processing {title_id:016X}");
+
+        for archive_kind in [CtrArchiveKind::Savedata, CtrArchiveKind::Extdata] {
+            if sync_states.contains_key(&(title_id, archive_kind)) {
+                log::debug!("skipping {archive_kind}, already tracked");
+                continue;
+            }
+
+            if ctr_fs::CtrArchive::open(title_id, archive_kind).is_ok() {
+                log::debug!("adding {archive_kind}");
+
+                let state = SyncState::new(
+                    title_id,
+                    &title.product_code(),
+                    &CtrArchive::smdh(title_id, archive_kind)?,
+                    archive_kind,
+                );
+
+                println!("Discovered {} {}", state.title_short, archive_kind);
+
+                sync_states.insert((title_id, archive_kind), state);
+            }
         }
     }
 

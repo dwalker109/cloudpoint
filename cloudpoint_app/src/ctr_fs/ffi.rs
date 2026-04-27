@@ -82,7 +82,7 @@ pub(super) fn ctr_read_title_smdh(title_id: u64) -> Result<Vec<u8>, IoError> {
         return Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
-                "could not open smdh icon file for title {} [{:#010X}]",
+                "could not open smdh icon file for title {:016X} [{:#010X}]",
                 title_id,
                 res
             ),
@@ -113,7 +113,7 @@ pub(super) fn ctr_read_ext_smdh(save_id: u64) -> Result<Vec<u8>, IoError> {
         return Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
-                "could not read extdata smdh for id {} [{:#010X}]",
+                "could not read extdata smdh for id {:016X} [{:#010X}]",
                 save_id,
                 res
             ),
