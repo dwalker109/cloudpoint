@@ -12,7 +12,7 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
-    settings::SETTINGS,
+    settings::{SETTINGS, USER_KEY},
     store::HttpStore,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
@@ -53,7 +53,7 @@ pub fn run(
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
             &SETTINGS.base_url,
-            &SETTINGS.user_key,
+            &USER_KEY,
             s.title_id,
             s.archive_kind,
         )?;
@@ -179,7 +179,7 @@ fn ul(
     VersionDirEntry::put_version(
         &client,
         &SETTINGS.base_url,
-        &SETTINGS.user_key,
+        &USER_KEY,
         s.title_id,
         s.archive_kind,
         &local_ver,
@@ -207,7 +207,7 @@ fn dl(
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &SETTINGS.base_url,
-        &SETTINGS.user_key,
+        &USER_KEY,
         s.title_id,
         s.archive_kind,
         s.remote_fp

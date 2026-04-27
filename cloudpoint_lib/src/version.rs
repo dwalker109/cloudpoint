@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
 use itertools::Itertools;
 use serde::{Serialize, de::DeserializeOwned};
+use uuid::Uuid;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirList(Vec<VersionDirEntry>);
@@ -12,7 +13,7 @@ impl VersionDirList {
     pub fn try_get(
         client: &CurlHttpClient,
         base_url: &str,
-        user_key: &str,
+        user_key: &Uuid,
         title_id: u64,
         kind: CtrArchiveKind,
     ) -> Result<VersionDirList> {
@@ -54,7 +55,7 @@ impl VersionDirEntry {
     pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
         client: &CurlHttpClient,
         base_url: &str,
-        user_key: &str,
+        user_key: &Uuid,
         title_id: u64,
         mode: CtrArchiveKind,
         fingerprint: u128,
@@ -73,7 +74,7 @@ impl VersionDirEntry {
     pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
         client: &CurlHttpClient,
         base_url: &str,
-        user_key: &str,
+        user_key: &Uuid,
         title_id: u64,
         mode: CtrArchiveKind,
         version: &Version<T, K>,
@@ -104,8 +105,9 @@ mod tests {
     use chunktree::tree::{MemLeaf, Tree};
     use httpmock::prelude::*;
     use serde::Serialize;
+    use uuid::uuid;
 
-    const USER_KEY: &str = "test_user_key";
+    const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
     const TITLE_ID: u64 = 0x000400001234ABCD;
 
     #[test]
@@ -146,7 +148,7 @@ mod tests {
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
         );
@@ -168,7 +170,7 @@ mod tests {
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
         );
@@ -188,7 +190,7 @@ mod tests {
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
         );
@@ -225,7 +227,7 @@ mod tests {
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
             12345678,
@@ -250,7 +252,7 @@ mod tests {
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
             12345678,
@@ -271,7 +273,7 @@ mod tests {
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
             12345678,
@@ -303,7 +305,7 @@ mod tests {
         let res = VersionDirEntry::put_version(
             &client,
             &srv.base_url(),
-            USER_KEY,
+            &USER_KEY,
             TITLE_ID,
             CtrArchiveKind::Savedata,
             &v,
