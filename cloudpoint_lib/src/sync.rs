@@ -1,15 +1,50 @@
-use crate::ctr::CtrArchiveKind;
+use crate::ctr::{CtrArchiveKind, CtrSmdh, SmdhLanguage};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
     pub title_id: u64,
+    pub title_short: String,
+    pub title_publisher: String,
     pub product_code: String,
     pub archive_kind: CtrArchiveKind,
-    pub last_fp: Option<u64>,
+    pub fs_safe_name: String,
+    pub last_fp: Option<u128>,
     #[serde(skip)]
-    pub local_fp: Option<u64>,
+    pub local_fp: Option<u128>,
     #[serde(skip)]
-    pub remote_fp: Option<u64>,
+    pub remote_fp: Option<u128>,
+}
+
+impl SyncState {
+    pub fn new(
+        title_id: u64,
+        product_code: &str,
+        smdh: &CtrSmdh,
+        archive_kind: CtrArchiveKind,
+    ) -> Self {
+        let title_short = smdh.title_short(SmdhLanguage::English);
+        let title_publisher = smdh.title_publisher(SmdhLanguage::English);
+        let product_code = product_code.trim_end_matches('\0').to_string();
+
+        let illegal = r#".,!\\/:?*"<>|"#;
+        let fs_safe_name = title_short
+            .chars()
+            .map(|c| illegal.contains(c).then_some(' ').or(Some(c)))
+            .flatten()
+            .collect::<String>();
+
+        Self {
+            title_id,
+            title_short,
+            title_publisher,
+            product_code,
+            fs_safe_name,
+            archive_kind,
+            last_fp: None,
+            local_fp: None,
+            remote_fp: None,
+        }
+    }
 }
 
 impl SyncState {
@@ -168,7 +203,10 @@ mod tests {
     fn fixture() -> SyncState {
         SyncState {
             title_id: 0x00040000_1234ABCD,
+            title_short: "Foo Bar: Yeah!".into(),
+            title_publisher: "Cloudpoint, Inc.".into(),
             product_code: "XTR-X-ABCD".into(),
+            fs_safe_name: "Foo Bar  Yeah ".into(),
             archive_kind: CtrArchiveKind::Savedata,
             last_fp: None,
             local_fp: None,

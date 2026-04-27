@@ -7,7 +7,7 @@ use anyhow::Result;
 use chunktree::{
     store::MemStore,
     tree::{Leaf, Tree},
-    version::{Diff, Version, updater::BlockingUpdater},
+    version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
     ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
@@ -74,11 +74,16 @@ pub fn run(
             continue;
         };
 
-        let local_ver = Version::new(&local_tree, local_meta, 128_000, 512_000, 1024_000)?;
+        let local_ver = Version::new(
+            &local_tree,
+            local_meta,
+            ChunkStrategy::Cdc(128_000, 512_000, 1024_000),
+            Concurrency::Serial,
+        )?;
         s.local_fp = Some(local_ver.fingerprint());
 
-        print!("Local {:016x}", s.local_fp.unwrap_or_default());
-        println!("\x1b[5C{:016x} Remote", s.remote_fp.unwrap_or_default());
+        println!("Local \x1b[12C{:032x}", s.local_fp.unwrap_or_default());
+        println!("Remote\x1b[12C{:032x}", s.remote_fp.unwrap_or_default());
 
         match s.get_action() {
             SyncAction::NoData => {
@@ -242,6 +247,15 @@ fn dl(
         u.update_next()?;
     }
 
+    if u.progress().is_err() {
+        log::info!(
+            "an error occurred while downloading the version: {:?}",
+            u.progress()
+        );
+
+        println!("Something went wrong downloading the remote version",);
+    }
+
     archive.finalise()?;
 
     s.last_fp = Some(remote_ver.fingerprint());
@@ -287,8 +301,8 @@ fn write_db(s: &SyncState) -> Result<()> {
 
     fs::write(
         format!(
-            "sdmc:/3ds/Cloudpoint/db/{}.{}",
-            s.product_code, s.archive_kind
+            "sdmc:/3ds/Cloudpoint/db/{} - {}.{}",
+            s.product_code, s.fs_safe_name, s.archive_kind
         ),
         postcard::to_allocvec(&s)?,
     )?;

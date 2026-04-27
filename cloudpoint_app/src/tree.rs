@@ -34,7 +34,35 @@ impl Leaf for CtrArchiveLeaf {
         })
     }
 
-    fn pad(&mut self, length: u64) -> Result<(), TreeError> {
+    fn delete(&mut self) -> Result<(), TreeError> {
+        let path = CtrFsPath::new(&self.path)?;
+        self.ctx.archive.delete_file(&path)?;
+
+        Ok(())
+    }
+
+    fn path(&self) -> &Path {
+        Path::new(&self.path)
+    }
+
+    fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
+        let path = CtrFsPath::new(&self.path)?;
+        let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
+        let file_size = file.size()?;
+        let data = file.read(0, file_size)?;
+
+        Ok(Cursor::new(data))
+    }
+
+    fn len(&self) -> Result<u64, TreeError> {
+        let path = CtrFsPath::new(&self.path)?;
+        let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
+        let file_size = file.size()?;
+
+        Ok(file_size)
+    }
+
+    fn set_len(&mut self, length: u64) -> Result<(), TreeError> {
         let path = CtrFsPath::new(&self.path)?;
 
         match self.ctx.archive.open_file(&path, FS_OPEN_READ) {
@@ -88,34 +116,6 @@ impl Leaf for CtrArchiveLeaf {
         }
 
         Ok(())
-    }
-
-    fn delete(&mut self) -> Result<(), TreeError> {
-        let path = CtrFsPath::new(&self.path)?;
-        self.ctx.archive.delete_file(&path)?;
-
-        Ok(())
-    }
-
-    fn path(&self) -> &Path {
-        Path::new(&self.path)
-    }
-
-    fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
-        let path = CtrFsPath::new(&self.path)?;
-        let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-        let file_size = file.size()?;
-        let data = file.read(0, file_size)?;
-
-        Ok(Cursor::new(data))
-    }
-
-    fn length(&self) -> Result<u64, TreeError> {
-        let path = CtrFsPath::new(&self.path)?;
-        let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-        let file_size = file.size()?;
-
-        Ok(file_size)
     }
 
     fn write_chunk(&mut self, offset: u64, source: &mut impl io::Read) -> Result<(), TreeError> {
