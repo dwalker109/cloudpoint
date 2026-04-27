@@ -11,7 +11,7 @@ pub struct Settings {
 
 pub static SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
     config::Config::builder()
-        .set_default("base_url", "http://192.168.1.45:8080")
+        .set_default("base_url", "http://192.168.1.45:5000")
         .unwrap()
         .set_default("log", "off")
         .unwrap()
@@ -38,7 +38,7 @@ pub static USER_KEY: LazyLock<Uuid> = LazyLock::new(|| {
     } else {
         let userkey = Uuid::new_v4();
         let mut buf = Uuid::encode_buffer();
-        fs::write(&path, userkey.as_simple().encode_lower(&mut buf))
+        fs::write(&path, userkey.as_hyphenated().encode_lower(&mut buf))
             .expect("userkey should be writable");
 
         userkey

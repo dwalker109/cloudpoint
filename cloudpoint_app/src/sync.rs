@@ -173,7 +173,11 @@ fn ul(
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
 
-    let mut store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
+    let mut store = HttpStore::new(
+        Rc::clone(&client),
+        SETTINGS.base_url.clone(),
+        USER_KEY.clone(),
+    );
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
     VersionDirEntry::put_version(
@@ -240,7 +244,11 @@ fn dl(
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
-    let store = HttpStore::new(Rc::clone(&client), SETTINGS.base_url.clone());
+    let store = HttpStore::new(
+        Rc::clone(&client),
+        SETTINGS.base_url.clone(),
+        USER_KEY.clone(),
+    );
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
 
     while !u.is_terminal() {
