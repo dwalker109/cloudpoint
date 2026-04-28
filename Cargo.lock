@@ -243,6 +243,7 @@ name = "cloudpoint_app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "chunktree",
  "cloudpoint_lib",
  "ctru-rs",
@@ -513,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "fastcdc"
-version = "3.2.1"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf51ceb43e96afbfe4dd5c6f6082af5dfd60e220820b8123792d61963f2ce6bc"
+checksum = "77af40d8a8dadb92dc178569a5f5edb5f3056e98255c2de48ab5d59a52892e0c"
 
 [[package]]
 name = "find-msvc-tools"

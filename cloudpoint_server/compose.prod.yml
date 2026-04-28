@@ -1,0 +1,19 @@
+services:
+  dufs:
+    image: sigoden/dufs
+    volumes:
+      - ./data:/data
+      - ./dufs.yaml:/dufs.yaml
+    command: --config /dufs.yaml
+
+  caddy:
+    image: caddy:latest
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile
+      - caddy_data:/data
+
+volumes:
+  caddy_data:
