@@ -277,11 +277,11 @@ fn dl(
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = PathBuf::from(format!(
-        "sdmc:/3ds/Cloudpoint/backups/{:016X}/{:016X}",
-        sync_state.title_id,
-        sync_state
-            .local_fp
-            .expect("Unreachable without local fingerprint")
+        "sdmc:/3ds/Cloudpoint/backups/{}/{:#07X} {}/{}",
+        sync_state.archive_kind,
+        (sync_state.title_id as u32) >> 8,
+        sync_state.fs_safe_name,
+        chrono::Utc::now().format("%Y%m%d-%H%M%S"),
     ));
 
     log::info!("Backing up to {:?}", root_dir);

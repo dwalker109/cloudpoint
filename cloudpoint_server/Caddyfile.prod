@@ -1,0 +1,3 @@
+cloudpoint.dwalker.me {
+    reverse_proxy dufs:5000
+}
