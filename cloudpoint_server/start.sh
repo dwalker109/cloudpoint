@@ -1,1 +1,0 @@
-dufs --config ./dufs.yaml

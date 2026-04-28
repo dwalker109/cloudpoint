@@ -1,4 +1,4 @@
-serve-path: "./data"
+serve-path: "/data"
 allow-all: false
 allow-upload: true
 hidden:
