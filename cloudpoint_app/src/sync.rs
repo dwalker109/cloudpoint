@@ -77,7 +77,7 @@ pub fn run(
         let local_ver = Version::new(
             &local_tree,
             local_meta,
-            ChunkStrategy::Cdc(128_000, 512_000, 1024_000),
+            ChunkStrategy::FixedSize(256 * 1024),
             Concurrency::Serial,
         )?;
         s.local_fp = Some(local_ver.fingerprint());
@@ -172,7 +172,7 @@ fn ul(
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
-    print!("Uploading...");
+    println!("Uploading...");
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
@@ -208,7 +208,7 @@ fn dl(
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
-    print!("Downloading...");
+    println!("Downloading...");
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
