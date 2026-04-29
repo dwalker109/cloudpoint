@@ -172,6 +172,7 @@ fn ul(
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
+    print!("Uploading...");
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
@@ -193,7 +194,7 @@ fn ul(
 
     write_db(s)?;
 
-    println!("Uploaded!");
+    println!("Done!");
 
     Ok(())
 }
@@ -207,6 +208,7 @@ fn dl(
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
     log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
+    print!("Downloading...");
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
@@ -270,7 +272,7 @@ fn dl(
 
     write_db(s)?;
 
-    println!("Downloaded!");
+    println!("Done!");
 
     Ok(())
 }

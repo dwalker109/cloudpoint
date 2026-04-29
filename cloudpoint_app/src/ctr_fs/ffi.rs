@@ -297,33 +297,24 @@ pub(super) fn ctr_read_file(
         )
     };
 
-    if R_FAILED(res) {
-        return Err(IoError::new(
+    // This call sometimes signals failure even though all bytes were read, so use this
+    // to determine if this call succeeded rather than checking the res code
+    if bytes_read == length as u32 {
+        Ok(buffer)
+    } else {
+        Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
-                "could not read bytes {} to {} via handle {:?} [{:#010X}]",
+                "could not read bytes {} to {} via handle {:?} (read {} of {}) [{:#010X}]",
                 offset,
                 offset + length,
                 file_handle,
-                res
-            ),
-        ));
-    }
-
-    if bytes_read != length as u32 {
-        return Err(IoError::new(
-            IoErrorKind::Other,
-            anyhow!(
-                "wrong amount of bytes were read ({}/{}) via handle {:?} [{:#010X}]",
-                length,
                 bytes_read,
-                file_handle,
+                length,
                 res
             ),
-        ));
+        ))
     }
-
-    Ok(buffer)
 }
 
 pub(super) fn ctr_write_file(
