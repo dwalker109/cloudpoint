@@ -13,19 +13,22 @@ impl HttpStore {
     pub fn new(client: Rc<CurlHttpClient>, base_url: String, user_key: Uuid) -> Self {
         Self(client, base_url, user_key)
     }
+
+    fn fq_hash_url(&self, hash: u128) -> String {
+        let [msb, ..] = hash.to_be_bytes();
+
+        format!("{}/sync/{}/chunks/{:02x}/{}", self.1, self.2, msb, hash)
+    }
 }
 
 impl StoreRead for HttpStore {
     fn get_chunk(&self, hash: u128) -> Result<impl Read, StoreError> {
-        let res = self
-            .0
-            .get(&format!("{}/sync/{}/chunks/{}", self.1, self.2, hash), &[])
-            .map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("failed to get chunk {:?}, {}", hash, err),
-                )
-            })?;
+        let res = self.0.get(&self.fq_hash_url(hash), &[]).map_err(|err| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                anyhow!("failed to get chunk {:?}, {}", hash, err),
+            )
+        })?;
 
         Ok(Cursor::new(res.body))
     }
@@ -33,7 +36,7 @@ impl StoreRead for HttpStore {
 
 impl StoreWrite for HttpStore {
     fn put_chunk(&mut self, hash: u128, data: &mut (impl Read + ?Sized)) -> Result<(), StoreError> {
-        let url = format!("{}/sync/{}/chunks/{}", self.1, self.2, hash);
+        let url = self.fq_hash_url(hash);
 
         let should_upload = self
             .0
