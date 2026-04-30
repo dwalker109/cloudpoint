@@ -279,10 +279,10 @@ fn dl(
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = PathBuf::from(format!(
-        "sdmc:/3ds/Cloudpoint/backups/{}/{:#07X} {}/{}",
-        sync_state.archive_kind,
-        (sync_state.title_id as u32) >> 8,
+        "sdmc:/3ds/Cloudpoint/backups/{:#016X} {}/{}/{}",
+        sync_state.title_id,
         sync_state.fs_safe_name,
+        sync_state.archive_kind,
         chrono::Utc::now().format("%Y%m%d-%H%M%S"),
     ));
 
@@ -311,8 +311,8 @@ fn write_db(s: &SyncState) -> Result<()> {
 
     fs::write(
         format!(
-            "sdmc:/3ds/Cloudpoint/db/{} - {}.{}",
-            s.product_code, s.fs_safe_name, s.archive_kind
+            "sdmc:/3ds/Cloudpoint/db/{:016X} {}.{}",
+            s.title_id, s.fs_safe_name, s.archive_kind
         ),
         postcard::to_allocvec(&s)?,
     )?;
