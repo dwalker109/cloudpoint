@@ -1,34 +1,32 @@
+use crate::config::AppPath;
 use anyhow::Result;
 use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
-use std::collections::HashSet;
 
+pub mod app_logger;
 mod ctr_fs;
+pub mod config;
+pub mod db;
 mod services;
 mod setup;
 mod sync;
 mod tree;
 
 fn main() -> Result<()> {
-    set_panic_hook(false);
-
-    setup::logging()?;
+    let _logger = app_logger::AppLogger::new()?;
     setup::sdmc()?;
 
+    set_panic_hook(false);
     let mut sys_services = services::CtrSysServices::init()?;
     let gfx_services = services::CtrGfxServices::init()?;
     let _console = Console::new(gfx_services.gfx.top_screen.borrow_mut());
 
-    let mut sync_states = setup::sync_states(&sys_services)?;
+    let mut state_db = db::StateDb::open(AppPath::Db, &sys_services)?;
 
     println!("\x1b[20CCloudpoint\n");
     println!(
         "Ready to sync {} states across {} titles",
-        sync_states.len(),
-        sync_states
-            .values()
-            .map(|s| s.title_id)
-            .collect::<HashSet<_>>()
-            .len(),
+        state_db.total_states(),
+        state_db.total_titles(),
     );
     println!("Press (A) to sync");
     println!("Press (X) to autodiscover");
@@ -44,7 +42,7 @@ fn main() -> Result<()> {
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::A) {
-            let res = sync::run(&mut sys_services, &gfx_services, &mut sync_states);
+            let res = sync::run(&mut sys_services, &gfx_services, &mut state_db);
 
             if res.is_err() {
                 log::error!("Error occurred during sync: {res:?}");
@@ -54,7 +52,9 @@ fn main() -> Result<()> {
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::X) {
-            let res = setup::append_discovered(&mut sys_services, &mut sync_states);
+            let res = state_db
+                .append_discovered(&mut sys_services)
+                .and_then(|_| state_db.save_all());
 
             if res.is_err() {
                 log::error!("Error occurred during autodiscover: {res:?}");

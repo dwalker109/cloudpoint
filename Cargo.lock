@@ -246,6 +246,7 @@ dependencies = [
  "chrono",
  "chunktree",
  "cloudpoint_lib",
+ "config",
  "ctru-rs",
  "ctru-sys",
  "flexi_logger",
@@ -253,6 +254,7 @@ dependencies = [
  "postcard",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -262,7 +264,6 @@ dependencies = [
  "anyhow",
  "chrono",
  "chunktree",
- "config",
  "curl-sys",
  "httpmock",
  "itertools 0.14.0",

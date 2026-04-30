@@ -1,5 +1,7 @@
 use crate::{
+    config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
+    db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
     tree::{self, CtrArchiveLeaf},
 };
@@ -10,16 +12,14 @@ use chunktree::{
     version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
+    ctr::{CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
-    settings::{SETTINGS, USER_KEY},
     store::HttpStore,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
 use ctru::services::hid::KeyPad;
 use std::{
-    collections::HashMap,
     fs::{self, File},
     io::{self, BufWriter},
     path::PathBuf,
@@ -29,11 +29,11 @@ use std::{
 pub fn run(
     services: &mut CtrSysServices,
     gfx_services: &CtrGfxServices,
-    active_sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
+    state_db: &mut StateDb,
 ) -> Result<()> {
     let client = Rc::new(CurlHttpClient::new()?);
 
-    for mut s in active_sync_states.values_mut() {
+    for mut s in state_db.states_mut() {
         let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
 
         log::info!(
@@ -52,7 +52,7 @@ pub fn run(
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
-            &SETTINGS.base_url,
+            &USER_SETTINGS.base_url,
             &USER_KEY,
             s.title_id,
             s.archive_kind,
@@ -176,14 +176,14 @@ fn ul(
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
-        SETTINGS.base_url.clone(),
+        USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
     VersionDirEntry::put_version(
         &client,
-        &SETTINGS.base_url,
+        &USER_SETTINGS.base_url,
         &USER_KEY,
         s.title_id,
         s.archive_kind,
@@ -192,7 +192,7 @@ fn ul(
 
     s.last_fp = Some(local_ver.fingerprint());
 
-    write_db(s)?;
+    s.save(AppPath::Db)?;
 
     println!("Done!");
 
@@ -212,7 +212,7 @@ fn dl(
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
-        &SETTINGS.base_url,
+        &USER_SETTINGS.base_url,
         &USER_KEY,
         s.title_id,
         s.archive_kind,
@@ -240,7 +240,7 @@ fn dl(
         return Ok(());
     }
 
-    if SETTINGS.backup {
+    if USER_SETTINGS.backup {
         backup(&local_tree, &s)?;
     }
 
@@ -248,7 +248,7 @@ fn dl(
     let cache = MemStore::default();
     let store = HttpStore::new(
         Rc::clone(&client),
-        SETTINGS.base_url.clone(),
+        USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
@@ -270,7 +270,7 @@ fn dl(
 
     s.last_fp = Some(remote_ver.fingerprint());
 
-    write_db(s)?;
+    s.save(AppPath::Db)?;
 
     println!("Done!");
 
@@ -278,8 +278,8 @@ fn dl(
 }
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
-    let root_dir = PathBuf::from(format!(
-        "sdmc:/3ds/Cloudpoint/backups/{:#016X} {}/{}/{}",
+    let root_dir = AppPath::Backup.join(format!(
+        "{:#016X} {}/{}/{}",
         sync_state.title_id,
         sync_state.fs_safe_name,
         sync_state.archive_kind,
@@ -302,20 +302,6 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
     }
 
     log::info!("Backup complete");
-
-    Ok(())
-}
-
-fn write_db(s: &SyncState) -> Result<()> {
-    log::info!("Writing db for {:016x} {}", s.title_id, s.archive_kind);
-
-    fs::write(
-        format!(
-            "sdmc:/3ds/Cloudpoint/db/{:016X} {}.{}",
-            s.title_id, s.fs_safe_name, s.archive_kind
-        ),
-        postcard::to_allocvec(&s)?,
-    )?;
 
     Ok(())
 }
