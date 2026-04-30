@@ -1,4 +1,6 @@
 use crate::ctr::{CtrArchiveKind, CtrSmdh, SmdhLanguage};
+use anyhow::Result;
+use std::{fs, path::Path};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
@@ -47,9 +49,25 @@ impl SyncState {
             remote_fp: None,
         }
     }
-}
 
-impl SyncState {
+    pub fn save(&self, root_path: impl AsRef<Path>) -> Result<()> {
+        log::info!(
+            "Writing db for {:016x} {}",
+            self.title_id,
+            self.archive_kind
+        );
+
+        fs::write(
+            root_path.as_ref().join(format!(
+                "{:016X} {}.{}",
+                self.title_id, self.fs_safe_name, self.archive_kind,
+            )),
+            postcard::to_allocvec(&self)?,
+        )?;
+
+        Ok(())
+    }
+
     pub fn get_action(&self) -> SyncAction {
         match (self.local_fp, self.remote_fp) {
             (None, Some(_)) => SyncAction::Download,
