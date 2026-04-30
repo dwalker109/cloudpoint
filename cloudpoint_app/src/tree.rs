@@ -35,6 +35,8 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn delete(&mut self) -> Result<(), TreeError> {
+        log::debug!("deleting {}", &self.path);
+
         let path = CtrFsPath::new(&self.path)?;
         self.ctx.archive.delete_file(&path)?;
 
@@ -75,11 +77,15 @@ impl Leaf for CtrArchiveLeaf {
                     match self.ctx.archive.kind() {
                         // Savedata supports resize in place
                         CtrArchiveKind::Savedata => {
+                            log::debug!("setting length for {} via syscall", &self.path);
+
                             let file = self.ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
                             file.set_size(length)?;
                         }
                         // Extdata requires recreating the file with a new length, resizes aren't supported
                         CtrArchiveKind::Extdata => {
+                            log::debug!("setting length for {} via recreate", &self.path);
+
                             let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
                             let mut buffer = file.read(0, curr_size)?;
                             buffer.resize(length as usize, 0x00);
@@ -96,6 +102,8 @@ impl Leaf for CtrArchiveLeaf {
             }
             // Probably doesn't exist, try to create it (including intermediary directories)
             Err(_) => {
+                log::debug!("setting length for {} via initial create", &self.path);
+
                 let path_separators = self
                     .path
                     .char_indices()
@@ -119,6 +127,8 @@ impl Leaf for CtrArchiveLeaf {
     }
 
     fn write_chunk(&mut self, offset: u64, source: &mut impl io::Read) -> Result<(), TreeError> {
+        log::debug!("writing chunk for {}", &self.path);
+
         let mut buf = Vec::new();
         source.read_to_end(&mut buf)?;
 

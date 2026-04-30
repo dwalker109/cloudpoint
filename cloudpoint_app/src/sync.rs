@@ -88,7 +88,7 @@ pub fn run(
         match s.get_action() {
             SyncAction::NoData => {
                 log::info!(
-                    "No local or remote data for {:016x} {}",
+                    "no local or remote data for {:016x} {}",
                     s.title_id,
                     s.archive_kind
                 );
@@ -97,7 +97,7 @@ pub fn run(
             }
             SyncAction::NoChange => {
                 log::info!(
-                    "Local and remote data match for {:016x} {}",
+                    "local and remote data match for {:016x} {}",
                     s.title_id,
                     s.archive_kind
                 );
@@ -106,7 +106,7 @@ pub fn run(
             }
             SyncAction::Conflict => {
                 log::info!(
-                    "Changed on server and locally for {:016x} {}",
+                    "changed on server and locally for {:016x} {}",
                     s.title_id,
                     s.archive_kind
                 );
@@ -157,7 +157,7 @@ pub fn run(
             }
         }
 
-        log::info!("Sync completed for {:016x} {}", s.title_id, s.archive_kind);
+        log::info!("sync completed for {:016x} {}", s.title_id, s.archive_kind);
     }
 
     println!("\nDone!");

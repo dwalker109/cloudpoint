@@ -3,8 +3,8 @@ use anyhow::Result;
 use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
 
 pub mod app_logger;
-mod ctr_fs;
 pub mod config;
+mod ctr_fs;
 pub mod db;
 mod services;
 mod setup;
@@ -45,7 +45,7 @@ fn main() -> Result<()> {
             let res = sync::run(&mut sys_services, &gfx_services, &mut state_db);
 
             if res.is_err() {
-                log::error!("Error occurred during sync: {res:?}");
+                log::error!("sync error: {res:?}");
             }
 
             println!("Results: {:?}", res);
@@ -57,7 +57,7 @@ fn main() -> Result<()> {
                 .and_then(|_| state_db.save_all());
 
             if res.is_err() {
-                log::error!("Error occurred during autodiscover: {res:?}");
+                log::error!("autodiscover error: {res:?}");
             }
 
             println!("Results: {:?}", res);
