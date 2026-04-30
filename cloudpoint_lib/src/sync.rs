@@ -31,7 +31,9 @@ impl SyncState {
             .chars()
             .map(|c| illegal.contains(c).then_some(' ').or(Some(c)))
             .flatten()
-            .collect::<String>();
+            .collect::<String>()
+            .trim_end()
+            .to_owned();
 
         Self {
             title_id,
