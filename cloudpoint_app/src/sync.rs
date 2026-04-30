@@ -1,8 +1,8 @@
 use crate::{
+    config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
-    settings::{SETTINGS, USER_KEY},
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::Result;
@@ -52,7 +52,7 @@ pub fn run(
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
-            &SETTINGS.base_url,
+            &USER_SETTINGS.base_url,
             &USER_KEY,
             s.title_id,
             s.archive_kind,
@@ -176,14 +176,14 @@ fn ul(
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
-        SETTINGS.base_url.clone(),
+        USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
     VersionDirEntry::put_version(
         &client,
-        &SETTINGS.base_url,
+        &USER_SETTINGS.base_url,
         &USER_KEY,
         s.title_id,
         s.archive_kind,
@@ -192,7 +192,7 @@ fn ul(
 
     s.last_fp = Some(local_ver.fingerprint());
 
-    s.save("sdmc:/3ds/Cloudpoint/db")?;
+    s.save(AppPath::Db)?;
 
     println!("Done!");
 
@@ -212,7 +212,7 @@ fn dl(
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
-        &SETTINGS.base_url,
+        &USER_SETTINGS.base_url,
         &USER_KEY,
         s.title_id,
         s.archive_kind,
@@ -240,7 +240,7 @@ fn dl(
         return Ok(());
     }
 
-    if SETTINGS.backup {
+    if USER_SETTINGS.backup {
         backup(&local_tree, &s)?;
     }
 
@@ -248,7 +248,7 @@ fn dl(
     let cache = MemStore::default();
     let store = HttpStore::new(
         Rc::clone(&client),
-        SETTINGS.base_url.clone(),
+        USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
     let mut u = BlockingUpdater::start(diff, local_tree, cache, store)?;
@@ -270,7 +270,7 @@ fn dl(
 
     s.last_fp = Some(remote_ver.fingerprint());
 
-    s.save("sdmc:/3ds/Cloudpoint/db")?;
+    s.save(AppPath::Db)?;
 
     println!("Done!");
 
@@ -278,8 +278,8 @@ fn dl(
 }
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
-    let root_dir = PathBuf::from(format!(
-        "sdmc:/3ds/Cloudpoint/backups/{:#016X} {}/{}/{}",
+    let root_dir = AppPath::Backup.join(format!(
+        "{:#016X} {}/{}/{}",
         sync_state.title_id,
         sync_state.fs_safe_name,
         sync_state.archive_kind,

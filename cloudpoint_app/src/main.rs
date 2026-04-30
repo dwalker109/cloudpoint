@@ -1,26 +1,26 @@
+use crate::config::AppPath;
 use anyhow::Result;
 use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
-use std::collections::HashSet;
 
+pub mod app_logger;
 mod ctr_fs;
+pub mod config;
 pub mod db;
 mod services;
-pub mod settings;
 mod setup;
 mod sync;
 mod tree;
 
 fn main() -> Result<()> {
-    set_panic_hook(false);
-
-    setup::logging()?;
+    let _logger = app_logger::AppLogger::new()?;
     setup::sdmc()?;
 
+    set_panic_hook(false);
     let mut sys_services = services::CtrSysServices::init()?;
     let gfx_services = services::CtrGfxServices::init()?;
     let _console = Console::new(gfx_services.gfx.top_screen.borrow_mut());
 
-    let mut state_db = db::StateDb::open("sdmc:/3ds/Cloudpoint/db", &sys_services)?;
+    let mut state_db = db::StateDb::open(AppPath::Db, &sys_services)?;
 
     println!("\x1b[20CCloudpoint\n");
     println!(
@@ -52,7 +52,8 @@ fn main() -> Result<()> {
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::X) {
-            let res = setup::append_discovered(&mut sys_services, &mut state_db)
+            let res = state_db
+                .append_discovered(&mut sys_services)
                 .and_then(|_| state_db.save_all());
 
             if res.is_err() {
