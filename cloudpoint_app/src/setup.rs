@@ -1,12 +1,11 @@
 use crate::ctr_fs::{self, CtrArchive};
+use crate::db::StateDb;
 use crate::services::CtrSysServices;
+use crate::settings::SETTINGS;
 use anyhow::{Context, Result};
 use cloudpoint_lib::ctr::CtrArchiveKind;
-use cloudpoint_lib::settings::SETTINGS;
 use cloudpoint_lib::sync::SyncState;
-use ctru::services::am::{Am, Title};
 use ctru::services::fs::MediaType;
-use std::collections::HashMap;
 use std::fs;
 
 pub fn logging() -> Result<()> {
@@ -32,47 +31,10 @@ pub fn sdmc() -> Result<()> {
     Ok(())
 }
 
-pub fn sync_states(services: &CtrSysServices) -> Result<HashMap<(u64, CtrArchiveKind), SyncState>> {
-    let installed_titles = get_installed_titles(&services.am)?;
-    let sync_states = load_db_all(&installed_titles)?;
-
-    log::info!("Loaded {} sync states", sync_states.len());
-
-    Ok(sync_states)
-}
-
-fn get_installed_titles<'a>(am: &'a Am) -> Result<Vec<Title<'a>>> {
-    let titles = am.title_list(MediaType::Sd)?;
-
-    Ok(titles)
-}
-
-fn load_db_all(installed_titles: &[Title]) -> Result<HashMap<(u64, CtrArchiveKind), SyncState>> {
-    let ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
-
-    let mut states: Vec<SyncState> = Vec::new();
-
-    for f in fs::read_dir("sdmc:/3ds/Cloudpoint/db")? {
-        let f = f?;
-        if let Ok(s) = postcard::from_bytes(&fs::read(f.path())?) {
-            states.push(s);
-        }
-    }
-
-    Ok(states
-        .into_iter()
-        .filter(|s| ids.contains(&s.title_id))
-        .map(|s| ((s.title_id, s.archive_kind), s))
-        .collect())
-}
-
-pub fn append_discovered(
-    services: &CtrSysServices,
-    sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
-) -> Result<()> {
+pub fn append_discovered(services: &CtrSysServices, state_db: &mut StateDb) -> Result<()> {
     log::debug!("discovering savedata and extdata");
 
-    let installed_titles = get_installed_titles(&services.am)?;
+    let installed_titles = services.am.title_list(MediaType::Sd)?;
 
     for title in installed_titles {
         let title_id = title.id();
@@ -80,7 +42,7 @@ pub fn append_discovered(
         log::debug!("processing {title_id:016X}");
 
         for archive_kind in [CtrArchiveKind::Savedata, CtrArchiveKind::Extdata] {
-            if sync_states.contains_key(&(title_id, archive_kind)) {
+            if state_db.contains_state(title_id, archive_kind) {
                 log::debug!("skipping {archive_kind}, already tracked");
                 continue;
             }
@@ -97,7 +59,7 @@ pub fn append_discovered(
 
                 println!("Discovered {} {}", state.title_short, archive_kind);
 
-                sync_states.insert((title_id, archive_kind), state);
+                state_db.insert_state(title_id, archive_kind, state);
             }
         }
     }

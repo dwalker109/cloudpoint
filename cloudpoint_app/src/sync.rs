@@ -1,6 +1,8 @@
 use crate::{
     ctr_fs::CtrArchive,
+    db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
+    settings::{SETTINGS, USER_KEY},
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::Result;
@@ -10,16 +12,14 @@ use chunktree::{
     version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrArchiveKind, CtrMeta, SmdhLanguage},
+    ctr::{CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
-    settings::{SETTINGS, USER_KEY},
     store::HttpStore,
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
 use ctru::services::hid::KeyPad;
 use std::{
-    collections::HashMap,
     fs::{self, File},
     io::{self, BufWriter},
     path::PathBuf,
@@ -29,11 +29,11 @@ use std::{
 pub fn run(
     services: &mut CtrSysServices,
     gfx_services: &CtrGfxServices,
-    active_sync_states: &mut HashMap<(u64, CtrArchiveKind), SyncState>,
+    state_db: &mut StateDb,
 ) -> Result<()> {
     let client = Rc::new(CurlHttpClient::new()?);
 
-    for mut s in active_sync_states.values_mut() {
+    for mut s in state_db.states_mut() {
         let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
 
         log::info!(
@@ -192,7 +192,7 @@ fn ul(
 
     s.last_fp = Some(local_ver.fingerprint());
 
-    write_db(s)?;
+    s.save("sdmc:/3ds/Cloudpoint/db")?;
 
     println!("Done!");
 
@@ -270,7 +270,7 @@ fn dl(
 
     s.last_fp = Some(remote_ver.fingerprint());
 
-    write_db(s)?;
+    s.save("sdmc:/3ds/Cloudpoint/db")?;
 
     println!("Done!");
 
@@ -302,20 +302,6 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
     }
 
     log::info!("Backup complete");
-
-    Ok(())
-}
-
-fn write_db(s: &SyncState) -> Result<()> {
-    log::info!("Writing db for {:016x} {}", s.title_id, s.archive_kind);
-
-    fs::write(
-        format!(
-            "sdmc:/3ds/Cloudpoint/db/{:016X} {}.{}",
-            s.title_id, s.fs_safe_name, s.archive_kind
-        ),
-        postcard::to_allocvec(&s)?,
-    )?;
 
     Ok(())
 }
