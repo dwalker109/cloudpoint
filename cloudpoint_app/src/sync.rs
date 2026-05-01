@@ -1,5 +1,5 @@
 use crate::{
-    config::{AppPath, USER_KEY, USER_SETTINGS},
+    config::{AppPath, BackupTarget, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
@@ -278,13 +278,25 @@ fn dl(
 }
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
-    let root_dir = AppPath::Backup.join(format!(
-        "{:#016X} {}/{}/{}",
-        sync_state.title_id,
-        sync_state.fs_safe_name,
-        sync_state.archive_kind,
-        chrono::Utc::now().format("%Y%m%d-%H%M%S"),
-    ));
+    let root_dir = match USER_SETTINGS.backup_target {
+        BackupTarget::Cloudpoint => AppPath::Backup.join(format!(
+            "{:#016X} {}/{}/{}",
+            sync_state.title_id,
+            sync_state.fs_safe_name,
+            sync_state.archive_kind,
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+        )),
+        BackupTarget::Checkpoint => AppPath::Checkpoint.join(format!(
+            "{}/{:#07X} {}/{} (Cloudpoint)",
+            match sync_state.archive_kind {
+                cloudpoint_lib::ctr::CtrArchiveKind::Savedata => "saves",
+                cloudpoint_lib::ctr::CtrArchiveKind::Extdata => "extdata",
+            },
+            (sync_state.title_id as u32) >> 8,
+            sync_state.fs_safe_name,
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+        )),
+    };
 
     log::info!("Backing up to {:?}", root_dir);
 
