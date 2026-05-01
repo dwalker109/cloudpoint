@@ -1,6 +1,7 @@
 use crate::{
     config::{AppPath, BackupTarget, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
+    ctr_ndmu::KeepAwake,
     db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
     tree::{self, CtrArchiveLeaf},
@@ -31,6 +32,8 @@ pub fn run(
     gfx_services: &CtrGfxServices,
     state_db: &mut StateDb,
 ) -> Result<()> {
+    let _keep_awake = KeepAwake::new();
+
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in state_db.states_mut() {
