@@ -6,13 +6,11 @@ use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
     ctr_get_title_version, ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory,
-    ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
+    ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file, ctr_read_title_smdh,
     ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
-
-use crate::ctr_fs::ffi::ctr_read_title_smdh;
 
 mod ffi;
 
