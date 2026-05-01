@@ -5,6 +5,7 @@ use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
 pub mod app_logger;
 pub mod config;
 mod ctr_fs;
+pub mod ctr_ndmu;
 pub mod db;
 mod services;
 mod setup;
