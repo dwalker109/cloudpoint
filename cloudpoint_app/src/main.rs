@@ -1,6 +1,7 @@
 use crate::config::AppPath;
 use anyhow::Result;
 use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
+use ctru_sys::{InfoLedPattern, MCUHWC_SetInfoLedPattern, mcuHwcExit, mcuHwcInit};
 
 pub mod app_logger;
 pub mod config;
@@ -57,6 +58,28 @@ fn main() -> Result<()> {
             }
 
             println!("Results: {:?}", res);
+
+            unsafe {
+                mcuHwcInit();
+
+                let steps = [
+                    0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ];
+
+                let pattern = InfoLedPattern {
+                    delay: 0x02,
+                    smoothing: 0x20,
+                    loopDelay: 0x60,
+                    blinkSpeed: 0x00,
+                    redPattern: steps,
+                    greenPattern: steps,
+                    bluePattern: steps,
+                };
+                MCUHWC_SetInfoLedPattern(&pattern);
+                mcuHwcExit();
+            }
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::X) {
@@ -70,6 +93,24 @@ fn main() -> Result<()> {
 
             println!("Results: {:?}", res);
         }
+    }
+
+    unsafe {
+        mcuHwcInit();
+
+        let steps = [0x00; 32];
+
+        let pattern = InfoLedPattern {
+            delay: 0x00,
+            smoothing: 0x00,
+            loopDelay: 0x00,
+            blinkSpeed: 0x00,
+            redPattern: steps,
+            greenPattern: steps,
+            bluePattern: steps,
+        };
+        MCUHWC_SetInfoLedPattern(&pattern);
+        mcuHwcExit();
     }
 
     Ok(())
