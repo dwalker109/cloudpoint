@@ -11,6 +11,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// These titles don't support sync to another system so are skipped
+/// during discovery. They *can* be synced if added manually.
+pub const SKIPPED_TITLE_IDS: [u64; 3] = [
+    // Mii Plaza
+    0x0004000E00022800,
+    // Super Mario Maker
+    0x00040000001A0500,
+    0x0004000E001A0500,
+];
+
 pub struct StateDb(PathBuf, HashMap<(u64, CtrArchiveKind), SyncState>);
 
 impl StateDb {
@@ -46,6 +56,12 @@ impl StateDb {
             let title_id = title.id();
 
             log::debug!("processing {title_id:016X}");
+
+            if SKIPPED_TITLE_IDS.contains(&title_id) {
+                log::debug!("skipping title, unsupported");
+                println!("Skipping {:016X}, is tied to this console", title_id);
+                continue;
+            }
 
             for archive_kind in [CtrArchiveKind::Savedata, CtrArchiveKind::Extdata] {
                 if self.contains_state(title_id, archive_kind) {
