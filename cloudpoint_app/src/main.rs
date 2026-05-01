@@ -5,6 +5,7 @@ use ctru::{console::Console, services::hid::KeyPad, set_panic_hook};
 pub mod app_logger;
 pub mod config;
 mod ctr_fs;
+pub mod ctr_ndmu;
 pub mod db;
 mod services;
 mod setup;
@@ -42,6 +43,13 @@ fn main() -> Result<()> {
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::A) {
+            if let Err(e) = sys_services.ac.wait_internet_connection() {
+                log::error!("unable to sync, no internet connection: {e}");
+                println!("Not connected to the internet - connect and retry");
+
+                continue;
+            };
+
             let res = sync::run(&mut sys_services, &gfx_services, &mut state_db);
 
             if res.is_err() {
