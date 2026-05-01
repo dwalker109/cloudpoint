@@ -12,6 +12,14 @@ pub struct Settings {
     pub log_level: String,
     pub retain_log_qty: usize,
     pub backup: bool,
+    pub backup_target: BackupTarget,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BackupTarget {
+    Cloudpoint,
+    Checkpoint,
 }
 
 pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
@@ -23,6 +31,8 @@ pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
         .set_default("retain_log_qty", 10)
         .unwrap()
         .set_default("backup", true)
+        .unwrap()
+        .set_default("backup_target", "cloudpoint")
         .unwrap()
         .add_source(config::File::from_str(
             &fs::read_to_string(AppPath::Base.join("settings.ini")).unwrap_or_default(),
@@ -56,6 +66,7 @@ pub enum AppPath {
     Base,
     Db,
     Backup,
+    Checkpoint,
     Log,
 }
 
@@ -65,6 +76,7 @@ impl AsRef<Path> for AppPath {
             AppPath::Base => Path::new("sdmc:/3ds/Cloudpoint"),
             AppPath::Db => Path::new("sdmc:/3ds/Cloudpoint/db"),
             AppPath::Backup => Path::new("sdmc:/3ds/Cloudpoint/backup"),
+            AppPath::Checkpoint => Path::new("sdmc:/3ds/Checkpoint"),
             AppPath::Log => Path::new("sdmc:/3ds/Cloudpoint/log"),
         }
     }

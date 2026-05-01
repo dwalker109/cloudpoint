@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::utils::decode_utf16;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum CtrArchiveKind {
     Savedata,
     Extdata,
