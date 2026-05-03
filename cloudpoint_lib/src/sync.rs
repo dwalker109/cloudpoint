@@ -59,9 +59,9 @@ impl SyncState {
 
     pub fn get_action(&self) -> SyncAction {
         match (self.local_fp, self.remote_fp) {
+            (None, None) => unreachable!(),
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
-            (None, None) => SyncAction::NoData,
             (Some(l), Some(r)) if l == r => SyncAction::NoChange,
             (Some(_), Some(_)) => {
                 let changed_local = self.local_fp != self.last_fp;
@@ -80,9 +80,10 @@ impl SyncState {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SyncAction {
-    NoData,
     NoChange,
+    NoChangeOnInit,
     Conflict,
+    ConflictOnInit,
     Upload,
     Download,
 }

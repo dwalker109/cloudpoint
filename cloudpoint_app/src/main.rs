@@ -15,9 +15,10 @@ mod tree;
 
 fn main() -> Result<()> {
     let _logger = app_logger::AppLogger::new()?;
-    setup::sdmc()?;
 
+    setup::sdmc()?;
     set_panic_hook(false);
+
     let mut sys_services = services::CtrSysServices::init()?;
     let gfx_services = services::CtrGfxServices::init()?;
     let _console = Console::new(gfx_services.gfx.top_screen.borrow_mut());
