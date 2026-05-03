@@ -2,6 +2,7 @@ use crate::{
     config::{AppPath, BackupTarget, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
+    ctr_title::meta,
     db::StateDb,
     services::{CtrGfxServices, CtrSysServices},
     tree::{self, CtrArchiveLeaf},
@@ -13,7 +14,7 @@ use chunktree::{
     version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrMeta, SmdhLanguage},
+    ctr::{CtrArchiveId, CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
@@ -37,13 +38,12 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in state_db.states_mut() {
-        let smdh = CtrArchive::smdh(s.title_id, s.archive_kind)?;
+        let smdh = CtrArchive::smdh(s.archive_id)?;
 
         log::info!(
-            "Starting sync for {} ({:016x}) {}",
+            "Starting sync of {} ({})",
             smdh.title_short(SmdhLanguage::English),
-            s.title_id,
-            s.archive_kind
+            s.archive_id,
         );
 
         println!(
@@ -51,28 +51,23 @@ pub fn run(
             smdh.title_short(SmdhLanguage::English),
             smdh.title_publisher(SmdhLanguage::English)
         );
-        println!("{:016x} {}", s.title_id, s.archive_kind);
+        println!("{}", s.archive_id);
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
             &USER_SETTINGS.base_url,
             &USER_KEY,
-            s.title_id,
-            s.archive_kind,
+            s.archive_id,
         )?;
 
         let remote_ver = list.latest();
         s.remote_fp = remote_ver.and_then(|e| e.fingerprint().ok());
 
-        let local_meta = CtrArchive::meta(s.title_id)?;
-        let local_archive = Rc::new(CtrArchive::open(s.title_id, s.archive_kind)?);
+        let local_meta = meta(s.archive_id)?;
+        let local_archive = Rc::new(CtrArchive::open(s.archive_id)?);
 
         let Ok(local_tree) = tree::from_archive(Rc::clone(&local_archive)) else {
-            log::info!(
-                "{} archive does not exist for title {:016x}",
-                s.archive_kind,
-                s.title_id
-            );
+            log::info!("{} archive does not exist", s.archive_id,);
 
             continue;
         };
@@ -90,29 +85,17 @@ pub fn run(
 
         match s.get_action() {
             SyncAction::NoData => {
-                log::info!(
-                    "no local or remote data for {:016x} {}",
-                    s.title_id,
-                    s.archive_kind
-                );
+                log::info!("no local or remote data for {}", s.archive_id,);
 
                 println!("Nothing to do, no local or remote data!");
             }
             SyncAction::NoChange => {
-                log::info!(
-                    "local and remote data match for {:016x} {}",
-                    s.title_id,
-                    s.archive_kind
-                );
+                log::info!("local and remote data match for {}", s.archive_id,);
 
                 println!("Nothing to do, local and remote data match!");
             }
             SyncAction::Conflict => {
-                log::info!(
-                    "changed on server and locally for {:016x} {}",
-                    s.title_id,
-                    s.archive_kind
-                );
+                log::info!("changed on server and locally for {}", s.archive_id,);
 
                 println!("Changed on server and locally!");
                 println!("DPAD UP to upload (local wins)");
@@ -160,7 +143,7 @@ pub fn run(
             }
         }
 
-        log::info!("sync completed for {:016x} {}", s.title_id, s.archive_kind);
+        log::info!("sync completed for {}", s.archive_id);
     }
 
     println!("\nDone!");
@@ -174,7 +157,7 @@ fn ul(
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    log::info!("Uploading {:016x} {}", s.title_id, s.archive_kind);
+    log::info!("Uploading {}", s.archive_id);
     println!("Uploading...");
 
     let mut store = HttpStore::new(
@@ -188,8 +171,7 @@ fn ul(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
-        s.title_id,
-        s.archive_kind,
+        s.archive_id,
         &local_ver,
     )?;
 
@@ -210,15 +192,14 @@ fn dl(
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    log::info!("Downloading {:016x} {}", s.title_id, s.archive_kind);
+    log::info!("Downloading {}", s.archive_id);
     println!("Downloading...");
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
-        s.title_id,
-        s.archive_kind,
+        s.archive_id,
         s.remote_fp
             .expect("unreachable without a remote version available"),
     ) else {
@@ -227,17 +208,17 @@ fn dl(
         return Ok(());
     };
 
-    if local_meta.title_version() != remote_ver.meta().title_version() {
+    if local_meta.required_version() != remote_ver.meta().required_version() {
         log::info!(
             "title versions do not match, cannot sync: local={:?} remote={:?}",
-            local_meta.title_version(),
-            remote_ver.meta().title_version()
+            local_meta.required_version(),
+            remote_ver.meta().required_version()
         );
 
         println!(
             "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
-            local_meta.title_version(),
-            remote_ver.meta().title_version()
+            local_meta.required_version(),
+            remote_ver.meta().required_version()
         );
 
         return Ok(());
@@ -283,22 +264,26 @@ fn dl(
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = match USER_SETTINGS.backup_target {
         BackupTarget::Cloudpoint => AppPath::Backup.join(format!(
-            "{:#016X} {}/{}/{}",
-            sync_state.title_id,
+            "{}/{}/{}",
             sync_state.fs_safe_name,
-            sync_state.archive_kind,
+            sync_state.archive_id,
             chrono::Utc::now().format("%Y%m%d-%H%M%S"),
         )),
-        BackupTarget::Checkpoint => AppPath::Checkpoint.join(format!(
-            "{}/{:#07X} {}/{} (Cloudpoint)",
-            match sync_state.archive_kind {
-                cloudpoint_lib::ctr::CtrArchiveKind::Savedata => "saves",
-                cloudpoint_lib::ctr::CtrArchiveKind::Extdata => "extdata",
-            },
-            (sync_state.title_id as u32) >> 8,
-            sync_state.fs_safe_name,
-            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
-        )),
+        BackupTarget::Checkpoint => AppPath::Checkpoint.join(match sync_state.archive_id {
+            CtrArchiveId::Savedata(title_id) => format!(
+                "saves/{:#07X} {}/{} (Cloudpoint)",
+                (title_id as u32) >> 8,
+                sync_state.fs_safe_name,
+                chrono::Utc::now().format("%Y%m%d-%H%M%S")
+            ),
+            // TODO! This is probably broken right now, since switching to archive ids over title ids everywhere
+            CtrArchiveId::Extdata(extdata_id) => format!(
+                "extdata/{:#07X} {}/{} (Cloudpoint)",
+                (extdata_id as u32) >> 8,
+                sync_state.fs_safe_name,
+                chrono::Utc::now().format("%Y%m%d-%H%M%S")
+            ),
+        }),
     };
 
     log::info!("Backing up to {:?}", root_dir);

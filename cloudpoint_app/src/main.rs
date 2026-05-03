@@ -6,6 +6,7 @@ pub mod app_logger;
 pub mod config;
 mod ctr_fs;
 pub mod ctr_ndmu;
+pub mod ctr_title;
 pub mod db;
 mod services;
 mod setup;
@@ -24,11 +25,7 @@ fn main() -> Result<()> {
     let mut state_db = db::StateDb::open(AppPath::Db, &sys_services)?;
 
     println!("\x1b[20CCloudpoint\n");
-    println!(
-        "Ready to sync {} states across {} titles",
-        state_db.total_states(),
-        state_db.total_titles(),
-    );
+    println!("Ready to sync {} states", state_db.total_states(),);
     println!("Press (A) to sync");
     println!("Press (X) to autodiscover");
     println!("Press Start to exit");

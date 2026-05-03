@@ -1,41 +1,15 @@
 use anyhow::anyhow;
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{
-    AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, ARCHIVE_ACTION_COMMIT_SAVE_DATA,
-    FS_Archive, FS_DirectoryEntry, FS_ExtSaveDataInfo, FS_OPEN_READ, FS_Path, FSDIR_Close,
-    FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read, FSFILE_SetSize, FSFILE_Write,
-    FSUSER_CloseArchive, FSUSER_ControlArchive, FSUSER_ControlSecureSave, FSUSER_CreateDirectory,
-    FSUSER_CreateFile, FSUSER_DeleteFile, FSUSER_OpenArchive, FSUSER_OpenDirectory,
-    FSUSER_OpenFile, FSUSER_OpenFileDirectly, FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD,
-    PATH_BINARY, R_FAILED, SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
+    ARCHIVE_ACTION_COMMIT_SAVE_DATA, FS_Archive, FS_DirectoryEntry, FS_ExtSaveDataInfo,
+    FS_OPEN_READ, FS_Path, FSDIR_Close, FSDIR_Read, FSFILE_Close, FSFILE_GetSize, FSFILE_Read,
+    FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive,
+    FSUSER_ControlSecureSave, FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile,
+    FSUSER_OpenArchive, FSUSER_OpenDirectory, FSUSER_OpenFile, FSUSER_OpenFileDirectly,
+    FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD, PATH_BINARY, R_FAILED,
+    SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
 };
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
-
-pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16, IoError> {
-    let mut title_info: AM_TitleInfo = unsafe { std::mem::zeroed() };
-
-    let res = unsafe {
-        AM_GetTitleInfo(
-            MEDIATYPE_SD,
-            1,
-            &title_id as *const u64 as _,
-            &mut title_info,
-        )
-    };
-
-    if R_FAILED(res) {
-        return Err(IoError::new(
-            IoErrorKind::Other,
-            anyhow!(
-                "could not get title info for title {} [{:#010X}]",
-                title_id,
-                res
-            ),
-        ));
-    }
-
-    Ok(title_info.version)
-}
 
 pub(super) fn ctr_read_title_smdh(title_id: u64) -> Result<Vec<u8>, IoError> {
     let archive_path_data = [
@@ -509,23 +483,4 @@ pub(super) fn ctr_reset_secure_save_meta(title_id: u64) -> Result<(), IoError> {
     }
 
     Ok(())
-}
-
-pub(super) fn ctr_getr_ext_data_id_for_title(title_id: u64) -> Result<u64, IoError> {
-    let mut extdata_id: u64 = 0;
-
-    let res = unsafe { AM_GetTitleExtDataId(&mut extdata_id, MediaType::Sd as u8, title_id) };
-
-    if R_FAILED(res) {
-        return Err(IoError::new(
-            IoErrorKind::Other,
-            anyhow!(
-                "could not retrieve extdata_id for title {:016X} [{:#010X}]",
-                title_id,
-                res
-            ),
-        ));
-    }
-
-    Ok(extdata_id)
 }
