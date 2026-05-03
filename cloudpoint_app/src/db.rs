@@ -1,12 +1,13 @@
 use crate::{
     ctr_fs::{self, CtrArchive},
+    ctr_title::extdata_archive_id_for_title,
     services::CtrSysServices,
 };
 use anyhow::Result;
-use cloudpoint_lib::{ctr::CtrArchiveKind, sync::SyncState};
+use cloudpoint_lib::{ctr::CtrArchiveId, sync::SyncState};
 use ctru::services::fs::MediaType;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -21,12 +22,12 @@ pub const SKIPPED_TITLE_IDS: [u64; 3] = [
     0x0004000E001A0500,
 ];
 
-pub struct StateDb(PathBuf, HashMap<(u64, CtrArchiveKind), SyncState>);
+pub struct StateDb(PathBuf, HashMap<CtrArchiveId, SyncState>);
 
 impl StateDb {
-    pub fn open(path: impl AsRef<Path>, services: &CtrSysServices) -> Result<Self> {
-        let installed_titles = services.am.title_list(MediaType::Sd)?;
-        let ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
+    pub fn open(path: impl AsRef<Path>, _services: &CtrSysServices) -> Result<Self> {
+        // let installed_titles = services.am.title_list(MediaType::Sd)?;
+        // let title_ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
 
         let mut states: Vec<SyncState> = Vec::new();
 
@@ -41,8 +42,8 @@ impl StateDb {
             path.as_ref().to_path_buf(),
             states
                 .into_iter()
-                .filter(|s| ids.contains(&s.title_id))
-                .map(|s| ((s.title_id, s.archive_kind), s))
+                // .filter(|s| title_ids.contains(&s.title_id))
+                .map(|s| (s.archive_id, s))
                 .collect(),
         ))
     }
@@ -59,30 +60,39 @@ impl StateDb {
 
             if SKIPPED_TITLE_IDS.contains(&title_id) {
                 log::debug!("skipping title, unsupported");
-                println!("Skipping {:016X}, is tied to this console", title_id);
+                println!("Skipping {:016X}, not supported", title_id);
                 continue;
             }
 
-            for archive_kind in [CtrArchiveKind::Savedata, CtrArchiveKind::Extdata] {
-                if self.contains_state(title_id, archive_kind) {
-                    log::debug!("skipping {archive_kind}, already tracked");
-                    continue;
+            let mut process = |archive_id| -> Result<()> {
+                if self.1.contains_key(&archive_id) {
+                    log::debug!("skipping {archive_id} discovered via {title_id}, already tracked");
+
+                    return Ok(());
                 }
 
-                if ctr_fs::CtrArchive::open(title_id, archive_kind).is_ok() {
-                    log::debug!("adding {archive_kind}");
+                if ctr_fs::CtrArchive::open(archive_id).is_ok() {
+                    log::debug!("adding {archive_id} discovered via {title_id}");
 
                     let state = SyncState::new(
-                        title_id,
+                        archive_id,
                         &title.product_code(),
-                        &CtrArchive::smdh(title_id, archive_kind)?,
-                        archive_kind,
+                        &CtrArchive::smdh(archive_id)?,
                     );
 
-                    println!("Discovered {} {}", state.title_short, archive_kind);
+                    println!("Discovered {} via {}", state.archive_id, state.title_short);
 
-                    self.insert_state(title_id, archive_kind, state);
+                    self.1.insert(archive_id, state);
                 }
+
+                Ok(())
+            };
+
+            let archive_id = CtrArchiveId::Savedata(title_id);
+            process(archive_id)?;
+
+            if let Some(archive_id) = extdata_archive_id_for_title(title_id) {
+                process(archive_id)?;
             }
         }
 
@@ -91,22 +101,6 @@ impl StateDb {
 
     pub fn total_states(&self) -> usize {
         self.1.len()
-    }
-
-    pub fn total_titles(&self) -> usize {
-        self.1
-            .values()
-            .map(|s| s.title_id)
-            .collect::<HashSet<_>>()
-            .len()
-    }
-
-    pub fn contains_state(&self, title_id: u64, archive_kind: CtrArchiveKind) -> bool {
-        self.1.contains_key(&(title_id, archive_kind))
-    }
-
-    pub fn insert_state(&mut self, title_id: u64, archive_kind: CtrArchiveKind, state: SyncState) {
-        self.1.insert((title_id, archive_kind), state);
     }
 
     pub fn states_mut(&mut self) -> impl Iterator<Item = &mut SyncState> {

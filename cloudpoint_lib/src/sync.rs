@@ -1,14 +1,16 @@
-use crate::ctr::{CtrArchiveKind, CtrSmdh, SmdhLanguage};
+use crate::ctr::{CtrArchiveId, CtrSmdh, SmdhLanguage};
 use anyhow::Result;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
-    pub title_id: u64,
+    pub archive_id: CtrArchiveId,
     pub title_short: String,
     pub title_publisher: String,
     pub product_code: String,
-    pub archive_kind: CtrArchiveKind,
     pub fs_safe_name: String,
     pub last_fp: Option<u128>,
     #[serde(skip)]
@@ -18,12 +20,7 @@ pub struct SyncState {
 }
 
 impl SyncState {
-    pub fn new(
-        title_id: u64,
-        product_code: &str,
-        smdh: &CtrSmdh,
-        archive_kind: CtrArchiveKind,
-    ) -> Self {
+    pub fn new(archive_id: CtrArchiveId, product_code: &str, smdh: &CtrSmdh) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
         let product_code = product_code.trim_end_matches('\0').to_string();
@@ -38,12 +35,11 @@ impl SyncState {
             .to_owned();
 
         Self {
-            title_id,
+            archive_id,
             title_short,
             title_publisher,
             product_code,
             fs_safe_name,
-            archive_kind,
             last_fp: None,
             local_fp: None,
             remote_fp: None,
@@ -51,17 +47,10 @@ impl SyncState {
     }
 
     pub fn save(&self, root_path: impl AsRef<Path>) -> Result<()> {
-        log::info!(
-            "Writing db for {:016x} {}",
-            self.title_id,
-            self.archive_kind
-        );
+        log::info!("Writing db for {} ({})", self.archive_id, self.title_short);
 
         fs::write(
-            root_path.as_ref().join(format!(
-                "{:016X} {}.{}",
-                self.title_id, self.fs_safe_name, self.archive_kind,
-            )),
+            root_path.as_ref().join(PathBuf::from(self.archive_id)),
             postcard::to_allocvec(&self)?,
         )?;
 
@@ -222,12 +211,11 @@ mod tests {
 
     fn fixture() -> SyncState {
         SyncState {
-            title_id: 0x00040000_1234ABCD,
+            archive_id: CtrArchiveId::Savedata(0x00040000_1234ABCD),
             title_short: "Foo Bar: Yeah!".into(),
             title_publisher: "Cloudpoint, Inc.".into(),
             product_code: "XTR-X-ABCD".into(),
             fs_safe_name: "Foo Bar  Yeah ".into(),
-            archive_kind: CtrArchiveKind::Savedata,
             last_fp: None,
             local_fp: None,
             remote_fp: None,

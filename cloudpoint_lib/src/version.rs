@@ -1,4 +1,6 @@
-use crate::{ctr::CtrArchiveKind, http::CurlHttpClient};
+use std::path::PathBuf;
+
+use crate::{ctr::CtrArchiveId, http::CurlHttpClient};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
@@ -16,10 +18,12 @@ impl VersionDirList {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        title_id: u64,
-        kind: CtrArchiveKind,
+        archive_id: CtrArchiveId,
     ) -> Result<VersionDirList> {
-        let url = format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{kind}/?json");
+        let url = format!(
+            "{base_url}/sync/{user_key}/archives/{archive_id}/?json",
+            archive_id = PathBuf::from(archive_id).display()
+        );
 
         let res = client.get(&url, &[])?;
 
@@ -57,12 +61,13 @@ impl VersionDirEntry {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        title_id: u64,
-        mode: CtrArchiveKind,
+        archive_id: CtrArchiveId,
         fingerprint: u128,
     ) -> Result<Version<T, K>> {
-        let url =
-            format!("{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}");
+        let url = format!(
+            "{base_url}/sync/{user_key}/archives/{archive_id}/{fingerprint:016X}",
+            archive_id = PathBuf::from(archive_id).display(),
+        );
 
         let res = client.get(&url, &[])?;
 
@@ -76,12 +81,12 @@ impl VersionDirEntry {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        title_id: u64,
-        mode: CtrArchiveKind,
+        archive_id: CtrArchiveId,
         version: &Version<T, K>,
     ) -> Result<()> {
         let url = format!(
-            "{base_url}/sync/{user_key}/titles/{title_id:016X}/{mode}/{fingerprint:016X}",
+            "{base_url}/sync/{user_key}/archives/{archive_id}/{fingerprint:016X}",
+            archive_id = PathBuf::from(archive_id).display(),
             fingerprint = version.fingerprint(),
         );
 
@@ -109,7 +114,7 @@ mod tests {
     use uuid::uuid;
 
     const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
-    const TITLE_ID: u64 = 0x000400001234ABCD;
+    const ARCHIVE_ID: u64 = 0x000400001234ABCD;
 
     #[test]
     fn fingerprint_fails_on_malformed_name() {
@@ -135,8 +140,9 @@ mod tests {
     fn can_get_dir_listing() {
         let srv = MockServer::start();
         srv.mock(|when, then| {
-            when.method("GET")
-                .path(format!("/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/"));
+            when.method("GET").path(format!(
+                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/"
+            ));
             then.status(200).body(
                 r#"{"paths": [
                     {"name":"12345678","size":123,"mtime":123456789},
@@ -150,8 +156,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
         );
 
         assert!(res.is_ok());
@@ -170,8 +175,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
         );
 
         assert!(res.is_ok());
@@ -190,7 +194,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/{fingerprint:016X}",
+                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
                 fingerprint = 12345678
             ));
             then.status(200).body(
@@ -207,8 +211,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -220,7 +223,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/save/{fingerprint:016X}",
+                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
                 fingerprint = 12345678
             ));
             then.status(200)
@@ -232,8 +235,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -253,8 +255,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -274,7 +275,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT").path(format!(
-                "/sync/{USER_KEY}/titles/{TITLE_ID:016X}/savedata/{fingerprint:016X}",
+                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
                 fingerprint = v.fingerprint()
             ));
             then.status(201);
@@ -285,8 +286,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            TITLE_ID,
-            CtrArchiveKind::Savedata,
+            CtrArchiveId::Savedata(ARCHIVE_ID),
             &v,
         );
 
