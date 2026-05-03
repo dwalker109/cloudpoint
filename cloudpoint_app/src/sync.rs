@@ -38,7 +38,12 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in state_db.states_mut() {
-        let smdh = CtrArchive::smdh(s.archive_id)?;
+        let Ok(smdh) = CtrArchive::smdh(s.archive_id) else {
+            log::info!("{} archive does not exist, cannot sync", s.archive_id,);
+            println!("Cannot find {} (was the title deleted?)", s.archive_id);
+
+            continue;
+        };
 
         log::info!(
             "Starting sync of {} ({})",
@@ -65,13 +70,7 @@ pub fn run(
 
         let local_meta = meta(s.archive_id)?;
         let local_archive = Rc::new(CtrArchive::open(s.archive_id)?);
-
-        let Ok(local_tree) = tree::from_archive(Rc::clone(&local_archive)) else {
-            log::info!("{} archive does not exist", s.archive_id,);
-
-            continue;
-        };
-
+        let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
         let local_ver = Version::new(
             &local_tree,
             local_meta,
@@ -84,20 +83,24 @@ pub fn run(
         println!("Remote\x1b[12C{:032x}", s.remote_fp.unwrap_or_default());
 
         match s.get_action() {
-            SyncAction::NoData => {
-                log::info!("no local or remote data for {}", s.archive_id,);
-
-                println!("Nothing to do, no local or remote data!");
-            }
-            SyncAction::NoChange => {
+            SyncAction::NoChange | SyncAction::NoChangeOnInit => {
                 log::info!("local and remote data match for {}", s.archive_id,);
+
+                if s.last_fp.is_none() {
+                    s.last_fp = s.local_fp;
+                    s.save(AppPath::Db)?;
+                }
 
                 println!("Nothing to do, local and remote data match!");
             }
-            SyncAction::Conflict => {
+            SyncAction::Conflict | SyncAction::ConflictOnInit => {
                 log::info!("changed on server and locally for {}", s.archive_id,);
 
-                println!("Changed on server and locally!");
+                match s.last_fp {
+                    Some(_) => println!("Changed on server and locally!"),
+                    None => println!("Exists on server and locally!"),
+                };
+                println!("Make a choice:");
                 println!("DPAD UP to upload (local wins)");
                 println!("DPAD DOWN to download (remote wins)");
                 println!("DPAD LEFT or DPAD RIGHT to skip (come back later)");
