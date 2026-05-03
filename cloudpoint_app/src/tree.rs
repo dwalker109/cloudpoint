@@ -2,7 +2,7 @@ use crate::ctr_fs::{CtrArchive, CtrFsPath};
 
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
-use cloudpoint_lib::ctr::CtrArchiveKind;
+use cloudpoint_lib::ctr::CtrArchiveId;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
 use std::io::{self, Cursor};
 use std::rc::Rc;
@@ -74,16 +74,16 @@ impl Leaf for CtrArchiveLeaf {
                 drop(file);
 
                 if curr_size != length {
-                    match self.ctx.archive.kind() {
+                    match self.ctx.archive.archive_id() {
                         // Savedata supports resize in place
-                        CtrArchiveKind::Savedata => {
+                        CtrArchiveId::Savedata(_) => {
                             log::debug!("setting length for {} via syscall", &self.path);
 
                             let file = self.ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
                             file.set_size(length)?;
                         }
                         // Extdata requires recreating the file with a new length, resizes aren't supported
-                        CtrArchiveKind::Extdata => {
+                        CtrArchiveId::Extdata(_) => {
                             log::debug!("setting length for {} via recreate", &self.path);
 
                             let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;

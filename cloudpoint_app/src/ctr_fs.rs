@@ -1,13 +1,12 @@
 use anyhow::Result;
-use cloudpoint_lib::ctr::{CtrArchiveKind, CtrMeta, CtrSmdh};
+use cloudpoint_lib::ctr::{CtrArchiveId, CtrSmdh};
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
-    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size,
-    ctr_get_title_version, ctr_getr_ext_data_id_for_title, ctr_open_archive, ctr_open_directory,
-    ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file, ctr_read_title_smdh,
-    ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
+    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
+    ctr_open_directory, ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
+    ctr_read_title_smdh, ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
 use std::io::Error as IoError;
@@ -15,15 +14,15 @@ use std::io::Error as IoError;
 mod ffi;
 
 pub struct CtrArchivePath {
-    _title_id: u64,
+    _ctr_archive_id: CtrArchiveId,
     buffer: [u32; 3],
     archive_id: ArchiveID,
 }
 
 impl CtrArchivePath {
-    pub fn new(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
-        let (buffer, archive_id) = match kind {
-            CtrArchiveKind::Savedata => (
+    pub fn new(ctr_archive_id: CtrArchiveId) -> Result<Self, IoError> {
+        let (buffer, archive_id) = match ctr_archive_id {
+            CtrArchiveId::Savedata(title_id) => (
                 [
                     MediaType::Sd as u32,
                     title_id as u32,
@@ -31,18 +30,14 @@ impl CtrArchivePath {
                 ],
                 ArchiveID::UserSavedata,
             ),
-            CtrArchiveKind::Extdata => {
-                let extdata_id = ctr_getr_ext_data_id_for_title(title_id)?;
-
-                (
-                    [MediaType::Sd as u32, extdata_id as u32, 0],
-                    ArchiveID::Extdata,
-                )
-            }
+            CtrArchiveId::Extdata(extdata_id) => (
+                [MediaType::Sd as u32, extdata_id as u32, 0],
+                ArchiveID::Extdata,
+            ),
         };
 
         Ok(Self {
-            _title_id: title_id,
+            _ctr_archive_id: ctr_archive_id,
             buffer,
             archive_id,
         })
@@ -59,40 +54,30 @@ impl CtrArchivePath {
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct CtrArchive {
-    title_id: u64,
-    kind: CtrArchiveKind,
+    archive_id: CtrArchiveId,
     archive_handle: u64,
 }
 
 impl CtrArchive {
-    pub fn meta(title_id: u64) -> Result<CtrMeta, IoError> {
-        Ok(CtrMeta::new(ctr_get_title_version(title_id)?))
-    }
-
-    pub fn smdh(title_id: u64, kind: CtrArchiveKind) -> Result<CtrSmdh, IoError> {
-        match kind {
-            CtrArchiveKind::Savedata => Ok(ctr_read_title_smdh(title_id)?.into()),
-            CtrArchiveKind::Extdata => {
-                let save_id = ctr_getr_ext_data_id_for_title(title_id)?;
-
-                Ok(ctr_read_ext_smdh(save_id)?.into())
-            }
+    pub fn smdh(archive_id: CtrArchiveId) -> Result<CtrSmdh, IoError> {
+        match archive_id {
+            CtrArchiveId::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
+            CtrArchiveId::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
         }
     }
 
-    pub fn open(title_id: u64, kind: CtrArchiveKind) -> Result<Self, IoError> {
-        let path = CtrArchivePath::new(title_id, kind)?;
+    pub fn open(archive_id: CtrArchiveId) -> Result<Self, IoError> {
+        let path = CtrArchivePath::new(archive_id)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
 
         Ok(Self {
-            title_id,
-            kind,
+            archive_id,
             archive_handle: handle,
         })
     }
 
-    pub fn kind(&self) -> CtrArchiveKind {
-        self.kind
+    pub fn archive_id(&self) -> &CtrArchiveId {
+        &self.archive_id
     }
 
     pub fn open_file(&self, path: &CtrFsPath, flags: u8) -> Result<CtrFile, IoError> {
@@ -120,9 +105,9 @@ impl CtrArchive {
     }
 
     pub fn finalise(&self) -> Result<(), IoError> {
-        if self.kind == CtrArchiveKind::Savedata {
+        if let CtrArchiveId::Savedata(title_id) = self.archive_id {
             ctr_commit_archive(self.archive_handle)?;
-            ctr_reset_secure_save_meta(self.title_id)?;
+            ctr_reset_secure_save_meta(title_id)?;
         }
 
         Ok(())

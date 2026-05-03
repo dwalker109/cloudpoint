@@ -1,47 +1,45 @@
-use serde::{Deserialize, Serialize};
-
 use crate::utils::decode_utf16;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CtrArchiveKind {
-    Savedata,
-    Extdata,
+pub enum CtrArchiveId {
+    Savedata(u64),
+    Extdata(u64),
 }
 
-impl std::fmt::Display for CtrArchiveKind {
+impl std::fmt::Display for CtrArchiveId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CtrArchiveKind::Savedata => write!(f, "savedata"),
-            CtrArchiveKind::Extdata => write!(f, "extdata"),
+            CtrArchiveId::Savedata(title_id) => write!(f, "{title_id:016X} savedata"),
+            CtrArchiveId::Extdata(extdata_id) => write!(f, "{extdata_id:016X} extdata"),
         }
     }
 }
 
-impl TryFrom<&str> for CtrArchiveKind {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl From<CtrArchiveId> for PathBuf {
+    fn from(value: CtrArchiveId) -> Self {
         match value {
-            "savedata" => Ok(CtrArchiveKind::Savedata),
-            "extdata" => Ok(CtrArchiveKind::Extdata),
-            _ => Err(()),
+            CtrArchiveId::Savedata(title_id) => PathBuf::from(format!("{title_id:016X}.savedata")),
+            CtrArchiveId::Extdata(extdata_id) => {
+                PathBuf::from(format!("{extdata_id:016X}.extdata"))
+            }
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct CtrMeta {
-    title_version: u16,
+    required_version: u16,
 }
 
 impl CtrMeta {
-    pub fn new(title_version: u16) -> Self {
-        Self { title_version }
+    pub fn new(required_version: u16) -> Self {
+        Self { required_version }
     }
 
-    pub fn title_version(&self) -> u16 {
-        self.title_version
+    pub fn required_version(&self) -> u16 {
+        self.required_version
     }
 }
 
