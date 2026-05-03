@@ -109,7 +109,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new().unwrap();
-        let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
 
         let mut buf = Vec::new();
         store
