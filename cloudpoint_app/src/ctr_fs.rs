@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cloudpoint_lib::ctr::{CtrArchiveId, CtrSmdh};
+use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
 use ctru::services::fs::{ArchiveID, MediaType};
 use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
@@ -14,15 +14,15 @@ use std::io::Error as IoError;
 mod ffi;
 
 struct CtrArchivePath {
-    _ctr_archive_id: CtrArchiveId,
+    _sync_item: SyncItem,
     buffer: [u32; 3],
     archive_id: ArchiveID,
 }
 
 impl CtrArchivePath {
-    fn new(ctr_archive_id: CtrArchiveId) -> Result<Self, IoError> {
-        let (buffer, archive_id) = match ctr_archive_id {
-            CtrArchiveId::Savedata(title_id) => (
+    fn new(sync_item: SyncItem) -> Result<Self, IoError> {
+        let (buffer, archive_id) = match sync_item {
+            SyncItem::Savedata(title_id) => (
                 [
                     MediaType::Sd as u32,
                     title_id as u32,
@@ -30,14 +30,14 @@ impl CtrArchivePath {
                 ],
                 ArchiveID::UserSavedata,
             ),
-            CtrArchiveId::Extdata(extdata_id) => (
+            SyncItem::Extdata(extdata_id) => (
                 [MediaType::Sd as u32, extdata_id as u32, 0],
                 ArchiveID::Extdata,
             ),
         };
 
         Ok(Self {
-            _ctr_archive_id: ctr_archive_id,
+            _sync_item: sync_item,
             buffer,
             archive_id,
         })
@@ -54,30 +54,30 @@ impl CtrArchivePath {
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct CtrArchive {
-    archive_id: CtrArchiveId,
+    sync_item: SyncItem,
     archive_handle: u64,
 }
 
 impl CtrArchive {
-    pub fn smdh(archive_id: CtrArchiveId) -> Result<CtrSmdh, IoError> {
-        match archive_id {
-            CtrArchiveId::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
-            CtrArchiveId::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
+    pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
+        match sync_item {
+            SyncItem::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
+            SyncItem::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
         }
     }
 
-    pub fn open(archive_id: CtrArchiveId) -> Result<Self, IoError> {
-        let path = CtrArchivePath::new(archive_id)?;
+    pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
+        let path = CtrArchivePath::new(sync_item)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
 
         Ok(Self {
-            archive_id,
+            sync_item,
             archive_handle: handle,
         })
     }
 
-    pub fn archive_id(&self) -> &CtrArchiveId {
-        &self.archive_id
+    pub fn sync_item(&self) -> &SyncItem {
+        &self.sync_item
     }
 
     pub fn open_file(&self, path: &CtrFsPath, flags: u8) -> Result<CtrFile, IoError> {
@@ -105,7 +105,7 @@ impl CtrArchive {
     }
 
     pub fn finalise(&self) -> Result<(), IoError> {
-        if let CtrArchiveId::Savedata(title_id) = self.archive_id {
+        if let SyncItem::Savedata(title_id) = self.sync_item {
             ctr_commit_archive(self.archive_handle)?;
             ctr_reset_secure_save_meta(title_id)?;
         }

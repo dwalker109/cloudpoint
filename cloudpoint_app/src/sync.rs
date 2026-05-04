@@ -38,9 +38,9 @@ pub fn run(
     let client = Rc::new(CurlHttpClient::new()?);
 
     for mut s in state_db.states_mut() {
-        let Ok(smdh) = CtrArchive::smdh(s.archive_id) else {
-            log::info!("{} archive does not exist, cannot sync", s.archive_id,);
-            println!("Cannot find {} (was the title deleted?)", s.archive_id);
+        let Ok(smdh) = CtrArchive::smdh(s.sync_item) else {
+            log::info!("{} archive does not exist, cannot sync", s.sync_item,);
+            println!("Cannot find {} (was the title deleted?)", s.sync_item);
 
             continue;
         };
@@ -48,7 +48,7 @@ pub fn run(
         log::info!(
             "Starting sync of {} ({})",
             smdh.title_short(SmdhLanguage::English),
-            s.archive_id,
+            s.sync_item,
         );
 
         println!(
@@ -56,20 +56,20 @@ pub fn run(
             smdh.title_short(SmdhLanguage::English),
             smdh.title_publisher(SmdhLanguage::English)
         );
-        println!("{}", s.archive_id);
+        println!("{}", s.sync_item);
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
             &USER_SETTINGS.base_url,
             &USER_KEY,
-            s.archive_id,
+            s.sync_item,
         )?;
 
         let remote_ver = list.latest();
         s.remote_fp = remote_ver.and_then(|e| e.fingerprint().ok());
 
-        let local_meta = meta(s.archive_id)?;
-        let local_archive = Rc::new(CtrArchive::open(s.archive_id)?);
+        let local_meta = meta(s.sync_item)?;
+        let local_archive = Rc::new(CtrArchive::open(s.sync_item)?);
         let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
         let local_ver = Version::new(
             &local_tree,
@@ -84,7 +84,7 @@ pub fn run(
 
         match s.get_action() {
             SyncAction::NoChange | SyncAction::NoChangeOnInit => {
-                log::info!("local and remote data match for {}", s.archive_id,);
+                log::info!("local and remote data match for {}", s.sync_item,);
 
                 if s.last_fp.is_none() {
                     s.last_fp = s.local_fp;
@@ -94,7 +94,7 @@ pub fn run(
                 println!("Nothing to do, local and remote data match!");
             }
             SyncAction::Conflict | SyncAction::ConflictOnInit => {
-                log::info!("changed on server and locally for {}", s.archive_id,);
+                log::info!("changed on server and locally for {}", s.sync_item,);
 
                 match s.last_fp {
                     Some(_) => println!("Changed on server and locally!"),
@@ -146,7 +146,7 @@ pub fn run(
             }
         }
 
-        log::info!("sync completed for {}", s.archive_id);
+        log::info!("sync completed for {}", s.sync_item);
     }
 
     println!("\nDone!");
@@ -160,7 +160,7 @@ fn ul(
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    log::info!("Uploading {}", s.archive_id);
+    log::info!("Uploading {}", s.sync_item);
     println!("Uploading...");
 
     let mut store = HttpStore::new(
@@ -174,7 +174,7 @@ fn ul(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
-        s.archive_id,
+        s.sync_item,
         &local_ver,
     )?;
 
@@ -195,14 +195,14 @@ fn dl(
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: Tree<CtrArchiveLeaf>,
 ) -> Result<()> {
-    log::info!("Downloading {}", s.archive_id);
+    log::info!("Downloading {}", s.sync_item);
     println!("Downloading...");
 
     let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
-        s.archive_id,
+        s.sync_item,
         s.remote_fp
             .expect("unreachable without a remote version available"),
     ) else {
@@ -268,7 +268,7 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
     let root_dir = AppPath::Backup.join(format!(
         "{}/{}/{}",
         sync_state.fs_safe_name,
-        sync_state.archive_id,
+        sync_state.sync_item,
         chrono::Utc::now().format("%Y%m%d-%H%M%S"),
     ));
 

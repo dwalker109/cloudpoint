@@ -1,13 +1,38 @@
-use crate::ctr::{CtrArchiveId, CtrSmdh, SmdhLanguage};
+use crate::ctr::{CtrSmdh, SmdhLanguage};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+pub enum SyncItem {
+    Savedata(u64),
+    Extdata(u64),
+}
+
+impl std::fmt::Display for SyncItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SyncItem::Savedata(title_id) => write!(f, "{title_id:016X} savedata"),
+            SyncItem::Extdata(extdata_id) => write!(f, "{extdata_id:016X} extdata"),
+        }
+    }
+}
+
+impl From<SyncItem> for PathBuf {
+    fn from(value: SyncItem) -> Self {
+        match value {
+            SyncItem::Savedata(title_id) => PathBuf::from(format!("{title_id:016X}.savedata")),
+            SyncItem::Extdata(extdata_id) => PathBuf::from(format!("{extdata_id:016X}.extdata")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
-    pub archive_id: CtrArchiveId,
+    pub sync_item: SyncItem,
     pub title_short: String,
     pub title_publisher: String,
     pub product_code: String,
@@ -20,7 +45,7 @@ pub struct SyncState {
 }
 
 impl SyncState {
-    pub fn new(archive_id: CtrArchiveId, product_code: &str, smdh: &CtrSmdh) -> Self {
+    pub fn new(sync_item: SyncItem, product_code: &str, smdh: &CtrSmdh) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
         let product_code = product_code.trim_end_matches('\0').to_string();
@@ -35,7 +60,7 @@ impl SyncState {
             .to_owned();
 
         Self {
-            archive_id,
+            sync_item,
             title_short,
             title_publisher,
             product_code,
@@ -47,10 +72,10 @@ impl SyncState {
     }
 
     pub fn save(&self, root_path: impl AsRef<Path>) -> Result<()> {
-        log::info!("Writing db for {} ({})", self.archive_id, self.title_short);
+        log::info!("Writing db for {} ({})", self.sync_item, self.title_short);
 
         fs::write(
-            root_path.as_ref().join(PathBuf::from(self.archive_id)),
+            root_path.as_ref().join(PathBuf::from(self.sync_item)),
             postcard::to_allocvec(&self)?,
         )?;
 
@@ -211,7 +236,7 @@ mod tests {
 
     fn fixture() -> SyncState {
         SyncState {
-            archive_id: CtrArchiveId::Savedata(0x00040000_1234ABCD),
+            sync_item: SyncItem::Savedata(0x00040000_1234ABCD),
             title_short: "Foo Bar: Yeah!".into(),
             title_publisher: "Cloudpoint, Inc.".into(),
             product_code: "XTR-X-ABCD".into(),
