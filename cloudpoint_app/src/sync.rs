@@ -1,5 +1,5 @@
 use crate::{
-    config::{AppPath, BackupTarget, USER_KEY, USER_SETTINGS},
+    config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
@@ -14,7 +14,7 @@ use chunktree::{
     version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrArchiveId, CtrMeta, SmdhLanguage},
+    ctr::{CtrMeta, SmdhLanguage},
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
@@ -265,29 +265,12 @@ fn dl(
 }
 
 fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
-    let root_dir = match USER_SETTINGS.backup_target {
-        BackupTarget::Cloudpoint => AppPath::Backup.join(format!(
-            "{}/{}/{}",
-            sync_state.fs_safe_name,
-            sync_state.archive_id,
-            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
-        )),
-        BackupTarget::Checkpoint => AppPath::Checkpoint.join(match sync_state.archive_id {
-            CtrArchiveId::Savedata(title_id) => format!(
-                "saves/{:#07X} {}/{} (Cloudpoint)",
-                (title_id as u32) >> 8,
-                sync_state.fs_safe_name,
-                chrono::Utc::now().format("%Y%m%d-%H%M%S")
-            ),
-            // TODO! This is probably broken right now, since switching to archive ids over title ids everywhere
-            CtrArchiveId::Extdata(extdata_id) => format!(
-                "extdata/{:#07X} {}/{} (Cloudpoint)",
-                (extdata_id as u32) >> 8,
-                sync_state.fs_safe_name,
-                chrono::Utc::now().format("%Y%m%d-%H%M%S")
-            ),
-        }),
-    };
+    let root_dir = AppPath::Backup.join(format!(
+        "{}/{}/{}",
+        sync_state.fs_safe_name,
+        sync_state.archive_id,
+        chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+    ));
 
     log::info!("Backing up to {:?}", root_dir);
 
