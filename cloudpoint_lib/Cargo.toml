@@ -15,6 +15,7 @@ chunktree = { workspace = true }
 postcard = { workspace = true }
 log = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
+flate2 = { workspace = true }
 
 [dev-dependencies]
 httpmock = { workspace = true }
