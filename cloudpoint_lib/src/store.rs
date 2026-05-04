@@ -1,6 +1,10 @@
 use crate::http::CurlHttpClient;
 use anyhow::anyhow;
 use chunktree::store::{StoreError, StoreRead, StoreWrite};
+use flate2::{
+    Compression,
+    read::{GzDecoder, GzEncoder},
+};
 use std::{
     io::{self, Cursor, Read},
     rc::Rc,
@@ -30,7 +34,7 @@ impl StoreRead for HttpStore {
             )
         })?;
 
-        Ok(Cursor::new(res.body))
+        Ok(GzDecoder::new(Cursor::new(res.body)))
     }
 }
 
@@ -50,10 +54,11 @@ impl StoreWrite for HttpStore {
             .status
             != 200;
 
-        let mut body = Vec::new();
-        data.read_to_end(&mut body)?;
-
         if should_upload {
+            let mut body = Vec::new();
+            let mut gzip_encoder = GzEncoder::new(data, Compression::best());
+            gzip_encoder.read_to_end(&mut body)?;
+
             self.0.put(&url, &body, &[]).map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::Other,

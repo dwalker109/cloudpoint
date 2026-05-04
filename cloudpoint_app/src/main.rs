@@ -48,13 +48,18 @@ fn main() -> Result<()> {
                 continue;
             };
 
-            let res = sync::run(&mut sys_services, &gfx_services, &mut state_db);
+            let start = std::time::Instant::now();
 
+            let res = sync::run(&mut sys_services, &gfx_services, &mut state_db);
             if res.is_err() {
                 log::error!("sync error: {res:?}");
             }
 
             println!("Results: {:?}", res);
+            println!(
+                "Completed in {} seconds",
+                std::time::Instant::now().duration_since(start).as_secs()
+            );
         }
 
         if sys_services.hid.keys_down().contains(KeyPad::X) {

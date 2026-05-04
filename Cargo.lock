@@ -265,6 +265,7 @@ dependencies = [
  "chrono",
  "chunktree",
  "curl-sys",
+ "flate2",
  "httpmock",
  "itertools 0.14.0",
  "libc",
