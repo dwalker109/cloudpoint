@@ -1,23 +1,23 @@
 use crate::ctr_fs::CtrArchive;
 use anyhow::Result;
-use cloudpoint_lib::ctr::{CtrArchiveId, CtrMeta};
+use cloudpoint_lib::{ctr::CtrMeta, sync::SyncItem};
 use ffi::{ctr_get_title_version, ctr_getr_ext_data_id_for_title};
 
-pub fn meta(archive_id: CtrArchiveId) -> Result<CtrMeta> {
-    match archive_id {
-        CtrArchiveId::Savedata(title_id) => Ok(CtrMeta::new(ctr_get_title_version(title_id)?)),
-        CtrArchiveId::Extdata(_) => Ok(CtrMeta::new(0)),
+pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
+    match sync_item {
+        SyncItem::Savedata(title_id) => Ok(CtrMeta::new(ctr_get_title_version(title_id)?)),
+        SyncItem::Extdata(_) => Ok(CtrMeta::new(0)),
     }
 }
 
-pub fn extdata_archive_id_for_title(title_id: u64) -> Option<CtrArchiveId> {
+pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
     ctr_getr_ext_data_id_for_title(title_id)
         .ok()
-        .and_then(|extdata_id| Some(CtrArchiveId::Extdata(extdata_id)))
+        .and_then(|extdata_id| Some(SyncItem::Extdata(extdata_id)))
 }
 
-pub fn inferred_extdata_archive_id_for_title(title_id: u64) -> Option<CtrArchiveId> {
-    let maybe_archive_id = CtrArchiveId::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
+pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
+    let maybe_archive_id = SyncItem::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
 
     CtrArchive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)

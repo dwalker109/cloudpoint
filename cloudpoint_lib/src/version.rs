@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{ctr::CtrArchiveId, http::CurlHttpClient};
+use crate::{http::CurlHttpClient, sync::SyncItem};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
@@ -18,11 +18,11 @@ impl VersionDirList {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        archive_id: CtrArchiveId,
+        sync_item: SyncItem,
     ) -> Result<VersionDirList> {
         let url = format!(
-            "{base_url}/sync/{user_key}/archives/{archive_id}/?json",
-            archive_id = PathBuf::from(archive_id).display()
+            "{base_url}/sync/{user_key}/archives/{sync_item}/?json",
+            sync_item = PathBuf::from(sync_item).display()
         );
 
         let res = client.get(&url, &[])?;
@@ -61,12 +61,12 @@ impl VersionDirEntry {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        archive_id: CtrArchiveId,
+        sync_item: SyncItem,
         fingerprint: u128,
     ) -> Result<Version<T, K>> {
         let url = format!(
-            "{base_url}/sync/{user_key}/archives/{archive_id}/{fingerprint:016X}",
-            archive_id = PathBuf::from(archive_id).display(),
+            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:016X}",
+            sync_item = PathBuf::from(sync_item).display(),
         );
 
         let res = client.get(&url, &[])?;
@@ -81,12 +81,12 @@ impl VersionDirEntry {
         client: &CurlHttpClient,
         base_url: &str,
         user_key: &Uuid,
-        archive_id: CtrArchiveId,
+        sync_item: SyncItem,
         version: &Version<T, K>,
     ) -> Result<()> {
         let url = format!(
-            "{base_url}/sync/{user_key}/archives/{archive_id}/{fingerprint:016X}",
-            archive_id = PathBuf::from(archive_id).display(),
+            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:016X}",
+            sync_item = PathBuf::from(sync_item).display(),
             fingerprint = version.fingerprint(),
         );
 
@@ -156,7 +156,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
         );
 
         assert!(res.is_ok());
@@ -175,7 +175,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
         );
 
         assert!(res.is_ok());
@@ -211,7 +211,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -235,7 +235,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -255,7 +255,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
             12345678,
         );
 
@@ -286,7 +286,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            CtrArchiveId::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(ARCHIVE_ID),
             &v,
         );
 

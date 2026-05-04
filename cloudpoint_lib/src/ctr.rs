@@ -1,32 +1,5 @@
 use crate::utils::decode_utf16;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub enum CtrArchiveId {
-    Savedata(u64),
-    Extdata(u64),
-}
-
-impl std::fmt::Display for CtrArchiveId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CtrArchiveId::Savedata(title_id) => write!(f, "{title_id:016X} savedata"),
-            CtrArchiveId::Extdata(extdata_id) => write!(f, "{extdata_id:016X} extdata"),
-        }
-    }
-}
-
-impl From<CtrArchiveId> for PathBuf {
-    fn from(value: CtrArchiveId) -> Self {
-        match value {
-            CtrArchiveId::Savedata(title_id) => PathBuf::from(format!("{title_id:016X}.savedata")),
-            CtrArchiveId::Extdata(extdata_id) => {
-                PathBuf::from(format!("{extdata_id:016X}.extdata"))
-            }
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct CtrMeta {
