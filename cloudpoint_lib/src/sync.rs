@@ -37,11 +37,7 @@ pub struct SyncState {
     pub title_publisher: String,
     pub product_code: String,
     pub fs_safe_name: String,
-    pub last_fp: Option<u128>,
-    #[serde(skip)]
-    pub local_fp: Option<u128>,
-    #[serde(skip)]
-    pub remote_fp: Option<u128>,
+    pub synced_fingerprint: Option<u128>,
 }
 
 impl SyncState {
@@ -65,9 +61,7 @@ impl SyncState {
             title_publisher,
             product_code,
             fs_safe_name,
-            last_fp: None,
-            local_fp: None,
-            remote_fp: None,
+            synced_fingerprint: None,
         }
     }
 
@@ -82,15 +76,19 @@ impl SyncState {
         Ok(())
     }
 
-    pub fn get_action(&self) -> SyncAction {
-        match (self.local_fp, self.remote_fp) {
+    pub fn get_action(
+        &self,
+        local_fingerprint: Option<u128>,
+        remote_fingerprint: Option<u128>,
+    ) -> SyncAction {
+        match (local_fingerprint, remote_fingerprint) {
             (None, None) => unreachable!(),
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
             (Some(l), Some(r)) if l == r => SyncAction::NoChange,
             (Some(_), Some(_)) => {
-                let changed_local = self.local_fp != self.last_fp;
-                let changed_remote = self.remote_fp != self.last_fp;
+                let changed_local = local_fingerprint != self.synced_fingerprint;
+                let changed_remote = remote_fingerprint != self.synced_fingerprint;
 
                 match (changed_local, changed_remote) {
                     (false, true) => SyncAction::Download,
@@ -119,20 +117,18 @@ mod tests {
 
     #[test]
     fn local_only_no_remote() {
-        let mut s = SyncState { ..fixture() };
-        s.local_fp = Some(1);
+        let s = SyncState { ..fixture() };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(1), None);
 
         assert!(matches!(res, SyncAction::Upload));
     }
 
     #[test]
     fn remote_only_no_local() {
-        let mut s = SyncState { ..fixture() };
-        s.remote_fp = Some(1);
+        let s = SyncState { ..fixture() };
 
-        let res = s.get_action();
+        let res = s.get_action(None, Some(1));
 
         assert!(matches!(res, SyncAction::Download));
     }
@@ -140,13 +136,11 @@ mod tests {
     #[test]
     fn local_change_only() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: Some(2),
-            remote_fp: Some(1),
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(2), Some(1));
 
         assert!(matches!(res, SyncAction::Upload));
     }
@@ -154,13 +148,11 @@ mod tests {
     #[test]
     fn remote_change_only() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: Some(1),
-            remote_fp: Some(2),
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(1), Some(2));
 
         assert!(matches!(res, SyncAction::Download));
     }
@@ -168,13 +160,11 @@ mod tests {
     #[test]
     fn both_change() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: Some(2),
-            remote_fp: Some(3),
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(2), Some(3));
 
         assert!(matches!(res, SyncAction::Conflict));
     }
@@ -182,13 +172,11 @@ mod tests {
     #[test]
     fn no_local_with_remote_always_download() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: None,
-            remote_fp: Some(1),
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(None, Some(1));
 
         assert!(matches!(res, SyncAction::Download));
     }
@@ -196,13 +184,11 @@ mod tests {
     #[test]
     fn no_remote_with_local_always_upload() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: Some(1),
-            remote_fp: None,
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(1), None);
 
         assert!(matches!(res, SyncAction::Upload));
     }
@@ -211,25 +197,21 @@ mod tests {
     #[should_panic]
     fn no_remote_no_local_cannot_happen() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: None,
-            remote_fp: None,
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        s.get_action();
+        s.get_action(None, None);
     }
 
     #[test]
     fn matching_local_and_remote_always_no_change() {
         let s = SyncState {
-            last_fp: Some(1),
-            local_fp: Some(2),
-            remote_fp: Some(2),
+            synced_fingerprint: Some(1),
             ..fixture()
         };
 
-        let res = s.get_action();
+        let res = s.get_action(Some(2), Some(2));
 
         assert!(matches!(res, SyncAction::NoChange));
     }
@@ -241,9 +223,7 @@ mod tests {
             title_publisher: "Cloudpoint, Inc.".into(),
             product_code: "XTR-X-ABCD".into(),
             fs_safe_name: "Foo Bar  Yeah ".into(),
-            last_fp: None,
-            local_fp: None,
-            remote_fp: None,
+            synced_fingerprint: None,
         }
     }
 }

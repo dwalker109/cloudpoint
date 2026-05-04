@@ -66,7 +66,7 @@ pub fn run(
         )?;
 
         let remote_ver = list.latest();
-        s.remote_fp = remote_ver.and_then(|e| e.fingerprint().ok());
+        let remote_fingerprint = remote_ver.and_then(|e| e.fingerprint().ok());
 
         let local_meta = meta(s.sync_item)?;
         let local_archive = Rc::new(CtrArchive::open(s.sync_item)?);
@@ -77,17 +77,23 @@ pub fn run(
             ChunkStrategy::FixedSize(256 * 1024),
             Concurrency::Serial,
         )?;
-        s.local_fp = Some(local_ver.fingerprint());
+        let local_fingerprint = Some(local_ver.fingerprint());
 
-        println!("Local \x1b[12C{:032x}", s.local_fp.unwrap_or_default());
-        println!("Remote\x1b[12C{:032x}", s.remote_fp.unwrap_or_default());
+        println!(
+            "Local \x1b[12C{:032x}",
+            local_fingerprint.unwrap_or_default()
+        );
+        println!(
+            "Remote\x1b[12C{:032x}",
+            remote_fingerprint.unwrap_or_default()
+        );
 
-        match s.get_action() {
+        match s.get_action(local_fingerprint, remote_fingerprint) {
             SyncAction::NoChange | SyncAction::NoChangeOnInit => {
                 log::info!("local and remote data match for {}", s.sync_item,);
 
-                if s.last_fp.is_none() {
-                    s.last_fp = s.local_fp;
+                if s.synced_fingerprint.is_none() {
+                    s.synced_fingerprint = local_fingerprint;
                     s.save(AppPath::Db)?;
                 }
 
@@ -96,7 +102,7 @@ pub fn run(
             SyncAction::Conflict | SyncAction::ConflictOnInit => {
                 log::info!("changed on server and locally for {}", s.sync_item,);
 
-                match s.last_fp {
+                match s.synced_fingerprint {
                     Some(_) => println!("Changed on server and locally!"),
                     None => println!("Exists on server and locally!"),
                 };
@@ -110,7 +116,13 @@ pub fn run(
                     services.hid.scan_input();
 
                     if services.hid.keys_down().contains(KeyPad::DPAD_UP) {
-                        ul(&mut s, Rc::clone(&client), &local_ver, &local_tree)?;
+                        ul(
+                            &mut s,
+                            Rc::clone(&client),
+                            &local_ver,
+                            &local_tree,
+                            local_fingerprint,
+                        )?;
                         break;
                     } else if services.hid.keys_down().contains(KeyPad::DPAD_DOWN) {
                         dl(
@@ -120,6 +132,7 @@ pub fn run(
                             &local_meta,
                             &local_ver,
                             local_tree,
+                            remote_fingerprint,
                         )?;
                         break;
                     } else if services
@@ -132,7 +145,13 @@ pub fn run(
                 }
             }
             SyncAction::Upload => {
-                ul(&mut s, Rc::clone(&client), &local_ver, &local_tree)?;
+                ul(
+                    &mut s,
+                    Rc::clone(&client),
+                    &local_ver,
+                    &local_tree,
+                    local_fingerprint,
+                )?;
             }
             SyncAction::Download => {
                 dl(
@@ -142,6 +161,7 @@ pub fn run(
                     &local_meta,
                     &local_ver,
                     local_tree,
+                    remote_fingerprint,
                 )?;
             }
         }
@@ -159,6 +179,7 @@ fn ul(
     client: Rc<CurlHttpClient>,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
+    local_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("Uploading {}", s.sync_item);
     println!("Uploading...");
@@ -178,8 +199,7 @@ fn ul(
         &local_ver,
     )?;
 
-    s.last_fp = Some(local_ver.fingerprint());
-
+    s.synced_fingerprint = local_fingerprint;
     s.save(AppPath::Db)?;
 
     println!("Done!");
@@ -194,6 +214,7 @@ fn dl(
     local_meta: &CtrMeta,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: Tree<CtrArchiveLeaf>,
+    remote_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("Downloading {}", s.sync_item);
     println!("Downloading...");
@@ -203,10 +224,9 @@ fn dl(
         &USER_SETTINGS.base_url,
         &USER_KEY,
         s.sync_item,
-        s.remote_fp
-            .expect("unreachable without a remote version available"),
+        remote_fingerprint.expect("remote_fingerprint should be Some<u128> to init a download"),
     ) else {
-        println!("Failed to fetch version manifest :(");
+        println!("Failed to fetch version manifest for version {remote_fingerprint:?}");
 
         return Ok(());
     };
@@ -255,8 +275,7 @@ fn dl(
 
     archive.finalise()?;
 
-    s.last_fp = Some(remote_ver.fingerprint());
-
+    s.synced_fingerprint = remote_fingerprint;
     s.save(AppPath::Db)?;
 
     println!("Done!");
