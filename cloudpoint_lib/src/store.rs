@@ -21,7 +21,10 @@ impl HttpStore {
     fn fq_hash_url(&self, hash: u128) -> String {
         let [msb, ..] = hash.to_be_bytes();
 
-        format!("{}/sync/{}/chunks/{:02x}/{}", self.1, self.2, msb, hash)
+        format!(
+            "{}/sync/{}/chunks/{:02x}/{:032x}",
+            self.1, self.2, msb, hash
+        )
     }
 }
 
@@ -75,6 +78,7 @@ impl StoreWrite for HttpStore {
 mod tests {
     use crate::http::CurlHttpClient;
     use chunktree::store::{StoreRead, StoreWrite};
+    use flate2::{Compression, read::GzEncoder};
     use httpmock::prelude::*;
     use std::{
         io::{Cursor, Read},
@@ -110,7 +114,13 @@ mod tests {
         let srv = MockServer::start();
         let get_mock = srv.mock(|when, then| {
             when.method("GET");
-            then.status(200).body(b"test data");
+            then.status(200).body({
+                let mut encoder = GzEncoder::new(Cursor::new(b"test data"), Compression::none());
+                let mut buf = vec![];
+                encoder.read_to_end(&mut buf).ok();
+
+                buf
+            });
         });
 
         let client = CurlHttpClient::new().unwrap();

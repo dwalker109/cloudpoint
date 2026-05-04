@@ -65,7 +65,7 @@ impl VersionDirEntry {
         fingerprint: u128,
     ) -> Result<Version<T, K>> {
         let url = format!(
-            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:016X}",
+            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:032x}",
             sync_item = PathBuf::from(sync_item).display(),
         );
 
@@ -85,7 +85,7 @@ impl VersionDirEntry {
         version: &Version<T, K>,
     ) -> Result<()> {
         let url = format!(
-            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:016X}",
+            "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:032x}",
             sync_item = PathBuf::from(sync_item).display(),
             fingerprint = version.fingerprint(),
         );
@@ -114,7 +114,8 @@ mod tests {
     use uuid::uuid;
 
     const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
-    const ARCHIVE_ID: u64 = 0x000400001234ABCD;
+    const SYNC_ITEM_ID: u64 = 0x000400001234ABCD;
+    const FINGERPRINT: u128 = 0x1234567890abcdef;
 
     #[test]
     fn fingerprint_fails_on_malformed_name() {
@@ -129,11 +130,11 @@ mod tests {
     #[test]
     fn fingerprint_ok_on_valid_name() {
         let e = VersionDirEntry {
-            name: "000400000007AF00".into(),
+            name: "abff99cc".into(),
             mtime: Default::default(),
         };
 
-        assert_eq!(e.fingerprint().unwrap(), 0x000400000007AF00);
+        assert_eq!(e.fingerprint().unwrap(), 0xabff99cc);
     }
 
     #[test]
@@ -141,7 +142,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/"
+                "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/"
             ));
             then.status(200).body(
                 r#"{"paths": [
@@ -156,7 +157,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(SYNC_ITEM_ID),
         );
 
         assert!(res.is_ok());
@@ -175,7 +176,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(SYNC_ITEM_ID),
         );
 
         assert!(res.is_ok());
@@ -184,7 +185,6 @@ mod tests {
 
     #[test]
     fn can_get_version() {
-        //TODO! Get a fixture for this instead of duck typing something
         #[derive(Serialize)]
         struct DuckVersion {
             payload: BTreeSet<()>,
@@ -194,8 +194,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
-                fingerprint = 12345678
+                "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
             then.status(200).body(
                 postcard::to_allocvec(&DuckVersion {
@@ -211,8 +210,8 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
-            12345678,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
         );
 
         assert!(res.is_ok());
@@ -223,11 +222,10 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
-                fingerprint = 12345678
+                "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
             then.status(200)
-                .body(postcard::to_allocvec(b"junk bytes").unwrap());
+                .body(postcard::to_allocvec(b"not gzip").unwrap());
         });
 
         let client = CurlHttpClient::new().unwrap();
@@ -235,8 +233,8 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
-            12345678,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
         );
 
         assert!(res.is_err());
@@ -255,8 +253,8 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
-            12345678,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
         );
 
         assert!(res.is_err());
@@ -267,7 +265,7 @@ mod tests {
         let v = Version::<MemLeaf, ()>::new(
             &Tree::new(Vec::default(), ()),
             (),
-            chunktree::version::ChunkStrategy::Cdc(128, 512, 1024),
+            chunktree::version::ChunkStrategy::FixedSize(256),
             chunktree::version::Concurrency::Serial,
         )
         .unwrap();
@@ -275,8 +273,8 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT").path(format!(
-                "/sync/{USER_KEY}/archives/{ARCHIVE_ID:016X}.savedata/{fingerprint:016X}",
-                fingerprint = v.fingerprint()
+                "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{fingerprint_from_version:032x}",
+                fingerprint_from_version = v.fingerprint()
             ));
             then.status(201);
         });
@@ -286,7 +284,7 @@ mod tests {
             &client,
             &srv.base_url(),
             &USER_KEY,
-            SyncItem::Savedata(ARCHIVE_ID),
+            SyncItem::Savedata(SYNC_ITEM_ID),
             &v,
         );
 
