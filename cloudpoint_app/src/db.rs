@@ -1,6 +1,6 @@
 use crate::{
     ctr_fs::{self, CtrArchive},
-    ctr_title::extdata_archive_id_for_title,
+    ctr_title::{extdata_archive_id_for_title, inferred_extdata_archive_id_for_title},
     services::CtrSysServices,
 };
 use anyhow::Result;
@@ -52,8 +52,11 @@ impl StateDb {
         log::debug!("discovering savedata and extdata");
 
         let installed_titles = services.am.title_list(MediaType::Sd)?;
+        let installed_apps = installed_titles
+            .iter()
+            .filter(|t| (t.id() >> 32) as u32 == 0x00040000);
 
-        for title in installed_titles {
+        for title in installed_apps {
             let title_id = title.id();
 
             log::debug!("processing {title_id:016X}");
@@ -92,6 +95,8 @@ impl StateDb {
             process(archive_id)?;
 
             if let Some(archive_id) = extdata_archive_id_for_title(title_id) {
+                process(archive_id)?;
+            } else if let Some(archive_id) = inferred_extdata_archive_id_for_title(title_id) {
                 process(archive_id)?;
             }
         }
