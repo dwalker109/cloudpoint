@@ -13,14 +13,14 @@ use std::io::Error as IoError;
 
 mod ffi;
 
-pub struct CtrArchivePath {
+struct CtrArchivePath {
     _ctr_archive_id: CtrArchiveId,
     buffer: [u32; 3],
     archive_id: ArchiveID,
 }
 
 impl CtrArchivePath {
-    pub fn new(ctr_archive_id: CtrArchiveId) -> Result<Self, IoError> {
+    fn new(ctr_archive_id: CtrArchiveId) -> Result<Self, IoError> {
         let (buffer, archive_id) = match ctr_archive_id {
             CtrArchiveId::Savedata(title_id) => (
                 [
@@ -43,7 +43,7 @@ impl CtrArchivePath {
         })
     }
 
-    pub fn fs_path(&self) -> FS_Path {
+    fn fs_path(&self) -> FS_Path {
         FS_Path {
             type_: PATH_BINARY,
             size: 12,
