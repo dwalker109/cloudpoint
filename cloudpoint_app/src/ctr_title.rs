@@ -1,3 +1,4 @@
+use crate::ctr_fs::CtrArchive;
 use anyhow::Result;
 use cloudpoint_lib::ctr::{CtrArchiveId, CtrMeta};
 use ffi::{ctr_get_title_version, ctr_getr_ext_data_id_for_title};
@@ -13,6 +14,14 @@ pub fn extdata_archive_id_for_title(title_id: u64) -> Option<CtrArchiveId> {
     ctr_getr_ext_data_id_for_title(title_id)
         .ok()
         .and_then(|extdata_id| Some(CtrArchiveId::Extdata(extdata_id)))
+}
+
+pub fn inferred_extdata_archive_id_for_title(title_id: u64) -> Option<CtrArchiveId> {
+    let maybe_archive_id = CtrArchiveId::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
+
+    CtrArchive::open(maybe_archive_id)
+        .map(|_| maybe_archive_id)
+        .ok()
 }
 
 mod ffi {
@@ -50,9 +59,9 @@ mod ffi {
 
         let res = unsafe { AM_GetTitleExtDataId(&mut extdata_id, MediaType::Sd as u8, title_id) };
 
-        if R_FAILED(res) {
+        if R_FAILED(res) || extdata_id == 0 {
             bail!(
-                "could not retrieve extdata_id for title {:016X} [{:#010X}]",
+                "could not retrieve extdata_id for title {:016X} (or it may not have one) [{:#010X}]",
                 title_id,
                 res
             );
