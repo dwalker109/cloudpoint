@@ -4,17 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.102"
-chrono = { version = "0.4.44", features = ["serde"] }
-itertools = "0.14.0"
-curl-sys = { version = "0.4", default-features = false }
-libc = "0.2"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-chunktree = { path = "../../chunktree", default-features = false }
-postcard = "1.1.3"
-log = "0.4.29"
-uuid = { version = "1.23.1", features = ["v4"] }
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+itertools = { workspace = true }
+curl-sys = { workspace = true }
+libc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+chunktree = { workspace = true }
+postcard = { workspace = true }
+log = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
-httpmock = "0.8.3"
+httpmock = { workspace = true }
