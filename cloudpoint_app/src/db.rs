@@ -1,10 +1,10 @@
 use crate::{
     ctr_fs::{self, CtrArchive},
-    ctr_title::{extdata_archive_id_for_title, inferred_extdata_archive_id_for_title},
+    ctr_title::{infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title},
     services::CtrSysServices,
 };
 use anyhow::Result;
-use cloudpoint_lib::{ctr::CtrArchiveId, sync::SyncState};
+use cloudpoint_lib::sync::{SyncItem, SyncState};
 use ctru::services::fs::MediaType;
 use std::{
     collections::HashMap,
@@ -14,21 +14,15 @@ use std::{
 
 /// These titles don't support sync to another system so are skipped
 /// during discovery. They *can* be synced if added manually.
-pub const SKIPPED_TITLE_IDS: [u64; 3] = [
-    // Mii Plaza
-    0x0004000E00022800,
+pub const SKIPPED_TITLE_IDS: [u64; 1] = [
     // Super Mario Maker
     0x00040000001A0500,
-    0x0004000E001A0500,
 ];
 
-pub struct StateDb(PathBuf, HashMap<CtrArchiveId, SyncState>);
+pub struct StateDb(PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
     pub fn open(path: impl AsRef<Path>, _services: &CtrSysServices) -> Result<Self> {
-        // let installed_titles = services.am.title_list(MediaType::Sd)?;
-        // let title_ids = installed_titles.iter().map(|t| t.id()).collect::<Vec<_>>();
-
         let mut states: Vec<SyncState> = Vec::new();
 
         for f in fs::read_dir(&path)? {
@@ -40,11 +34,7 @@ impl StateDb {
 
         Ok(Self(
             path.as_ref().to_path_buf(),
-            states
-                .into_iter()
-                // .filter(|s| title_ids.contains(&s.title_id))
-                .map(|s| (s.archive_id, s))
-                .collect(),
+            states.into_iter().map(|s| (s.sync_item, s)).collect(),
         ))
     }
 
@@ -83,7 +73,7 @@ impl StateDb {
                         &CtrArchive::smdh(archive_id)?,
                     );
 
-                    println!("Discovered {} via {}", state.archive_id, state.title_short);
+                    println!("Discovered {} via {}", state.sync_item, state.title_short);
 
                     self.1.insert(archive_id, state);
                 }
@@ -91,12 +81,12 @@ impl StateDb {
                 Ok(())
             };
 
-            let archive_id = CtrArchiveId::Savedata(title_id);
-            process(archive_id)?;
+            let sync_item = SyncItem::Savedata(title_id);
+            process(sync_item)?;
 
-            if let Some(archive_id) = extdata_archive_id_for_title(title_id) {
+            if let Some(archive_id) = lookup_extdata_sync_item_for_title(title_id) {
                 process(archive_id)?;
-            } else if let Some(archive_id) = inferred_extdata_archive_id_for_title(title_id) {
+            } else if let Some(archive_id) = infer_extdata_sync_item_for_title(title_id) {
                 process(archive_id)?;
             }
         }
