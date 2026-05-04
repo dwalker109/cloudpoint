@@ -1,6 +1,5 @@
 use anyhow::Result;
 use cloudpoint_lib::ctr::{CtrArchiveId, CtrMeta};
-
 use ffi::{ctr_get_title_version, ctr_getr_ext_data_id_for_title};
 
 pub fn meta(archive_id: CtrArchiveId) -> Result<CtrMeta> {
