@@ -183,7 +183,8 @@ mod tests {
     }
 
     #[test]
-    fn no_remote_no_local_always_no_data() {
+    #[should_panic]
+    fn no_remote_no_local_cannot_happen() {
         let s = SyncState {
             last_fp: Some(1),
             local_fp: None,
@@ -191,9 +192,7 @@ mod tests {
             ..fixture()
         };
 
-        let res = s.get_action();
-
-        assert!(matches!(res, SyncAction::NoData));
+        s.get_action();
     }
 
     #[test]
