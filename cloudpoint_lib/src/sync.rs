@@ -2,6 +2,7 @@ use crate::ctr::{CtrSmdh, SmdhLanguage};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -33,6 +34,7 @@ impl From<SyncItem> for PathBuf {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
     pub sync_item: SyncItem,
+    pub via_title_ids: HashSet<u64>,
     pub title_short: String,
     pub title_publisher: String,
     pub product_code: String,
@@ -41,7 +43,7 @@ pub struct SyncState {
 }
 
 impl SyncState {
-    pub fn new(sync_item: SyncItem, product_code: &str, smdh: &CtrSmdh) -> Self {
+    pub fn new(sync_item: SyncItem, via_title_id: u64, product_code: &str, smdh: &CtrSmdh) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
         let product_code = product_code.trim_end_matches('\0').to_string();
@@ -62,10 +64,11 @@ impl SyncState {
             product_code,
             fs_safe_name,
             synced_fingerprint: None,
+            via_title_ids: HashSet::from([via_title_id]),
         }
     }
 
-    pub fn save(&self, root_path: impl AsRef<Path>) -> Result<()> {
+    pub fn save(&mut self, root_path: impl AsRef<Path>) -> Result<()> {
         log::info!("Writing db for {} ({})", self.sync_item, self.title_short);
 
         fs::write(
@@ -74,6 +77,10 @@ impl SyncState {
         )?;
 
         Ok(())
+    }
+
+    pub fn add_via_title_id(&mut self, via: u64) -> bool {
+        self.via_title_ids.insert(via)
     }
 
     pub fn get_action(
@@ -219,6 +226,7 @@ mod tests {
     fn fixture() -> SyncState {
         SyncState {
             sync_item: SyncItem::Savedata(0x00040000_1234ABCD),
+            via_title_ids: HashSet::new(),
             title_short: "Foo Bar: Yeah!".into(),
             title_publisher: "Cloudpoint, Inc.".into(),
             product_code: "XTR-X-ABCD".into(),
