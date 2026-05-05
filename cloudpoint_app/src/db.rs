@@ -1,4 +1,5 @@
 use crate::{
+    config::AppPath,
     ctr_fs::{self, CtrArchive},
     ctr_title::{infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title},
     services::CtrSysServices,
@@ -57,25 +58,42 @@ impl StateDb {
                 continue;
             }
 
-            let mut process = |archive_id| -> Result<()> {
-                if self.1.contains_key(&archive_id) {
-                    log::debug!("skipping {archive_id} discovered via {title_id}, already tracked");
+            let mut process = |sync_item| -> Result<()> {
+                if let Some(existing_state) = self.1.get_mut(&sync_item) {
+                    if existing_state.add_via_title_id(title_id) {
+                        log::debug!("updating {sync_item} reached via {title_id:016X}");
+
+                        existing_state.save(AppPath::Db)?;
+
+                        println!(
+                            "Reached {} ({}) via title {title_id:016X}",
+                            existing_state.sync_item, existing_state.title_short
+                        );
+                    } else {
+                        log::debug!(
+                            "skipping {sync_item} discovered via {title_id:016X}, already tracked"
+                        );
+                    }
 
                     return Ok(());
                 }
 
-                if ctr_fs::CtrArchive::open(archive_id).is_ok() {
-                    log::debug!("adding {archive_id} discovered via {title_id}");
+                if ctr_fs::CtrArchive::open(sync_item).is_ok() {
+                    log::debug!("adding {sync_item} discovered via {title_id:016X}");
 
                     let state = SyncState::new(
-                        archive_id,
+                        sync_item,
+                        title_id,
                         &title.product_code(),
-                        &CtrArchive::smdh(archive_id)?,
+                        &CtrArchive::smdh(sync_item)?,
                     );
 
-                    println!("Discovered {} via {}", state.sync_item, state.title_short);
+                    println!(
+                        "Discovered {} ({}) via title {title_id:016X}",
+                        state.sync_item, state.title_short
+                    );
 
-                    self.1.insert(archive_id, state);
+                    self.1.insert(sync_item, state);
                 }
 
                 Ok(())
@@ -84,10 +102,10 @@ impl StateDb {
             let sync_item = SyncItem::Savedata(title_id);
             process(sync_item)?;
 
-            if let Some(archive_id) = lookup_extdata_sync_item_for_title(title_id) {
-                process(archive_id)?;
-            } else if let Some(archive_id) = infer_extdata_sync_item_for_title(title_id) {
-                process(archive_id)?;
+            if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id) {
+                process(sync_item)?;
+            } else if let Some(sync_item) = infer_extdata_sync_item_for_title(title_id) {
+                process(sync_item)?;
             }
         }
 
@@ -102,8 +120,8 @@ impl StateDb {
         self.1.values_mut()
     }
 
-    pub fn save_all(&self) -> Result<()> {
-        for state in self.1.values() {
+    pub fn save_all(&mut self) -> Result<()> {
+        for state in self.1.values_mut() {
             state.save(&self.0)?
         }
 
