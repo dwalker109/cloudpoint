@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - --target=arm-none-eabi
+    - -march=armv6k
+    - -mfloat-abi=hard
+    - -mtp=soft
+    - -D__3DS__
+    - -DARM11
+    - -I/opt/devkitpro/libctru/include
+    - -I/opt/devkitpro/devkitARM/arm-none-eabi/include

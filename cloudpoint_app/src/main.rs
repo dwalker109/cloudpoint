@@ -12,6 +12,7 @@ mod services;
 mod setup;
 mod sync;
 mod tree;
+pub mod ui;
 
 fn main() -> Result<()> {
     let _logger = app_logger::AppLogger::new()?;
