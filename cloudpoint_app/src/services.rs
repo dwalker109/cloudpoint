@@ -1,3 +1,4 @@
+use crate::ctr_gfx::Render;
 use anyhow::Result;
 use ctru::services::{ac::Ac, am::Am, apt::Apt, gfx::Gfx, hid::Hid, romfs::RomFS, soc::Soc};
 
@@ -32,12 +33,14 @@ impl CtrSysServices {
 
 pub struct CtrGfxServices {
     pub gfx: Gfx,
+    pub render: Render,
 }
 
 impl CtrGfxServices {
     pub fn init() -> Result<Self> {
         let gfx = Gfx::new()?;
+        let render = Render::new();
 
-        Ok(Self { gfx })
+        Ok(Self { gfx, render })
     }
 }
