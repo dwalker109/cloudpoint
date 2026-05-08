@@ -40,3 +40,40 @@ cia major minor micro: build
 
 deploy:
     scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/root/data
+
+[working-directory('cloudpoint_app/src/ctr_gfx/c2d')]
+citro2d:
+    bindgen wrapper.h \
+        --wrap-static-fns \
+        --wrap-static-fns-path extern.c \
+        --allowlist-function "C2D_.*" \
+        --allowlist-function "C3D_.*" \
+        --allowlist-type "C2D_.*" \
+        --allowlist-type "C3D_.*" \
+        --allowlist-var "C2D_.*" \
+        --allowlist-var "C3D_.*" \
+        --allowlist-type "gfxScreen_t" \
+        --allowlist-type "gfx3dSide_t" \
+        --allowlist-var "gfxScreen_t_.*" \
+        --allowlist-var "gfx3dSide_t_.*" \
+        --no-layout-tests \
+        > bindings.rs 2>/dev/null \
+        -- \
+        --target=arm-none-eabi \
+        -march=armv6k \
+        -mtune=mpcore \
+        -mfloat-abi=hard \
+        -mfpu=vfpv2 \
+        -mtp=soft \
+        -D__3DS__ \
+        -DARM11 \
+        -I/opt/devkitpro/libctru/include \
+        -I/opt/devkitpro/devkitARM/arm-none-eabi/include
+    arm-none-eabi-gcc -c extern.c \
+        -o /tmp/extern.o \
+        -I . \
+        -I/opt/devkitpro/libctru/include \
+        -I/opt/devkitpro/devkitARM/arm-none-eabi/include \
+        -march=armv6k -mtune=mpcore -mfloat-abi=hard \
+        -mfpu=vfpv2 -mtp=soft -D__3DS__ -DARM11 -O2
+    arm-none-eabi-ar rcs libextern.a /tmp/extern.o
