@@ -4,6 +4,8 @@ mod draw;
 use c2d::*;
 pub use draw::DrawContext;
 
+use crate::screens::{BaseScreen, ModalScreen, Screen};
+
 const GFX_TOP: gfxScreen_t = gfxScreen_t_GFX_TOP;
 const GFX_BOTTOM: gfxScreen_t = gfxScreen_t_GFX_BOTTOM;
 const GFX_LEFT: gfx3dSide_t = gfx3dSide_t_GFX_LEFT;
@@ -39,22 +41,28 @@ impl Render {
         }
     }
 
-    pub fn frame(
-        &mut self,
-        draw_upper: impl FnOnce(&DrawContext),
-        draw_lower: impl FnOnce(&DrawContext),
-    ) {
+    pub fn frame(&mut self, screen: &dyn BaseScreen, modal: Option<&dyn ModalScreen>) {
         let ctx = DrawContext::new(self.text_buf);
         unsafe {
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW as u8);
-
             C2D_TargetClear(self.upper_screen, WHITE);
             C2D_SceneBegin(self.upper_screen);
-            draw_upper(&ctx);
+            screen.draw_upper(&ctx);
+
+            if let Some(m) = modal {
+                // dim rect then modal
+                // draw_dim_rect();
+                m.draw_upper(&ctx);
+            }
 
             C2D_TargetClear(self.lower_screen, WHITE);
             C2D_SceneBegin(self.lower_screen);
-            draw_lower(&ctx);
+            screen.draw_lower(&ctx);
+
+            if let Some(m) = modal {
+                // draw_dim_rect();
+                m.draw_lower(&ctx);
+            }
 
             C3D_FrameEnd(0);
         }

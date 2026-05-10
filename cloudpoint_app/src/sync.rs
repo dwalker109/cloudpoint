@@ -1,13 +1,13 @@
 use crate::{
+    app::{AlertMsg, UiMsg},
     config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
     db::StateDb,
-    services::{CtrGfxServices, CtrSysServices},
     tree::{self, CtrArchiveLeaf},
 };
-use anyhow::Result;
+use anyhow::{Result, bail};
 use chunktree::{
     store::MemStore,
     tree::{Leaf, Tree},
@@ -20,43 +20,60 @@ use cloudpoint_lib::{
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
-use ctru::services::hid::KeyPad;
 use std::{
     fs::{self, File},
     io::{self, BufWriter},
     path::PathBuf,
     rc::Rc,
+    sync::{Arc, RwLock, mpsc::Sender, oneshot},
 };
 
+pub enum ConflictWinner {
+    Local,
+    Remote,
+    Undecided,
+}
+
 pub fn run(
-    services: &mut CtrSysServices,
-    gfx_services: &CtrGfxServices,
-    state_db: &mut StateDb,
+    state_db: Arc<RwLock<StateDb>>,
+    ui_tx: Sender<UiMsg>,
+    alert_tx: Sender<AlertMsg>,
 ) -> Result<()> {
     let _keep_awake = KeepAwake::new();
 
     let client = Rc::new(CurlHttpClient::new()?);
 
-    for mut s in state_db.states_mut() {
+    for mut s in state_db
+        .write()
+        .expect("should get write lock for state db")
+        .states_mut()
+    {
         let Ok(smdh) = CtrArchive::smdh(s.sync_item) else {
             log::info!("{} archive does not exist, cannot sync", s.sync_item,);
-            println!("Cannot find {} (was the title deleted?)", s.sync_item);
+            ui_tx
+                .send(UiMsg::SyncProgress {
+                    title_short: format!("{}", s.sync_item),
+                    message: "Not found (was the title deleted)".into(),
+                })
+                .ok();
 
             continue;
         };
 
-        log::info!(
-            "Starting sync of {} ({})",
-            smdh.title_short(SmdhLanguage::English),
-            s.sync_item,
-        );
-
-        println!(
-            "\n{} ({})",
+        let title_label = format!(
+            "{} ({})",
             smdh.title_short(SmdhLanguage::English),
             smdh.title_publisher(SmdhLanguage::English)
         );
-        println!("{}", s.sync_item);
+
+        log::info!("Starting sync of {title_label}",);
+
+        ui_tx
+            .send(UiMsg::SyncProgress {
+                title_short: title_label.clone(),
+                message: "Checking".into(),
+            })
+            .ok();
 
         let list = cloudpoint_lib::version::VersionDirList::try_get(
             &client,
@@ -79,14 +96,8 @@ pub fn run(
         )?;
         let local_fingerprint = Some(local_ver.fingerprint());
 
-        println!(
-            "Local \x1b[12C{:032x}",
-            local_fingerprint.unwrap_or_default()
-        );
-        println!(
-            "Remote\x1b[12C{:032x}",
-            remote_fingerprint.unwrap_or_default()
-        );
+        log::debug!("Local: {:032x}", local_fingerprint.unwrap_or_default());
+        log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
 
         match s.get_action(local_fingerprint, remote_fingerprint) {
             SyncAction::NoChange | SyncAction::NoChangeOnInit => {
@@ -97,57 +108,69 @@ pub fn run(
                     s.save(AppPath::Db)?;
                 }
 
-                println!("Nothing to do, local and remote data match!");
+                ui_tx
+                    .send(UiMsg::SyncProgress {
+                        title_short: title_label.clone(),
+                        message: "Already up to date".into(),
+                    })
+                    .ok();
             }
             SyncAction::Conflict | SyncAction::ConflictOnInit => {
                 log::info!("changed on server and locally for {}", s.sync_item,);
 
-                match s.synced_fingerprint {
-                    Some(_) => println!("Changed on server and locally!"),
-                    None => println!("Exists on server and locally!"),
-                };
-                println!("Make a choice:");
-                println!("DPAD UP to upload (local wins)");
-                println!("DPAD DOWN to download (remote wins)");
-                println!("DPAD LEFT or DPAD RIGHT to skip (come back later)");
+                let is_first_sync = s.synced_fingerprint.is_none();
 
-                while services.apt.main_loop() {
-                    gfx_services.gfx.wait_for_vblank();
-                    services.hid.scan_input();
+                let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
 
-                    if services.hid.keys_down().contains(KeyPad::DPAD_UP) {
+                alert_tx
+                    .send(AlertMsg::ResolveConflict {
+                        title_short: title_label.clone(),
+                        is_first_sync,
+                        reply_tx,
+                    })
+                    .ok();
+
+                match reply_rx.recv()? {
+                    ConflictWinner::Local => {
                         ul(
                             &mut s,
                             Rc::clone(&client),
+                            &ui_tx,
+                            &title_label,
                             &local_ver,
                             &local_tree,
                             local_fingerprint,
                         )?;
-                        break;
-                    } else if services.hid.keys_down().contains(KeyPad::DPAD_DOWN) {
+                    }
+                    ConflictWinner::Remote => {
+                        ui_tx
+                            .send(UiMsg::SyncProgress {
+                                title_short: title_label.clone(),
+                                message: "Downloading".into(),
+                            })
+                            .ok();
+
                         dl(
                             &mut s,
                             Rc::clone(&client),
+                            &ui_tx,
+                            &title_label,
                             Rc::clone(&local_archive),
                             &local_meta,
                             &local_ver,
                             local_tree,
                             remote_fingerprint,
                         )?;
-                        break;
-                    } else if services
-                        .hid
-                        .keys_down()
-                        .intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT)
-                    {
-                        break;
                     }
-                }
+                    ConflictWinner::Undecided => {}
+                };
             }
             SyncAction::Upload => {
                 ul(
                     &mut s,
                     Rc::clone(&client),
+                    &ui_tx,
+                    &title_label,
                     &local_ver,
                     &local_tree,
                     local_fingerprint,
@@ -157,6 +180,8 @@ pub fn run(
                 dl(
                     &mut s,
                     Rc::clone(&client),
+                    &ui_tx,
+                    &title_label,
                     Rc::clone(&local_archive),
                     &local_meta,
                     &local_ver,
@@ -177,12 +202,20 @@ pub fn run(
 fn ul(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
+    ui_tx: &Sender<UiMsg>,
+    title_label: &str,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
     local_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("Uploading {}", s.sync_item);
-    println!("Uploading...");
+
+    ui_tx
+        .send(UiMsg::SyncProgress {
+            title_short: title_label.into(),
+            message: "Uploading".into(),
+        })
+        .ok();
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
@@ -202,14 +235,14 @@ fn ul(
     s.synced_fingerprint = local_fingerprint;
     s.save(AppPath::Db)?;
 
-    println!("Done!");
-
     Ok(())
 }
 
 fn dl(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
+    ui_tx: &Sender<UiMsg>,
+    title_label: &str,
     archive: Rc<CtrArchive>,
     local_meta: &CtrMeta,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
@@ -217,39 +250,48 @@ fn dl(
     remote_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("Downloading {}", s.sync_item);
-    println!("Downloading...");
 
-    let Ok(remote_ver) = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
+    let remote_ver = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
         s.sync_item,
         remote_fingerprint.expect("remote_fingerprint should be Some<u128> to init a download"),
-    ) else {
-        println!("Failed to fetch version manifest for version {remote_fingerprint:?}");
+    )?;
 
-        return Ok(());
-    };
+    // if local_meta.required_version() != remote_ver.meta().required_version() {
+    //     log::info!(
+    //         "title versions do not match, cannot sync: local={:?} remote={:?}",
+    //         local_meta.required_version(),
+    //         remote_ver.meta().required_version()
+    //     );
 
-    if local_meta.required_version() != remote_ver.meta().required_version() {
-        log::info!(
-            "title versions do not match, cannot sync: local={:?} remote={:?}",
-            local_meta.required_version(),
-            remote_ver.meta().required_version()
-        );
+    //     println!(
+    //         "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
+    //         local_meta.required_version(),
+    //         remote_ver.meta().required_version()
+    //     );
 
-        println!(
-            "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
-            local_meta.required_version(),
-            remote_ver.meta().required_version()
-        );
-
-        return Ok(());
-    }
+    //     return Ok(());
+    // }
 
     if USER_SETTINGS.backup {
+        ui_tx
+            .send(UiMsg::SyncProgress {
+                title_short: title_label.into(),
+                message: "Backing up existing data".into(),
+            })
+            .ok();
+
         backup(&local_tree, &s)?;
     }
+
+    ui_tx
+        .send(UiMsg::SyncProgress {
+            title_short: title_label.into(),
+            message: "Downloading".into(),
+        })
+        .ok();
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
@@ -266,19 +308,17 @@ fn dl(
 
     if u.progress().is_err() {
         log::info!(
-            "an error occurred while downloading the version: {:?}",
+            "error occurred while downloading the version: {:?}",
             u.progress()
         );
 
-        println!("Something went wrong downloading the remote version",);
+        bail!("Something went wrong downloading the remote version");
     }
 
     archive.finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
     s.save(AppPath::Db)?;
-
-    println!("Done!");
 
     Ok(())
 }

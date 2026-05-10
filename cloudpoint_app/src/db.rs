@@ -2,11 +2,10 @@ use crate::{
     config::AppPath,
     ctr_fs::{self, CtrArchive},
     ctr_title::{infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title},
-    services::CtrSysServices,
 };
 use anyhow::Result;
 use cloudpoint_lib::sync::{SyncItem, SyncState};
-use ctru::services::fs::MediaType;
+use ctru::services::{am::Am, fs::MediaType};
 use std::{
     collections::HashMap,
     fs,
@@ -23,7 +22,7 @@ pub const SKIPPED_TITLE_IDS: [u64; 1] = [
 pub struct StateDb(PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
-    pub fn open(path: impl AsRef<Path>, _services: &CtrSysServices) -> Result<Self> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let mut states: Vec<SyncState> = Vec::new();
 
         for f in fs::read_dir(&path)? {
@@ -39,10 +38,11 @@ impl StateDb {
         ))
     }
 
-    pub fn append_discovered(&mut self, services: &CtrSysServices) -> Result<()> {
+    pub fn append_discovered(&mut self) -> Result<()> {
         log::debug!("discovering savedata and extdata");
 
-        let installed_titles = services.am.title_list(MediaType::Sd)?;
+        let am = Am::new()?;
+        let installed_titles = am.title_list(MediaType::Sd)?;
         let installed_apps = installed_titles
             .iter()
             .filter(|t| (t.id() >> 32) as u32 == 0x00040000);
