@@ -48,13 +48,17 @@ impl VersionDirList {
 #[derive(Debug, serde::Deserialize)]
 pub struct VersionDirEntry {
     name: String,
-    #[serde(with = "chrono::serde::ts_seconds")]
+    #[serde(with = "chrono::serde::ts_milliseconds")]
     mtime: DateTime<Utc>,
 }
 
 impl VersionDirEntry {
     pub fn fingerprint(&self) -> Result<u128> {
         Ok(u128::from_str_radix(&self.name, 16)?)
+    }
+
+    pub fn mtime(&self) -> &DateTime<Utc> {
+        &self.mtime
     }
 
     pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(

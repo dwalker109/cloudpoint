@@ -34,6 +34,7 @@ impl From<SyncItem> for PathBuf {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncState {
     pub sync_item: SyncItem,
+    pub enabled: bool,
     pub via_title_ids: HashSet<u64>,
     pub title_short: String,
     pub title_publisher: String,
@@ -43,7 +44,13 @@ pub struct SyncState {
 }
 
 impl SyncState {
-    pub fn new(sync_item: SyncItem, via_title_id: u64, product_code: &str, smdh: &CtrSmdh) -> Self {
+    pub fn new(
+        sync_item: SyncItem,
+        via_title_id: u64,
+        product_code: &str,
+        smdh: &CtrSmdh,
+        enabled: bool,
+    ) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
         let product_code = product_code.trim_end_matches('\0').to_string();
@@ -59,6 +66,7 @@ impl SyncState {
 
         Self {
             sync_item,
+            enabled,
             title_short,
             title_publisher,
             product_code,
@@ -88,6 +96,10 @@ impl SyncState {
         local_fingerprint: Option<u128>,
         remote_fingerprint: Option<u128>,
     ) -> SyncAction {
+        if !self.enabled {
+            return SyncAction::Skip;
+        }
+
         match (local_fingerprint, remote_fingerprint) {
             (None, None) => unreachable!(),
             (None, Some(_)) => SyncAction::Download,
@@ -110,6 +122,7 @@ impl SyncState {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SyncAction {
+    Skip,
     NoChange,
     NoChangeOnInit,
     Conflict,
@@ -223,9 +236,22 @@ mod tests {
         assert!(matches!(res, SyncAction::NoChange));
     }
 
+    #[test]
+    fn skip_when_not_enabled() {
+        let s = SyncState {
+            enabled: false,
+            ..fixture()
+        };
+
+        let res = s.get_action(Some(1), Some(2));
+
+        assert!(matches!(res, SyncAction::Skip));
+    }
+
     fn fixture() -> SyncState {
         SyncState {
             sync_item: SyncItem::Savedata(0x00040000_1234ABCD),
+            enabled: true,
             via_title_ids: HashSet::new(),
             title_short: "Foo Bar: Yeah!".into(),
             title_publisher: "Cloudpoint, Inc.".into(),

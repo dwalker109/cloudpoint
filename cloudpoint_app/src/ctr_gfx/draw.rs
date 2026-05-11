@@ -64,8 +64,22 @@ impl DrawContext {
         scale: f32,
     ) {
         self.rect(x, y, w, h, bg);
-        let text_h = 14.0 * scale;
-        let ty = y + (h - text_h) / 2.0;
+        let (_, th) = self.text_dimensions(scale, label);
+        let ty = y + (h - th) / 2.0;
         self.text_centered(x, ty, w, scale, fg, label);
+    }
+
+    fn text_dimensions(&self, scale: f32, s: &str) -> (f32, f32) {
+        unsafe {
+            let cs = CString::new(s).unwrap_or_default();
+            let mut t: C2D_Text = std::mem::zeroed();
+            C2D_TextBufClear(self.buf);
+            C2D_TextParse(&mut t, self.buf, cs.as_ptr());
+            C2D_TextOptimize(&t);
+            let mut tw: f32 = 0.0;
+            let mut th: f32 = 0.0;
+            C2D_TextGetDimensions(&t, scale, scale, &mut tw, &mut th);
+            (tw, th)
+        }
     }
 }

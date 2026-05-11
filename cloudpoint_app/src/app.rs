@@ -8,8 +8,10 @@ use crate::{
     },
     services::CtrServices,
     setup,
+    sync::ConflictWinner,
 };
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use ctru::services::hid::KeyPad;
 pub use messaging::*;
 use std::{
@@ -17,6 +19,7 @@ use std::{
     sync::{
         Arc, RwLock,
         mpsc::{Receiver, Sender, channel},
+        oneshot,
     },
 };
 
@@ -27,7 +30,7 @@ pub struct App {
     screens: HashMap<ScreenId, Box<dyn BaseScreen>>,
     active_screen: ScreenId,
     modal_stack: Vec<Box<dyn ModalScreen>>,
-    task_tx: Sender<TaskMsg>,
+    _task_tx: Sender<TaskMsg>,
     ui_rx: Receiver<UiMsg>,
     alert_rx: Receiver<AlertMsg>,
 }
@@ -56,7 +59,7 @@ impl App {
             ]),
             active_screen: ScreenId::Sync,
             modal_stack: Vec::with_capacity(4),
-            task_tx,
+            _task_tx: task_tx,
             ui_rx,
             alert_rx,
         };
@@ -65,21 +68,34 @@ impl App {
 
         while services.apt.main_loop() {
             services.hid.scan_input();
-            let keys = services.hid.keys_down();
+            let keys_down = services.hid.keys_down();
+            let keys_held = services.hid.keys_held();
 
-            if keys.contains(KeyPad::START) {
+            if keys_down.contains(KeyPad::START) {
                 break;
+            }
+
+            if keys_down.contains(KeyPad::SELECT) {
+                let (tx, rx) = oneshot::channel::<ConflictWinner>();
+                app.modal_stack.push(Box::new(ConflictModalScreen::new(
+                    "Test1 (test)".into(),
+                    DateTime::<Utc>::from_timestamp(0, 0),
+                    true,
+                    tx,
+                )));
             }
 
             if let Ok(msg) = app.alert_rx.try_recv() {
                 match msg {
                     AlertMsg::ResolveConflict {
-                        title_short,
+                        title_label,
+                        title_remote_time,
                         is_first_sync,
                         reply_tx,
                     } => {
                         app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                            title_short,
+                            title_label,
+                            title_remote_time,
                             is_first_sync,
                             reply_tx,
                         )));
@@ -94,7 +110,7 @@ impl App {
             }
 
             if let Some(modal) = app.modal_stack.last_mut() {
-                let cmd = modal.handle_input(&keys);
+                let cmd = modal.handle_input(&keys_down, &keys_held);
                 match cmd {
                     ScreenCommand::CloseModal => {
                         app.modal_stack.pop();
@@ -104,7 +120,7 @@ impl App {
             } else {
                 let active_screen = app.screens.get_mut(&app.active_screen).unwrap();
 
-                let cmd = active_screen.handle_input(&keys);
+                let cmd = active_screen.handle_input(&keys_down, &keys_held);
                 match cmd {
                     ScreenCommand::SwitchTo(id) => {
                         app.active_screen = id;
