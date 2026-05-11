@@ -32,9 +32,9 @@ pub trait Screen {
 pub trait BaseScreen: Screen {
     fn id(&self) -> ScreenId;
     fn handle_msg(&mut self, msg: &UiMsg);
-    fn handle_input(&mut self, input: &KeyPad) -> ScreenCommand;
+    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand;
 }
 
 pub trait ModalScreen: Screen {
-    fn handle_input(&mut self, input: &KeyPad) -> ScreenCommand;
+    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand;
 }

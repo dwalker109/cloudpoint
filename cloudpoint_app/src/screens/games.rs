@@ -1,25 +1,25 @@
+use cloudpoint_lib::{ctr::SmdhLanguage, title::TitleDetails};
+
 use super::*;
-use crate::app::TaskMsg;
+use crate::{app::TaskMsg, db::TitleDb};
 use std::sync::mpsc::Sender;
 
 pub struct GamesScreen {
     task_tx: Sender<TaskMsg>,
-    discover_available: bool,
-    upper_1: String,
-    upper_2: String,
-    lower_1: String,
+    title_db: Option<TitleDb>,
+    selected: usize,
+    show_from: usize,
 }
 
 impl GamesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
-        task_tx.send(TaskMsg::ReadyDiscover).ok();
+        task_tx.send(TaskMsg::BuildTitleDb).ok();
 
         Self {
             task_tx,
-            discover_available: true,
-            upper_1: String::with_capacity(256),
-            upper_2: String::with_capacity(256),
-            lower_1: String::with_capacity(256),
+            title_db: None,
+            selected: 0,
+            show_from: 0,
         }
     }
 }
@@ -29,13 +29,28 @@ impl Screen for GamesScreen {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
         ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Games List");
-        ctx.text_centered(0.0, 100.0, TOP_W, 0.6, BLACK, &self.upper_1);
-        ctx.text_centered(0.0, 120.0, TOP_W, 0.6, BLACK, &self.upper_2);
+
+        if let Some(title_db) = &self.title_db {
+            for (view_idx, (item_idx, game_detail)) in title_db
+                .titles()
+                .enumerate()
+                .skip(self.show_from)
+                .take(20)
+                .enumerate()
+            {
+                ctx.text(
+                    10.0,
+                    40.0 + (view_idx * 16) as f32,
+                    0.5,
+                    BLACK,
+                    &game_detail.smdh.title_short(SmdhLanguage::English),
+                );
+            }
+        }
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &self.lower_1);
     }
 }
 
@@ -46,27 +61,15 @@ impl BaseScreen for GamesScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
-            UiMsg::DiscoverReady { total_states } => {
-                self.upper_1 = "Ready to discover".into();
-                self.upper_2 = format!("{total_states} saves available");
-                self.lower_1 = "Press (A) to discover new saves".into()
-            }
-            UiMsg::DiscoverDone { total_states } => {
-                self.upper_1 = "Discover completed".into();
-                self.upper_2 = format!("{total_states} saves available");
-                self.lower_1 = "Discovered saves are up to date".into()
+            UiMsg::TitleDbReady { title_db } => {
+                self.title_db = Some(title_db.clone());
             }
             _ => {}
         }
     }
 
-    fn handle_input(&mut self, keys: &KeyPad) -> ScreenCommand {
-        if self.discover_available && keys.contains(KeyPad::A) {
-            self.discover_available = false;
-            self.lower_1 = "...".into();
-            self.task_tx.send(TaskMsg::StartDiscover).ok();
-            ScreenCommand::Noop
-        } else if keys.intersects(KeyPad::L | KeyPad::R) {
+    fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
+        if keys_down.intersects(KeyPad::L | KeyPad::R) {
             ScreenCommand::SwitchTo(ScreenId::Sync)
         } else {
             ScreenCommand::Noop

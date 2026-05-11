@@ -4,7 +4,7 @@ mod draw;
 use c2d::*;
 pub use draw::DrawContext;
 
-use crate::screens::{BaseScreen, ModalScreen, Screen};
+use crate::screens::{BaseScreen, ModalScreen};
 
 const GFX_TOP: gfxScreen_t = gfxScreen_t_GFX_TOP;
 const GFX_BOTTOM: gfxScreen_t = gfxScreen_t_GFX_BOTTOM;
@@ -18,6 +18,7 @@ pub const BOT_H: f32 = 240.0;
 pub const WHITE: u32 = 0xFFFFFFFF;
 pub const BLACK: u32 = 0xFF000000;
 pub const GREY: u32 = 0xFFCCCCCC;
+pub const GREY_TRANS: u32 = 0xAACCCCCC;
 pub const DARK_GREY: u32 = 0xFF888888;
 pub const ACCENT: u32 = 0xFFDB86F9;
 
@@ -50,8 +51,7 @@ impl Render {
             screen.draw_upper(&ctx);
 
             if let Some(m) = modal {
-                // dim rect then modal
-                // draw_dim_rect();
+                ctx.rect(0.0, 0.0, TOP_W, TOP_H, GREY_TRANS);
                 m.draw_upper(&ctx);
             }
 
@@ -60,7 +60,7 @@ impl Render {
             screen.draw_lower(&ctx);
 
             if let Some(m) = modal {
-                // draw_dim_rect();
+                ctx.rect(0.0, 0.0, BOT_W, BOT_H, GREY_TRANS);
                 m.draw_lower(&ctx);
             }
 

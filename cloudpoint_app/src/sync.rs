@@ -100,6 +100,9 @@ pub fn run(
         log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
 
         match s.get_action(local_fingerprint, remote_fingerprint) {
+            SyncAction::Skip => {
+                log::info!("ignoring {}, is not enabled", s.sync_item,);
+            }
             SyncAction::NoChange | SyncAction::NoChangeOnInit => {
                 log::info!("local and remote data match for {}", s.sync_item,);
 
@@ -117,7 +120,8 @@ pub fn run(
 
                 alert_tx
                     .send(AlertMsg::ResolveConflict {
-                        title_short: title_label.clone(),
+                        title_label: title_label.clone(),
+                        title_remote_time: remote_ver.map(|v| v.mtime().clone()),
                         is_first_sync,
                         reply_tx,
                     })
