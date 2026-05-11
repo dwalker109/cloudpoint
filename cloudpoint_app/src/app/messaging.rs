@@ -14,7 +14,6 @@ pub enum TaskMsg {
     StartSync,
     ReadyDiscover,
     StartDiscover,
-    Shutdown,
 }
 
 pub enum UiMsg {
@@ -80,7 +79,7 @@ pub fn handle_worker(
                     .total_states();
                 ui_tx.send(UiMsg::DiscoverDone { total_states }).ok();
             }
-            Ok(TaskMsg::Shutdown) | Err(_) => return,
+            Err(_) => return,
         }
     }
 }

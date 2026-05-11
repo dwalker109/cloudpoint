@@ -19,7 +19,11 @@ use anyhow::Result;
 fn main() -> Result<()> {
     ctru::set_panic_hook(false);
     setup::sdmc()?;
-    let _logger = app_logger::AppLogger::new()?;
 
-    app::App::run()
+    let _logger = app_logger::AppLogger::new()?;
+    let services = services::CtrServices::init()?;
+
+    app::App::run(services)?;
+
+    Ok(())
 }

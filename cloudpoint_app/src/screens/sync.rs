@@ -46,7 +46,7 @@ impl BaseScreen for SyncScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
-            UiMsg::SyncReady { total_states } => {
+            UiMsg::SyncReady { total_states } | UiMsg::DiscoverDone { total_states } => {
                 self.upper_1 = "Ready to sync".into();
                 self.upper_2 = format!("{total_states} saves available");
                 self.lower_1 = "Press (A) to sync now".into()
