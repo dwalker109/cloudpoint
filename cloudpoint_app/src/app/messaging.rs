@@ -4,16 +4,18 @@ use std::sync::{
     oneshot,
 };
 
+use chrono::{DateTime, Utc};
+
 use crate::{
-    db::StateDb,
+    db::{StateDb, TitleDb},
     sync::{self, ConflictWinner},
 };
 
 pub enum TaskMsg {
     ReadySync,
     StartSync,
-    ReadyDiscover,
-    StartDiscover,
+    Autodiscover,
+    BuildTitleDb,
 }
 
 pub enum UiMsg {
@@ -25,17 +27,15 @@ pub enum UiMsg {
         message: String,
     },
     SyncDone,
-    DiscoverReady {
-        total_states: usize,
-    },
-    DiscoverDone {
-        total_states: usize,
+    TitleDbReady {
+        title_db: TitleDb,
     },
 }
 
 pub enum AlertMsg {
     ResolveConflict {
-        title_short: String,
+        title_label: String,
+        title_remote_time: Option<DateTime<Utc>>,
         is_first_sync: bool,
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
@@ -56,18 +56,7 @@ pub fn handle_worker(
                     .total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
-            Ok(TaskMsg::StartSync) => {
-                let _res = sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone());
-                ui_tx.send(UiMsg::SyncDone).ok();
-            }
-            Ok(TaskMsg::ReadyDiscover) => {
-                let total_states = state_db
-                    .read()
-                    .expect("should get read lock for state db")
-                    .total_states();
-                ui_tx.send(UiMsg::DiscoverReady { total_states }).ok();
-            }
-            Ok(TaskMsg::StartDiscover) => {
+            Ok(TaskMsg::Autodiscover) => {
                 state_db
                     .write()
                     .expect("should get write lock for state db")
@@ -77,7 +66,17 @@ pub fn handle_worker(
                     .read()
                     .expect("should get read lock for state db")
                     .total_states();
-                ui_tx.send(UiMsg::DiscoverDone { total_states }).ok();
+                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
+            }
+            Ok(TaskMsg::StartSync) => {
+                let _res = sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone());
+                ui_tx.send(UiMsg::SyncDone).ok();
+            }
+            Ok(TaskMsg::BuildTitleDb) => {
+                let title_db =
+                    TitleDb::build(&state_db.read().expect("should get read lock for state db"))
+                        .expect("should build runtime title db");
+                ui_tx.send(UiMsg::TitleDbReady { title_db }).ok();
             }
             Err(_) => return,
         }

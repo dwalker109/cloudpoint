@@ -11,7 +11,7 @@ run ip:
     cargo 3ds run -a {{ ip }} --release
 
 [working-directory('cloudpoint_app/cia')]
-cia major minor micro: build
+cia ver: build
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
@@ -27,7 +27,7 @@ cia major minor micro: build
         -ca banner.bcwav \
         -o banner.bnr
     ./makerom -f cia \
-        -major {{ major }} -minor {{ minor }} -micro {{ micro }} \
+        -ver {{ ver }} \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint_app.elf \
         -DROMFS_PATH="../romfs" \

@@ -1,7 +1,15 @@
 use crate::ctr_fs::CtrArchive;
 use anyhow::Result;
-use cloudpoint_lib::{ctr::CtrMeta, sync::SyncItem};
+use cloudpoint_lib::{
+    ctr::{CtrMeta, CtrSmdh},
+    sync::SyncItem,
+};
 use ffi::{ctr_get_title_version, ctr_getr_ext_data_id_for_title};
+
+pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
+    // Fetching CtrSmdh for a Savedata sync item really fetches it from the title - no archive needs to exist
+    Ok(CtrArchive::smdh(SyncItem::Savedata(title_id))?.into())
+}
 
 pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
     match sync_item {

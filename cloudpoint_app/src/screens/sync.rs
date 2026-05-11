@@ -4,10 +4,11 @@ use std::sync::mpsc::Sender;
 
 pub struct SyncScreen {
     task_tx: Sender<TaskMsg>,
-    sync_running: bool,
+    task_running: bool,
     upper_1: String,
     upper_2: String,
     lower_1: String,
+    lower_2: String,
 }
 
 impl SyncScreen {
@@ -16,10 +17,11 @@ impl SyncScreen {
 
         Self {
             task_tx,
-            sync_running: false,
+            task_running: false,
             upper_1: String::with_capacity(256),
             upper_2: String::with_capacity(256),
-            lower_1: String::with_capacity(256),
+            lower_1: "Press (A) to sync now".into(),
+            lower_2: "Press (X) to autodiscover".into(),
         }
     }
 }
@@ -35,7 +37,9 @@ impl Screen for SyncScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &self.lower_1);
+        let colour = if self.task_running { GREY } else { BLACK };
+        ctx.text_centered(0.0, 100.0, BOT_W, 0.6, colour, &self.lower_1);
+        ctx.text_centered(0.0, 120.0, BOT_W, 0.6, colour, &self.lower_2);
     }
 }
 
@@ -46,10 +50,10 @@ impl BaseScreen for SyncScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
-            UiMsg::SyncReady { total_states } | UiMsg::DiscoverDone { total_states } => {
+            UiMsg::SyncReady { total_states } => {
+                self.task_running = false;
                 self.upper_1 = "Ready to sync".into();
                 self.upper_2 = format!("{total_states} saves available");
-                self.lower_1 = "Press (A) to sync now".into()
             }
             UiMsg::SyncProgress {
                 title_short,
@@ -59,25 +63,25 @@ impl BaseScreen for SyncScreen {
                 self.upper_2 = message.clone();
             }
             UiMsg::SyncDone => {
-                self.sync_running = false;
+                self.task_running = false;
                 self.upper_1 = "Last sync completed at".into();
                 self.upper_2 = chrono::Utc::now().to_rfc2822();
-                self.lower_1 = "Press (A) to start a new sync".into()
             }
             _ => {}
         }
     }
 
-    fn handle_input(&mut self, keys: &KeyPad) -> ScreenCommand {
-        if !self.sync_running && keys.contains(KeyPad::A) {
-            self.sync_running = true;
-            self.lower_1 = "...".into();
+    fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
+        if !self.task_running && keys_down.contains(KeyPad::A) {
+            self.task_running = true;
             self.task_tx.send(TaskMsg::StartSync).ok();
-            ScreenCommand::Noop
-        } else if keys.intersects(KeyPad::L | KeyPad::R) {
-            ScreenCommand::SwitchTo(ScreenId::Games)
-        } else {
-            ScreenCommand::Noop
+        } else if !self.task_running && keys_down.contains(KeyPad::X) {
+            self.task_running = true;
+            self.task_tx.send(TaskMsg::Autodiscover).ok();
+        } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
+            return ScreenCommand::SwitchTo(ScreenId::Games);
         }
+
+        ScreenCommand::Noop
     }
 }

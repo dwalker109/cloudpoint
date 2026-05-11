@@ -1,23 +1,32 @@
+use chrono::{DateTime, Utc};
+
 use super::*;
 use crate::sync::ConflictWinner;
 use std::sync::oneshot;
 
 pub struct ConflictModalScreen {
-    title_short: String,
+    title_label: String,
+    title_remote_time: Option<DateTime<Utc>>,
     is_first_sync: bool,
     reply_tx: Option<oneshot::Sender<ConflictWinner>>,
+    input_hold_up: u8,
+    input_hold_down: u8,
 }
 
 impl ConflictModalScreen {
     pub fn new(
-        title_short: String,
+        title_label: String,
+        title_remote_time: Option<DateTime<Utc>>,
         is_first_sync: bool,
         reply_tx: oneshot::Sender<ConflictWinner>,
     ) -> Self {
         Self {
-            title_short,
+            title_label,
+            title_remote_time,
             is_first_sync,
             reply_tx: Some(reply_tx),
+            input_hold_up: 0,
+            input_hold_down: 0,
         }
     }
 }
@@ -25,75 +34,112 @@ impl ConflictModalScreen {
 impl Screen for ConflictModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
-        ctx.text_centered(20.0, 20.0, TOP_W - 40.0, 0.7, WHITE, &self.title_short);
         ctx.text_centered(
-            30.0,
-            30.0,
-            TOP_W - 60.0,
+            0.0,
+            70.0,
+            TOP_W,
             0.5,
             BLACK,
             match self.is_first_sync {
-                true => "There is already data on the server for this title",
-                false => {
-                    "The data for this title has changed on this console as well as the server"
-                }
+                true => "There is already data on the server for this title:",
+                false => "The data for this title has changed both here and on the server:",
             },
+        );
+        ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, &self.title_label);
+        ctx.text_centered(0.0, 140.0, TOP_W, 0.5, BLACK, "Modified:");
+        ctx.text_centered(
+            0.0,
+            160.0,
+            TOP_W,
+            0.5,
+            BLACK,
+            &self
+                .title_remote_time
+                .map(|t| t.to_rfc2822())
+                .unwrap_or_else(|| "Unknown".into()),
         );
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        ctx.button(
-            40.0,
-            60.0,
-            BOT_W - 120.0,
-            32.0,
-            WHITE,
-            ACCENT,
-            "Keypad UP to keep and upload the data from this console",
-            0.3,
+        ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
+        ctx.text_centered(
+            0.0,
+            36.0,
+            BOT_W,
+            0.45,
+            BLACK,
+            "How would you like to proceed?",
         );
         ctx.button(
             40.0,
-            120.0,
-            BOT_W - 120.0,
-            32.0,
-            WHITE,
+            64.0,
+            BOT_W - 80.0,
+            36.0,
             ACCENT,
-            "Keypad DOWN to download and replace the data on this console",
-            0.3,
+            WHITE,
+            "Hold UP: use the data from this console",
+            0.4 + (self.input_hold_up as f32 / 2000.0),
         );
         ctx.button(
             40.0,
-            180.0,
-            BOT_W - 120.0,
-            32.0,
-            WHITE,
+            114.0,
+            BOT_W - 80.0,
+            36.0,
             ACCENT,
-            "Keypad LEFT or RIGHT to decide later",
-            0.3,
+            WHITE,
+            "Hold DOWN: use the data from the server",
+            0.4 + (self.input_hold_down as f32 / 2000.0),
+        );
+        ctx.button(
+            40.0,
+            164.0,
+            BOT_W - 80.0,
+            36.0,
+            ACCENT,
+            WHITE,
+            "Press LEFT/RIGHT: skip for now",
+            0.4,
         );
     }
 }
 
 impl ModalScreen for ConflictModalScreen {
-    fn handle_input(&mut self, keys: &KeyPad) -> ScreenCommand {
-        if keys.contains(KeyPad::UP) {
-            // temporary: send Undecided just to see if this branch is reachable
-            if let Some(tx) = self.reply_tx.take() {
-                tx.send(ConflictWinner::Undecided).ok();
+    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand {
+        let mut winner = None;
+
+        'check: {
+            if keys_held == &KeyPad::DPAD_UP {
+                self.input_hold_up += 1;
+                if self.input_hold_up > 60 {
+                    winner = Some(ConflictWinner::Local);
+                }
+                break 'check;
+            } else {
+                self.input_hold_up = 0;
             }
-            return ScreenCommand::CloseModal;
+
+            if keys_held == &KeyPad::DPAD_DOWN {
+                self.input_hold_down += 1;
+                if self.input_hold_down > 60 {
+                    winner = Some(ConflictWinner::Remote);
+                }
+                break 'check;
+            } else {
+                self.input_hold_down = 0;
+            }
+
+            if keys_down.intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT) {
+                winner = Some(ConflictWinner::Undecided);
+            }
         }
 
-        let winner = match keys {
-            k if k.contains(KeyPad::DPAD_UP) => ConflictWinner::Local,
-            k if k.contains(KeyPad::DPAD_DOWN) => ConflictWinner::Remote,
-            k if k.intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT) => ConflictWinner::Undecided,
-            _ => return ScreenCommand::Noop,
-        };
+        match winner {
+            Some(winner) => {
+                self.reply_tx.take().unwrap().send(winner).ok();
 
-        self.reply_tx.take().unwrap().send(winner).ok();
-        ScreenCommand::CloseModal
+                ScreenCommand::CloseModal
+            }
+            None => ScreenCommand::Noop,
+        }
     }
 }
