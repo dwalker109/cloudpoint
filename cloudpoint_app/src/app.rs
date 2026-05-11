@@ -6,7 +6,8 @@ use crate::{
         BaseScreen, ConflictModalScreen, GamesScreen, ModalScreen, ScreenCommand, ScreenId,
         SyncScreen,
     },
-    services, setup,
+    services::CtrServices,
+    setup,
 };
 use anyhow::Result;
 use ctru::services::hid::KeyPad;
@@ -15,32 +16,34 @@ use std::{
     collections::HashMap,
     sync::{
         Arc, RwLock,
-        mpsc::{Receiver, Sender},
+        mpsc::{Receiver, Sender, channel},
     },
-    thread::JoinHandle,
 };
 
 mod messaging;
 
 pub struct App {
-    state_db: Arc<RwLock<StateDb>>,
+    _state_db: Arc<RwLock<StateDb>>,
     screens: HashMap<ScreenId, Box<dyn BaseScreen>>,
     active_screen: ScreenId,
     modal_stack: Vec<Box<dyn ModalScreen>>,
     task_tx: Sender<TaskMsg>,
     ui_rx: Receiver<UiMsg>,
     alert_rx: Receiver<AlertMsg>,
-    _work_thread_handle: Option<JoinHandle<()>>,
 }
 
 impl App {
-    pub fn run() -> Result<()> {
-        let mut services = services::CtrServices::init()?;
+    pub fn run(mut services: CtrServices) -> Result<()> {
         let state_db = Arc::new(RwLock::new(StateDb::open(AppPath::Db)?));
-        let (handle, task_tx, ui_rx, alert_rx) = setup::start_worker(Arc::clone(&state_db))?;
+
+        let (task_tx, task_rx) = channel::<TaskMsg>();
+        let (ui_tx, ui_rx) = channel::<UiMsg>();
+        let (alert_tx, alert_rx) = channel::<AlertMsg>();
+
+        let handle = setup::start_worker(Arc::clone(&state_db), task_rx, ui_tx, alert_tx)?;
 
         let mut app = App {
-            state_db,
+            _state_db: state_db,
             screens: HashMap::from([
                 (
                     ScreenId::Sync,
@@ -56,7 +59,6 @@ impl App {
             task_tx,
             ui_rx,
             alert_rx,
-            _work_thread_handle: Some(handle),
         };
 
         let mut render = Render::new();
@@ -66,7 +68,6 @@ impl App {
             let keys = services.hid.keys_down();
 
             if keys.contains(KeyPad::START) {
-                app.task_tx.send(TaskMsg::Shutdown)?;
                 break;
             }
 
@@ -93,7 +94,8 @@ impl App {
             }
 
             if let Some(modal) = app.modal_stack.last_mut() {
-                match modal.handle_input(&keys) {
+                let cmd = modal.handle_input(&keys);
+                match cmd {
                     ScreenCommand::CloseModal => {
                         app.modal_stack.pop();
                     }
@@ -102,7 +104,8 @@ impl App {
             } else {
                 let active_screen = app.screens.get_mut(&app.active_screen).unwrap();
 
-                match active_screen.handle_input(&keys) {
+                let cmd = active_screen.handle_input(&keys);
+                match cmd {
                     ScreenCommand::SwitchTo(id) => {
                         app.active_screen = id;
                     }
@@ -121,16 +124,17 @@ impl App {
             );
         }
 
-        Ok(())
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        self._work_thread_handle
-            .take()
-            .expect("handle should be initialised")
+        // Dropping the app is important since it:
+        // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
+        // * drops task_tx (allowing running worker task to finish, but causes error the next time task_rx is polled, exiting cleanly)
+        //
+        // All of this means that the handle will join when asked, allowing a clean shutdown instead of just killing the
+        // worker at a potentially bad point (like halfway through a file write).
+        drop(app);
+        handle
             .join()
-            .expect("handle should be ready to join")
+            .expect("worker thread should be joinable after shutdown");
+
+        Ok(())
     }
 }
