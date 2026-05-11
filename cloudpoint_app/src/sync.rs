@@ -107,13 +107,6 @@ pub fn run(
                     s.synced_fingerprint = local_fingerprint;
                     s.save(AppPath::Db)?;
                 }
-
-                ui_tx
-                    .send(UiMsg::SyncProgress {
-                        title_short: title_label.clone(),
-                        message: "Already up to date".into(),
-                    })
-                    .ok();
             }
             SyncAction::Conflict | SyncAction::ConflictOnInit => {
                 log::info!("changed on server and locally for {}", s.sync_item,);
@@ -143,13 +136,6 @@ pub fn run(
                         )?;
                     }
                     ConflictWinner::Remote => {
-                        ui_tx
-                            .send(UiMsg::SyncProgress {
-                                title_short: title_label.clone(),
-                                message: "Downloading".into(),
-                            })
-                            .ok();
-
                         dl(
                             &mut s,
                             Rc::clone(&client),
@@ -193,8 +179,6 @@ pub fn run(
 
         log::info!("sync completed for {}", s.sync_item);
     }
-
-    println!("\nDone!");
 
     Ok(())
 }
@@ -259,21 +243,19 @@ fn dl(
         remote_fingerprint.expect("remote_fingerprint should be Some<u128> to init a download"),
     )?;
 
-    // if local_meta.required_version() != remote_ver.meta().required_version() {
-    //     log::info!(
-    //         "title versions do not match, cannot sync: local={:?} remote={:?}",
-    //         local_meta.required_version(),
-    //         remote_ver.meta().required_version()
-    //     );
+    if local_meta.required_version() != remote_ver.meta().required_version() {
+        log::info!(
+            "title versions do not match, cannot sync: local={:?} remote={:?}",
+            local_meta.required_version(),
+            remote_ver.meta().required_version()
+        );
 
-    //     println!(
-    //         "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
-    //         local_meta.required_version(),
-    //         remote_ver.meta().required_version()
-    //     );
-
-    //     return Ok(());
-    // }
+        bail!(
+            "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
+            local_meta.required_version(),
+            remote_ver.meta().required_version()
+        );
+    }
 
     if USER_SETTINGS.backup {
         ui_tx

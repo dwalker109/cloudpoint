@@ -1,14 +1,14 @@
 use crate::{
     app::{AlertMsg, TaskMsg, UiMsg, handle_worker},
     config::AppPath,
-    db::{self, StateDb},
+    db::StateDb,
 };
 use anyhow::{Context, Result};
 use std::{
     fs,
     sync::{
         Arc, RwLock,
-        mpsc::{Receiver, Sender, channel},
+        mpsc::{Receiver, Sender},
     },
     thread::JoinHandle,
 };
@@ -28,19 +28,13 @@ pub fn sdmc() -> Result<()> {
 
 pub fn start_worker(
     state_db: Arc<RwLock<StateDb>>,
-) -> Result<(
-    JoinHandle<()>,
-    Sender<TaskMsg>,
-    Receiver<UiMsg>,
-    Receiver<AlertMsg>,
-)> {
-    let (task_tx, task_rx) = channel::<TaskMsg>();
-    let (ui_tx, ui_rx) = channel::<UiMsg>();
-    let (alert_tx, alert_rx) = channel::<AlertMsg>();
-
+    task_rx: Receiver<TaskMsg>,
+    ui_tx: Sender<UiMsg>,
+    alert_tx: Sender<AlertMsg>,
+) -> Result<JoinHandle<()>> {
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
         .spawn(move || handle_worker(Arc::clone(&state_db), task_rx, ui_tx, alert_tx))?;
 
-    Ok((handle, task_tx, ui_rx, alert_rx))
+    Ok(handle)
 }
