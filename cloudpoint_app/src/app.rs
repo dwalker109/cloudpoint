@@ -3,8 +3,8 @@ use crate::{
     ctr_gfx::Render,
     db::StateDb,
     screens::{
-        BaseScreen, ConflictModalScreen, GamesScreen, ModalScreen, ScreenCommand, ScreenId,
-        SyncScreen,
+        BaseScreen, ConflictModalScreen, ModalScreen, ScreenCommand, ScreenId, SyncScreen,
+        TitlesScreen,
     },
     services::CtrServices,
     setup,
@@ -53,8 +53,8 @@ impl App {
                     Box::new(SyncScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
                 (
-                    ScreenId::Games,
-                    Box::new(GamesScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
+                    ScreenId::Titles,
+                    Box::new(TitlesScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
             ]),
             active_screen: ScreenId::Sync,

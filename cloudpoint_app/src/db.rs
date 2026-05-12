@@ -124,13 +124,13 @@ impl StateDb {
 }
 
 #[derive(Clone)]
-pub struct TitleDb(Arc<HashMap<u64, TitleDetails>>);
+pub struct TitleDb(Arc<Vec<TitleDetails>>);
 
 impl TitleDb {
     pub fn build(state_db: &StateDb) -> Result<Self> {
         log::info!("building runtime title db");
 
-        let mut titles = HashMap::new();
+        let mut titles = Vec::new();
 
         let am = Am::new()?;
         let installed_titles = am.title_list(MediaType::Sd)?;
@@ -157,23 +157,29 @@ impl TitleDb {
             let (has_savedata, enabled_savedata) = lookup(|s| matches!(s, SyncItem::Savedata(..)));
             let (has_extdata, enabled_extdata) = lookup(|s| matches!(s, SyncItem::Extdata(..)));
 
-            titles.insert(
+            titles.push(TitleDetails {
                 title_id,
-                TitleDetails {
-                    title_id,
-                    smdh,
-                    has_savedata,
-                    has_extdata,
-                    enabled_savedata,
-                    enabled_extdata,
-                },
-            );
+                smdh,
+                has_savedata,
+                has_extdata,
+                enabled_savedata,
+                enabled_extdata,
+            });
         }
+
+        titles.sort_by_key(|t| {
+            t.smdh
+                .title_short(cloudpoint_lib::ctr::SmdhLanguage::English)
+        });
 
         Ok(Self(Arc::new(titles)))
     }
 
+    pub fn total_titles(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn titles(&self) -> impl Iterator<Item = &TitleDetails> {
-        self.0.values()
+        self.0.iter()
     }
 }

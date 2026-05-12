@@ -1,18 +1,18 @@
 use crate::{app::UiMsg, ctr_gfx::*};
 pub use conflict::ConflictModalScreen;
 use ctru::prelude::KeyPad;
-pub use games::GamesScreen;
 pub use sync::SyncScreen;
+pub use titles::TitlesScreen;
 
-mod games;
 mod sync;
+mod titles;
 mod settings {}
 mod conflict;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenId {
     Sync,
-    Games,
+    Titles,
     Settings,
     ConflictModal,
 }

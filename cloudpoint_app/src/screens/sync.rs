@@ -79,7 +79,7 @@ impl BaseScreen for SyncScreen {
             self.task_running = true;
             self.task_tx.send(TaskMsg::Autodiscover).ok();
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
-            return ScreenCommand::SwitchTo(ScreenId::Games);
+            return ScreenCommand::SwitchTo(ScreenId::Titles);
         }
 
         ScreenCommand::Noop
