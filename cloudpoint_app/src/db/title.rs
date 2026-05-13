@@ -1,10 +1,9 @@
 use super::*;
 use crate::{
-    ctr_title,
+    ctr_title::{self, SD_APP_TITLES},
     title::{TitleDetails, TitleSyncStatus},
 };
 use anyhow::Result;
-use ctru::services::{am::Am, fs::MediaType};
 
 pub struct TitleDb(Vec<TitleDetails>);
 
@@ -14,15 +13,9 @@ impl TitleDb {
 
         let mut titles = Vec::new();
 
-        let am = Am::new()?;
-        let installed_titles = am.title_list(MediaType::Sd)?;
-        let installed_apps = installed_titles
-            .iter()
-            .filter(|t| (t.id() >> 32) as u32 == 0x00040000);
-
-        for title in installed_apps {
-            let title_id = title.id();
-            let product_code = title.product_code();
+        for title in SD_APP_TITLES.iter() {
+            let title_id = title.title_id;
+            let product_code = &title.product_code;
             let smdh = ctr_title::smdh(title_id)?;
 
             log::info!("processing {title_id:016X}");

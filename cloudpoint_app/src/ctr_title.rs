@@ -1,10 +1,46 @@
+use std::sync::LazyLock;
+
 use crate::ctr_fs::CtrArchive;
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},
     sync::SyncItem,
 };
+use ctru::services::{
+    am::{Am, Title},
+    fs::MediaType,
+};
 use ffi::{ctr_get_title_version, ctr_getr_ext_data_id_for_title};
+
+pub struct CtrAmTitle {
+    pub title_id: u64,
+    pub product_code: String,
+    pub version: u16,
+}
+
+impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
+    fn from(value: &Title<'a>) -> Self {
+        Self {
+            title_id: value.id(),
+            product_code: value.product_code().trim_end_matches('\0').to_string(),
+            version: value.version(),
+        }
+    }
+}
+
+pub static SD_APP_TITLES: LazyLock<Vec<CtrAmTitle>> = LazyLock::new(|| {
+    let am = Am::new().expect("am service should be available");
+    let title_list = am
+        .title_list(MediaType::Sd)
+        .expect("am title list should be available");
+    let applications = title_list
+        .iter()
+        .filter(|t| (t.id() >> 32) as u32 == 0x00040000)
+        .map(CtrAmTitle::from)
+        .collect();
+
+    applications
+});
 
 pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
     // Fetching CtrSmdh for a Savedata sync item really fetches it from the title - no archive needs to exist
