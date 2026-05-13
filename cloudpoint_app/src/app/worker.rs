@@ -17,12 +17,12 @@ use crate::{
 };
 
 pub enum TaskMsg {
-    ReadySync,
-    StartSyncAll,
-    StartSyncTargeted(Vec<SyncItem>),
-    Autodiscover,
-    InvalidateTitleDb,
-    BuildTitleDb,
+    SyncReady,
+    SyncAll,
+    SyncTargeted(Vec<SyncItem>),
+    DiscoverAll,
+    TitleDbBuild,
+    TitleDbInvalidate,
 }
 
 pub enum UiMsg {
@@ -58,16 +58,16 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
 
     loop {
         match task_rx.recv() {
-            Ok(TaskMsg::ReadySync) => {
+            Ok(TaskMsg::SyncReady) => {
                 let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
-            Ok(TaskMsg::Autodiscover) => {
+            Ok(TaskMsg::DiscoverAll) => {
                 state_db.append_discovered().ok();
                 let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
-            Ok(TaskMsg::StartSyncAll) => {
+            Ok(TaskMsg::SyncAll) => {
                 match sync::run(
                     state_db.states_mut(),
                     ui_tx.clone(),
@@ -88,7 +88,7 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
                         .ok(),
                 };
             }
-            Ok(TaskMsg::StartSyncTargeted(sync_items)) => {
+            Ok(TaskMsg::SyncTargeted(sync_items)) => {
                 match sync::run(
                     state_db
                         .states_mut()
@@ -111,10 +111,10 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
                         .ok(),
                 };
             }
-            Ok(TaskMsg::InvalidateTitleDb) => {
+            Ok(TaskMsg::TitleDbInvalidate) => {
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
             }
-            Ok(TaskMsg::BuildTitleDb) => {
+            Ok(TaskMsg::TitleDbBuild) => {
                 let title_db = TitleDb::build(&state_db).expect("should build runtime title db");
                 ui_tx
                     .send(UiMsg::TitleDbReady {
