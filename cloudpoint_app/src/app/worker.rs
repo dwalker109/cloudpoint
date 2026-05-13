@@ -21,6 +21,7 @@ pub enum TaskMsg {
     SyncAll,
     SyncTargeted(Vec<SyncItem>),
     DiscoverAll,
+    DiscoverTargeted(u64),
     TitleDbBuild,
     TitleDbInvalidate,
 }
@@ -63,9 +64,16 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
             Ok(TaskMsg::DiscoverAll) => {
-                state_db.append_discovered().ok();
+                state_db.discover_all().ok();
                 let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
+                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
+            }
+            Ok(TaskMsg::DiscoverTargeted(title_id)) => {
+                state_db.discover_for_title_id(title_id).ok();
+                let total_states = state_db.total_states();
+                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
+                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
             }
             Ok(TaskMsg::SyncAll) => {
                 match sync::run(
