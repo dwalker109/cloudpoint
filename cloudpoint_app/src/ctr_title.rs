@@ -55,7 +55,7 @@ pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
 }
 
 pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
-    let maybe_archive_id = SyncItem::Savedata((title_id));
+    let maybe_archive_id = SyncItem::Savedata(title_id);
 
     CtrArchive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)

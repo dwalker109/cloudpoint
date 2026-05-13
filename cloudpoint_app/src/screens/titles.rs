@@ -3,8 +3,7 @@ use cloudpoint_lib::ctr::SmdhLanguage;
 use super::*;
 use crate::{
     app::TaskMsg,
-    db::TitleDb,
-    title::{self, TitleDetails},
+    db::{TitleDb, TitleDetails, TitleSyncStatus},
 };
 use std::{
     cmp,
@@ -104,14 +103,17 @@ impl Screen for TitlesScreen {
             80.0,
             0.5,
             BLACK,
-            &format!("Save status: {}", title.savedata_sync_status),
+            &format!("Include save in auto sync: {}", title.savedata_sync_status),
         );
         ctx.text(
             12.0,
             96.0,
             0.5,
             BLACK,
-            &format!("Extdata status: {}", title.extdata_sync_status),
+            &format!(
+                "Include extdata in auto sync: {}",
+                title.extdata_sync_status
+            ),
         );
     }
 }
@@ -148,6 +150,10 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
+                    .send(TaskMsg::DiscoverTargeted(title.title_id, false))
+                    .ok();
+
+                self.task_tx
                     .send(TaskMsg::SyncTargeted(
                         [title.savedata_sync_item, title.extdata_sync_item]
                             .iter()
@@ -159,6 +165,24 @@ impl BaseScreen for TitlesScreen {
             }
 
             return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
+        } else if keys_down.contains(KeyPad::X) {
+            if let Some(title) = self.selected_title() {
+                self.task_tx
+                    .send(TaskMsg::DiscoverTargeted(title.title_id, true))
+                    .ok();
+                self.task_tx
+                    .send(TaskMsg::EnableTargeted(title.title_id))
+                    .ok();
+            }
+        } else if keys_down.contains(KeyPad::Y) {
+            if let Some(title) = self.selected_title() {
+                self.task_tx
+                    .send(TaskMsg::DiscoverTargeted(title.title_id, false))
+                    .ok();
+                self.task_tx
+                    .send(TaskMsg::DisableTargeted(title.title_id))
+                    .ok();
+            }
         }
 
         self.clamp_viewport();

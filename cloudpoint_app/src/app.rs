@@ -1,25 +1,17 @@
 use crate::{
-    config::AppPath,
     ctr_gfx::Render,
-    db::StateDb,
     screens::{
         BaseScreen, ConflictModalScreen, ModalScreen, ScreenCommand, ScreenId, SyncScreen,
         TitlesScreen,
     },
     services::CtrServices,
     setup,
-    sync::ConflictWinner,
 };
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use ctru::services::hid::KeyPad;
 use std::{
     collections::HashMap,
-    sync::{
-        Arc, RwLock,
-        mpsc::{Receiver, Sender, channel},
-        oneshot,
-    },
+    sync::mpsc::{Receiver, Sender, channel},
 };
 pub use worker::*;
 
