@@ -2,11 +2,12 @@ use super::*;
 use crate::{
     config::AppPath,
     ctr_fs::{self, CtrArchive},
-    ctr_title::{infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title},
+    ctr_title::{
+        SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
+    },
 };
 use anyhow::Result;
 use cloudpoint_lib::sync::{SyncItem, SyncState};
-use ctru::services::{am::Am, fs::MediaType};
 use std::{
     collections::HashMap,
     fs,
@@ -32,60 +33,57 @@ impl StateDb {
         ))
     }
 
-    pub fn append_discovered(&mut self) -> Result<()> {
-        log::info!("discovering savedata and extdata");
+    pub fn discover_for_title_id(&mut self, title_id: u64) -> Result<()> {
+        log::info!("processing {title_id:016X}");
 
-        let am = Am::new()?;
-        let installed_titles = am.title_list(MediaType::Sd)?;
-        let installed_apps = installed_titles
-            .iter()
-            .filter(|t| (t.id() >> 32) as u32 == 0x00040000);
-
-        for title in installed_apps {
-            let title_id = title.id();
-
-            log::info!("processing {title_id:016X}");
-
-            let mut process = |sync_item| -> Result<()> {
-                if let Some(existing_state) = self.1.get_mut(&sync_item) {
-                    if existing_state.add_via_title_id(title_id) {
-                        log::info!("updating {sync_item} reached via {title_id:016X}");
-                        existing_state.save(AppPath::Db)?;
-                    } else {
-                        log::info!(
-                            "skipping {sync_item} discovered via {title_id:016X}, already tracked"
-                        );
-                    }
-
-                    return Ok(());
-                }
-
-                if ctr_fs::CtrArchive::open(sync_item).is_ok() {
-                    log::info!("adding {sync_item} discovered via {title_id:016X}");
-
-                    let mut state = SyncState::new(
-                        sync_item,
-                        title_id,
-                        &title.product_code(),
-                        &CtrArchive::smdh(sync_item)?,
-                        !UNSUPPORTED_TITLE_IDS.contains(&title_id),
+        let mut process = |sync_item| -> Result<()> {
+            if let Some(existing_state) = self.1.get_mut(&sync_item) {
+                if existing_state.add_via_title_id(title_id) {
+                    log::info!("updating {sync_item} reached via {title_id:016X}");
+                    existing_state.save(AppPath::Db)?;
+                } else {
+                    log::info!(
+                        "skipping {sync_item} discovered via {title_id:016X}, already tracked"
                     );
-                    state.save(AppPath::Db)?;
-
-                    self.1.insert(sync_item, state);
                 }
 
-                Ok(())
-            };
-
-            let sync_item = SyncItem::Savedata(title_id);
-            process(sync_item)?;
-
-            if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id) {
-                process(sync_item)?;
-            } else if let Some(sync_item) = infer_extdata_sync_item_for_title(title_id) {
-                process(sync_item)?;
+                return Ok(());
             }
+
+            if ctr_fs::CtrArchive::open(sync_item).is_ok() {
+                log::info!("adding {sync_item} discovered via {title_id:016X}");
+
+                let mut state = SyncState::new(
+                    sync_item,
+                    title_id,
+                    &CtrArchive::smdh(sync_item)?,
+                    !UNSUPPORTED_TITLE_IDS.contains(&title_id),
+                );
+                state.save(AppPath::Db)?;
+
+                self.1.insert(sync_item, state);
+            }
+
+            Ok(())
+        };
+
+        let sync_item = SyncItem::Savedata(title_id);
+        process(sync_item)?;
+
+        if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id) {
+            process(sync_item)?;
+        } else if let Some(sync_item) = infer_extdata_sync_item_for_title(title_id) {
+            process(sync_item)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn discover_all(&mut self) -> Result<()> {
+        log::info!("discovering all savedata and extdata");
+
+        for title in SD_APP_TITLES.iter() {
+            self.discover_for_title_id(title.title_id)?;
         }
 
         Ok(())

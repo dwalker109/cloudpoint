@@ -35,25 +35,17 @@ impl From<SyncItem> for PathBuf {
 pub struct SyncState {
     pub sync_item: SyncItem,
     pub enabled: bool,
-    pub via_title_ids: HashSet<u64>,
     pub title_short: String,
     pub title_publisher: String,
-    pub product_code: String,
     pub fs_safe_name: String,
     pub synced_fingerprint: Option<u128>,
+    pub via_title_ids: HashSet<u64>,
 }
 
 impl SyncState {
-    pub fn new(
-        sync_item: SyncItem,
-        via_title_id: u64,
-        product_code: &str,
-        smdh: &CtrSmdh,
-        enabled: bool,
-    ) -> Self {
+    pub fn new(sync_item: SyncItem, via_title_id: u64, smdh: &CtrSmdh, enabled: bool) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
-        let product_code = product_code.trim_end_matches('\0').to_string();
 
         let illegal = r#".,!\\/:?*"<>|"#;
         let fs_safe_name = title_short
@@ -69,7 +61,6 @@ impl SyncState {
             enabled,
             title_short,
             title_publisher,
-            product_code,
             fs_safe_name,
             synced_fingerprint: None,
             via_title_ids: HashSet::from([via_title_id]),
@@ -255,7 +246,6 @@ mod tests {
             via_title_ids: HashSet::new(),
             title_short: "Foo Bar: Yeah!".into(),
             title_publisher: "Cloudpoint, Inc.".into(),
-            product_code: "XTR-X-ABCD".into(),
             fs_safe_name: "Foo Bar  Yeah ".into(),
             synced_fingerprint: None,
         }
