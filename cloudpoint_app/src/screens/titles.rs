@@ -1,9 +1,9 @@
-use cloudpoint_lib::ctr::SmdhLanguage;
+use cloudpoint_lib::{ctr::SmdhLanguage, sync::SyncItem};
 
 use super::*;
 use crate::{
     app::TaskMsg,
-    db::{TitleDb, TitleDetails, TitleSyncStatus},
+    db::{TitleDb, TitleDetails},
 };
 use std::{
     cmp,
@@ -12,6 +12,7 @@ use std::{
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
+    task_running: bool,
     title_db: Option<Arc<TitleDb>>,
     selected_idx: usize,
     show_from: usize,
@@ -23,6 +24,7 @@ impl TitlesScreen {
 
         Self {
             task_tx,
+            task_running: false,
             title_db: None,
             selected_idx: 0,
             show_from: 0,
@@ -126,11 +128,15 @@ impl BaseScreen for TitlesScreen {
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
             UiMsg::TitleDbReady { title_db } => {
+                self.task_running = false;
                 self.title_db = Some(Arc::clone(title_db));
             }
             UiMsg::TitleDbInvalidated => {
-                self.title_db = None;
-                self.task_tx.send(TaskMsg::TitleDbBuild).ok();
+                if !self.task_running {
+                    self.task_running = true;
+                    self.title_db = None;
+                    self.task_tx.send(TaskMsg::TitleDbBuild).ok();
+                }
             }
             _ => {}
         }
@@ -165,22 +171,13 @@ impl BaseScreen for TitlesScreen {
             }
 
             return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
-        } else if keys_down.contains(KeyPad::X) {
+        } else if keys_down.contains(KeyPad::Y) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
                     .send(TaskMsg::DiscoverTargeted(title.title_id, true))
                     .ok();
                 self.task_tx
-                    .send(TaskMsg::EnableTargeted(title.title_id))
-                    .ok();
-            }
-        } else if keys_down.contains(KeyPad::Y) {
-            if let Some(title) = self.selected_title() {
-                self.task_tx
-                    .send(TaskMsg::DiscoverTargeted(title.title_id, false))
-                    .ok();
-                self.task_tx
-                    .send(TaskMsg::DisableTargeted(title.title_id))
+                    .send(TaskMsg::ToggleTargeted(title.title_id))
                     .ok();
             }
         }
