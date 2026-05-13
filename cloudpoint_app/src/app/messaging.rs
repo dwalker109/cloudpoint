@@ -1,19 +1,25 @@
-use std::sync::{
-    Arc, RwLock,
-    mpsc::{Receiver, Sender},
-    oneshot,
+use std::{
+    rc::Rc,
+    sync::{
+        Arc,
+        mpsc::{Receiver, Sender},
+        oneshot,
+    },
 };
 
 use chrono::{DateTime, Utc};
+use cloudpoint_lib::{http::CurlHttpClient, sync::SyncItem};
 
 use crate::{
+    config::AppPath,
     db::{StateDb, TitleDb},
     sync::{self, ConflictWinner},
 };
 
 pub enum TaskMsg {
     ReadySync,
-    StartSync,
+    StartSyncAll,
+    StartSyncTargeted(Vec<SyncItem>),
     Autodiscover,
     InvalidateTitleDb,
     BuildTitleDb,
@@ -46,35 +52,51 @@ pub enum AlertMsg {
     },
 }
 
-pub fn handle_worker(
-    state_db: Arc<RwLock<StateDb>>,
-    task_rx: Receiver<TaskMsg>,
-    ui_tx: Sender<UiMsg>,
-    alert_tx: Sender<AlertMsg>,
-) {
+pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx: Sender<AlertMsg>) {
+    let mut state_db = StateDb::open(AppPath::Db).expect("state db should be accessible");
+    let client = Rc::new(CurlHttpClient::new().expect("curl client should be available"));
+
     loop {
         match task_rx.recv() {
             Ok(TaskMsg::ReadySync) => {
-                let total_states = state_db
-                    .read()
-                    .expect("should get read lock for state db")
-                    .total_states();
+                let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
             Ok(TaskMsg::Autodiscover) => {
-                state_db
-                    .write()
-                    .expect("should get write lock for state db")
-                    .append_discovered()
-                    .ok();
-                let total_states = state_db
-                    .read()
-                    .expect("should get read lock for state db")
-                    .total_states();
+                state_db.append_discovered().ok();
+                let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
-            Ok(TaskMsg::StartSync) => {
-                match sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone()) {
+            Ok(TaskMsg::StartSyncAll) => {
+                match sync::run(
+                    state_db.states_mut(),
+                    ui_tx.clone(),
+                    alert_tx.clone(),
+                    &client,
+                ) {
+                    Ok(_) => ui_tx
+                        .send(UiMsg::SyncDone {
+                            result: "Last sync completed at".into(),
+                            message: chrono::Utc::now().to_rfc2822(),
+                        })
+                        .ok(),
+                    Err(err) => ui_tx
+                        .send(UiMsg::SyncDone {
+                            result: "An error occurred during sync".into(),
+                            message: err.to_string(),
+                        })
+                        .ok(),
+                };
+            }
+            Ok(TaskMsg::StartSyncTargeted(sync_items)) => {
+                match sync::run(
+                    state_db
+                        .states_mut()
+                        .filter(|s| sync_items.contains(&s.sync_item)),
+                    ui_tx.clone(),
+                    alert_tx.clone(),
+                    &client,
+                ) {
                     Ok(_) => ui_tx
                         .send(UiMsg::SyncDone {
                             result: "Last sync completed at".into(),
@@ -93,8 +115,7 @@ pub fn handle_worker(
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
             }
             Ok(TaskMsg::BuildTitleDb) => {
-                let title_db =
-                    TitleDb::build(Arc::clone(&state_db)).expect("should build runtime title db");
+                let title_db = TitleDb::build(&state_db).expect("should build runtime title db");
                 ui_tx
                     .send(UiMsg::TitleDbReady {
                         title_db: Arc::new(title_db),

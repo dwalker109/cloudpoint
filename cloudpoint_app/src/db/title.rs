@@ -5,12 +5,11 @@ use crate::{
 };
 use anyhow::Result;
 use ctru::services::{am::Am, fs::MediaType};
-use std::sync::{Arc, RwLock};
 
 pub struct TitleDb(Vec<TitleDetails>);
 
 impl TitleDb {
-    pub fn build(state_db: Arc<RwLock<StateDb>>) -> Result<Self> {
+    pub fn build(state_db: &StateDb) -> Result<Self> {
         log::info!("building runtime title db");
 
         let mut titles = Vec::new();
@@ -28,12 +27,7 @@ impl TitleDb {
 
             log::info!("processing {title_id:016X}");
 
-            let title = TitleDetails::new(
-                title_id,
-                &product_code,
-                smdh,
-                &state_db.read().expect("should get read lock for state db"),
-            );
+            let title = TitleDetails::new(title_id, &product_code, smdh, &state_db);
 
             if title.savedata_sync_status != TitleSyncStatus::Unavailable
                 || title.extdata_sync_status != TitleSyncStatus::Unavailable
