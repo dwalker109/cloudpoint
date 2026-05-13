@@ -27,7 +27,10 @@ pub enum UiMsg {
         title_short: String,
         message: String,
     },
-    SyncDone,
+    SyncDone {
+        result: String,
+        message: String,
+    },
     TitleDbInvalidated,
     TitleDbReady {
         title_db: Arc<TitleDb>,
@@ -71,8 +74,20 @@ pub fn handle_worker(
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
             }
             Ok(TaskMsg::StartSync) => {
-                let _res = sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone());
-                ui_tx.send(UiMsg::SyncDone).ok();
+                match sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone()) {
+                    Ok(_) => ui_tx
+                        .send(UiMsg::SyncDone {
+                            result: "Last sync completed at".into(),
+                            message: chrono::Utc::now().to_rfc2822(),
+                        })
+                        .ok(),
+                    Err(err) => ui_tx
+                        .send(UiMsg::SyncDone {
+                            result: "An error occurred during sync".into(),
+                            message: err.to_string(),
+                        })
+                        .ok(),
+                };
             }
             Ok(TaskMsg::InvalidateTitleDb) => {
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
