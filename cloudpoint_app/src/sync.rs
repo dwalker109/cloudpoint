@@ -4,7 +4,6 @@ use crate::{
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
-    db::StateDb,
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::{Result, bail};

@@ -6,7 +6,7 @@ pub const UNSUPPORTED_TITLE_IDS: [u64; 1] = [
 ];
 
 pub use state::StateDb;
-pub use title::TitleDb;
+pub use title::{TitleDb, TitleDetails, TitleSyncStatus};
 
 mod state;
 mod title;
