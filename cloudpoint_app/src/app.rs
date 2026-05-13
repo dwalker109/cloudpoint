@@ -13,7 +13,6 @@ use crate::{
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use ctru::services::hid::KeyPad;
-pub use messaging::*;
 use std::{
     collections::HashMap,
     sync::{
@@ -22,8 +21,9 @@ use std::{
         oneshot,
     },
 };
+pub use worker::*;
 
-mod messaging;
+mod worker;
 
 pub struct App {
     screens: HashMap<ScreenId, Box<dyn BaseScreen>>,
@@ -71,15 +71,15 @@ impl App {
                 break;
             }
 
-            if keys_down.contains(KeyPad::SELECT) {
-                let (tx, rx) = oneshot::channel::<ConflictWinner>();
-                app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                    "Test1 (test)".into(),
-                    DateTime::<Utc>::from_timestamp(0, 0),
-                    true,
-                    tx,
-                )));
-            }
+            // if keys_down.contains(KeyPad::SELECT) {
+            //     let (tx, rx) = oneshot::channel::<ConflictWinner>();
+            //     app.modal_stack.push(Box::new(ConflictModalScreen::new(
+            //         "Test1 (test)".into(),
+            //         DateTime::<Utc>::from_timestamp(0, 0),
+            //         true,
+            //         tx,
+            //     )));
+            // }
 
             if let Ok(msg) = app.alert_rx.try_recv() {
                 match msg {
@@ -102,6 +102,10 @@ impl App {
             if let Ok(msg) = app.ui_rx.try_recv() {
                 for screen in app.screens.values_mut() {
                     screen.handle_msg(&msg);
+                }
+
+                for modal in app.modal_stack.iter_mut() {
+                    modal.handle_msg(&msg);
                 }
             }
 

@@ -20,7 +20,7 @@ pub struct TitlesScreen {
 
 impl TitlesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
-        task_tx.send(TaskMsg::BuildTitleDb).ok();
+        task_tx.send(TaskMsg::TitleDbBuild).ok();
 
         Self {
             task_tx,
@@ -128,7 +128,7 @@ impl BaseScreen for TitlesScreen {
             }
             UiMsg::TitleDbInvalidated => {
                 self.title_db = None;
-                self.task_tx.send(TaskMsg::BuildTitleDb).ok();
+                self.task_tx.send(TaskMsg::TitleDbBuild).ok();
             }
             _ => {}
         }
@@ -148,7 +148,7 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
-                    .send(TaskMsg::StartSyncTargeted(
+                    .send(TaskMsg::SyncTargeted(
                         [title.savedata_sync_item, title.extdata_sync_item]
                             .iter()
                             .flatten()
@@ -157,6 +157,8 @@ impl BaseScreen for TitlesScreen {
                     ))
                     .ok();
             }
+
+            return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
         }
 
         self.clamp_viewport();

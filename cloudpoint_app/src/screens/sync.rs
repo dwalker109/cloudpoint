@@ -13,7 +13,7 @@ pub struct SyncScreen {
 
 impl SyncScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
-        task_tx.send(TaskMsg::ReadySync).ok();
+        task_tx.send(TaskMsg::SyncReady).ok();
 
         Self {
             task_tx,
@@ -74,11 +74,11 @@ impl BaseScreen for SyncScreen {
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
         if !self.task_running && keys_down.contains(KeyPad::A) {
             self.task_running = true;
-            self.task_tx.send(TaskMsg::StartSyncAll).ok();
+            self.task_tx.send(TaskMsg::SyncAll).ok();
         } else if !self.task_running && keys_down.contains(KeyPad::X) {
             self.task_running = true;
-            self.task_tx.send(TaskMsg::Autodiscover).ok();
-            self.task_tx.send(TaskMsg::InvalidateTitleDb).ok();
+            self.task_tx.send(TaskMsg::DiscoverAll).ok();
+            self.task_tx.send(TaskMsg::TitleDbInvalidate).ok();
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
             return ScreenCommand::SwitchTo(ScreenId::Titles);
         }
