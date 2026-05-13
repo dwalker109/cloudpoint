@@ -89,12 +89,15 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn enable_for_title_id(&mut self, title_id: u64) -> Result<()> {
+    pub fn toggle_for_title_id(&mut self, title_id: u64) -> Result<()> {
+        let mut toggle_to = None;
+
         for state in self
             .states_mut()
             .filter(|s| s.via_title_ids.contains(&title_id))
         {
-            state.auto_enabled = true;
+            toggle_to = toggle_to.or(Some(!state.auto_enabled));
+            state.auto_enabled = unsafe { toggle_to.unwrap_unchecked() };
             state.save(AppPath::Db)?;
         }
 

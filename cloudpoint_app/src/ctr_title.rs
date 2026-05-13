@@ -65,7 +65,13 @@ pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
     ctr_getr_ext_data_id_for_title(title_id)
         .ok()
-        .and_then(|extdata_id| Some(SyncItem::Extdata(extdata_id)))
+        .and_then(|extdata_id| {
+            let maybe_archive_id = SyncItem::Extdata(extdata_id);
+
+            CtrArchive::open(maybe_archive_id)
+                .map(|_| maybe_archive_id)
+                .ok()
+        })
 }
 
 pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {

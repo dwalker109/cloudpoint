@@ -22,8 +22,7 @@ pub enum TaskMsg {
     SyncTargeted(Vec<SyncItem>),
     DiscoverAll,
     DiscoverTargeted(u64, bool),
-    EnableTargeted(u64),
-    DisableTargeted(u64),
+    ToggleTargeted(u64),
     TitleDbBuild,
     TitleDbInvalidate,
 }
@@ -121,14 +120,8 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
                         .ok(),
                 };
             }
-            Ok(TaskMsg::EnableTargeted(title_id)) => {
-                state_db.enable_for_title_id(title_id).ok();
-                let total_states = state_db.total_states();
-                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
-                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
-            }
-            Ok(TaskMsg::DisableTargeted(title_id)) => {
-                state_db.disable_for_title_id(title_id).ok();
+            Ok(TaskMsg::ToggleTargeted(title_id)) => {
+                state_db.toggle_for_title_id(title_id).ok();
                 let total_states = state_db.total_states();
                 ui_tx.send(UiMsg::SyncReady { total_states }).ok();
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
