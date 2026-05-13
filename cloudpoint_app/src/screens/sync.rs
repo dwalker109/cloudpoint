@@ -37,7 +37,7 @@ impl Screen for SyncScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        let colour = if self.task_running { GREY } else { BLACK };
+        let colour = if self.task_running { DARK_GREY } else { BLACK };
         ctx.text_centered(0.0, 100.0, BOT_W, 0.6, colour, &self.lower_1);
         ctx.text_centered(0.0, 120.0, BOT_W, 0.6, colour, &self.lower_2);
     }
@@ -78,6 +78,7 @@ impl BaseScreen for SyncScreen {
         } else if !self.task_running && keys_down.contains(KeyPad::X) {
             self.task_running = true;
             self.task_tx.send(TaskMsg::Autodiscover).ok();
+            self.task_tx.send(TaskMsg::InvalidateTitleDb).ok();
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
             return ScreenCommand::SwitchTo(ScreenId::Titles);
         }
