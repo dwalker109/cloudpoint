@@ -5,10 +5,7 @@ use crate::{
 use anyhow::{Context, Result};
 use std::{
     fs,
-    sync::{
-        Arc, RwLock,
-        mpsc::{Receiver, Sender},
-    },
+    sync::mpsc::{Receiver, Sender},
     thread::JoinHandle,
 };
 

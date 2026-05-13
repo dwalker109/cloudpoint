@@ -1,4 +1,3 @@
-use super::*;
 use crate::{
     config::AppPath,
     ctr_fs::{self, CtrArchive},
@@ -33,13 +32,14 @@ impl StateDb {
         ))
     }
 
-    pub fn discover_for_title_id(&mut self, title_id: u64) -> Result<()> {
+    pub fn discover_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
         log::info!("processing {title_id:016X}");
 
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
                 if existing_state.add_via_title_id(title_id) {
                     log::info!("updating {sync_item} reached via {title_id:016X}");
+                    existing_state.auto_enabled = auto_enabled;
                     existing_state.save(AppPath::Db)?;
                 } else {
                     log::info!(
@@ -57,7 +57,7 @@ impl StateDb {
                     sync_item,
                     title_id,
                     &CtrArchive::smdh(sync_item)?,
-                    !UNSUPPORTED_TITLE_IDS.contains(&title_id),
+                    auto_enabled,
                 );
                 state.save(AppPath::Db)?;
 
@@ -83,7 +83,31 @@ impl StateDb {
         log::info!("discovering all savedata and extdata");
 
         for title in SD_APP_TITLES.iter() {
-            self.discover_for_title_id(title.title_id)?;
+            self.discover_for_title_id(title.title_id, true)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn enable_for_title_id(&mut self, title_id: u64) -> Result<()> {
+        for state in self
+            .states_mut()
+            .filter(|s| s.via_title_ids.contains(&title_id))
+        {
+            state.auto_enabled = true;
+            state.save(AppPath::Db)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn disable_for_title_id(&mut self, title_id: u64) -> Result<()> {
+        for state in self
+            .states_mut()
+            .filter(|s| s.via_title_ids.contains(&title_id))
+        {
+            state.auto_enabled = false;
+            state.save(AppPath::Db)?;
         }
 
         Ok(())
@@ -91,6 +115,10 @@ impl StateDb {
 
     pub fn total_states(&self) -> usize {
         self.1.len()
+    }
+
+    pub fn auto_enabled_states(&self) -> usize {
+        self.1.iter().filter(|s| s.1.auto_enabled).count()
     }
 
     pub fn state(&self, sync_item: &SyncItem) -> Option<&SyncState> {
