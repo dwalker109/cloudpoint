@@ -14,9 +14,9 @@ pub struct TitleDetails {
     pub title_id: u64,
     pub product_code: String,
     pub smdh: CtrSmdh,
-    savedata_sync_item: Option<SyncItem>,
+    pub savedata_sync_item: Option<SyncItem>,
     pub savedata_sync_status: TitleSyncStatus,
-    extdata_sync_item: Option<SyncItem>,
+    pub extdata_sync_item: Option<SyncItem>,
     pub extdata_sync_status: TitleSyncStatus,
 }
 

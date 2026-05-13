@@ -1,7 +1,6 @@
 use crate::{
-    app::{AlertMsg, TaskMsg, UiMsg, handle_worker},
+    app::{AlertMsg, TaskMsg, UiMsg, worker_thread},
     config::AppPath,
-    db::StateDb,
 };
 use anyhow::{Context, Result};
 use std::{
@@ -27,14 +26,13 @@ pub fn sdmc() -> Result<()> {
 }
 
 pub fn start_worker(
-    state_db: Arc<RwLock<StateDb>>,
     task_rx: Receiver<TaskMsg>,
     ui_tx: Sender<UiMsg>,
     alert_tx: Sender<AlertMsg>,
 ) -> Result<JoinHandle<()>> {
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
-        .spawn(move || handle_worker(Arc::clone(&state_db), task_rx, ui_tx, alert_tx))?;
+        .spawn(move || worker_thread(task_rx, ui_tx, alert_tx))?;
 
     Ok(handle)
 }

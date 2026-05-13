@@ -26,7 +26,6 @@ use std::{
 mod messaging;
 
 pub struct App {
-    _state_db: Arc<RwLock<StateDb>>,
     screens: HashMap<ScreenId, Box<dyn BaseScreen>>,
     active_screen: ScreenId,
     modal_stack: Vec<Box<dyn ModalScreen>>,
@@ -37,16 +36,13 @@ pub struct App {
 
 impl App {
     pub fn run(mut services: CtrServices) -> Result<()> {
-        let state_db = Arc::new(RwLock::new(StateDb::open(AppPath::Db)?));
-
         let (task_tx, task_rx) = channel::<TaskMsg>();
         let (ui_tx, ui_rx) = channel::<UiMsg>();
         let (alert_tx, alert_rx) = channel::<AlertMsg>();
 
-        let handle = setup::start_worker(Arc::clone(&state_db), task_rx, ui_tx, alert_tx)?;
+        let handle = setup::start_worker(task_rx, ui_tx, alert_tx)?;
 
         let mut app = App {
-            _state_db: state_db,
             screens: HashMap::from([
                 (
                     ScreenId::Sync,

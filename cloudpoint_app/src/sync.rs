@@ -21,13 +21,12 @@ use cloudpoint_lib::{
     version::VersionDirEntry,
 };
 use ctru::services::ac::Ac;
-use ctru_sys::acWaitInternetConnection;
 use std::{
     fs::{self, File},
     io::{self, BufWriter},
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, RwLock, mpsc::Sender, oneshot},
+    sync::{mpsc::Sender, oneshot},
 };
 
 pub enum ConflictWinner {
@@ -36,20 +35,15 @@ pub enum ConflictWinner {
     Undecided,
 }
 
-pub fn run(
-    state_db: Arc<RwLock<StateDb>>,
+pub fn run<'a>(
+    states: impl Iterator<Item = &'a mut SyncState>,
     ui_tx: Sender<UiMsg>,
     alert_tx: Sender<AlertMsg>,
+    client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     let _keep_awake = KeepAwake::new();
 
-    let client = Rc::new(CurlHttpClient::new()?);
-
-    for sync_state in state_db
-        .write()
-        .expect("should get write lock for state db")
-        .states_mut()
-    {
+    for sync_state in states {
         run_one(sync_state, &ui_tx, &alert_tx, &client)?;
     }
 
