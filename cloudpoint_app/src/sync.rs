@@ -20,6 +20,8 @@ use cloudpoint_lib::{
     sync::{SyncAction, SyncState},
     version::VersionDirEntry,
 };
+use ctru::services::ac::Ac;
+use ctru_sys::acWaitInternetConnection;
 use std::{
     fs::{self, File},
     io::{self, BufWriter},
@@ -43,146 +45,157 @@ pub fn run(
 
     let client = Rc::new(CurlHttpClient::new()?);
 
-    for mut s in state_db
+    for sync_state in state_db
         .write()
         .expect("should get write lock for state db")
         .states_mut()
     {
-        let Ok(smdh) = CtrArchive::smdh(s.sync_item) else {
-            log::info!("{} archive does not exist, cannot sync", s.sync_item,);
-            ui_tx
-                .send(UiMsg::SyncProgress {
-                    title_short: format!("{}", s.sync_item),
-                    message: "Not found (was the title deleted)".into(),
+        run_one(sync_state, &ui_tx, &alert_tx, &client)?;
+    }
+
+    Ok(())
+}
+
+pub fn run_one(
+    sync_state: &mut SyncState,
+    ui_tx: &Sender<UiMsg>,
+    alert_tx: &Sender<AlertMsg>,
+    client: &Rc<CurlHttpClient>,
+) -> Result<()> {
+    if Ac::new()?.wait_internet_connection().is_err() {
+        bail!("You are not connected to the internet");
+    }
+
+    let Ok(smdh) = CtrArchive::smdh(sync_state.sync_item) else {
+        log::info!(
+            "{} archive does not exist, cannot sync",
+            sync_state.sync_item,
+        );
+        bail!("{} not found; was the title deleted?", sync_state.sync_item);
+    };
+
+    let title_label = format!(
+        "{} ({})",
+        smdh.title_short(SmdhLanguage::English),
+        smdh.title_publisher(SmdhLanguage::English)
+    );
+
+    log::info!("Starting sync of {title_label}",);
+
+    ui_tx
+        .send(UiMsg::SyncProgress {
+            title_short: title_label.clone(),
+            message: "Checking".into(),
+        })
+        .ok();
+
+    let list = cloudpoint_lib::version::VersionDirList::try_get(
+        &client,
+        &USER_SETTINGS.base_url,
+        &USER_KEY,
+        sync_state.sync_item,
+    )?;
+
+    let remote_ver = list.latest();
+    let remote_fingerprint = remote_ver.and_then(|e| e.fingerprint().ok());
+
+    let local_meta = meta(sync_state.sync_item)?;
+    let local_archive = Rc::new(CtrArchive::open(sync_state.sync_item)?);
+    let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
+    let local_ver = Version::new(
+        &local_tree,
+        local_meta,
+        ChunkStrategy::FixedSize(256 * 1024),
+        Concurrency::Serial,
+    )?;
+    let local_fingerprint = Some(local_ver.fingerprint());
+
+    log::debug!("Local: {:032x}", local_fingerprint.unwrap_or_default());
+    log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
+
+    match sync_state.get_action(local_fingerprint, remote_fingerprint) {
+        SyncAction::Skip => {
+            log::info!("ignoring {}, is not enabled", sync_state.sync_item,);
+        }
+        SyncAction::NoChange | SyncAction::NoChangeOnInit => {
+            log::info!("local and remote data match for {}", sync_state.sync_item,);
+
+            if sync_state.synced_fingerprint.is_none() {
+                sync_state.synced_fingerprint = local_fingerprint;
+                sync_state.save(AppPath::Db)?;
+            }
+        }
+        SyncAction::Conflict | SyncAction::ConflictOnInit => {
+            log::info!("changed on server and locally for {}", sync_state.sync_item,);
+
+            let is_first_sync = sync_state.synced_fingerprint.is_none();
+
+            let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
+
+            alert_tx
+                .send(AlertMsg::ResolveConflict {
+                    title_label: title_label.clone(),
+                    title_remote_time: remote_ver.map(|v| v.mtime().clone()),
+                    is_first_sync,
+                    reply_tx,
                 })
                 .ok();
 
-            continue;
-        };
-
-        let title_label = format!(
-            "{} ({})",
-            smdh.title_short(SmdhLanguage::English),
-            smdh.title_publisher(SmdhLanguage::English)
-        );
-
-        log::info!("Starting sync of {title_label}",);
-
-        ui_tx
-            .send(UiMsg::SyncProgress {
-                title_short: title_label.clone(),
-                message: "Checking".into(),
-            })
-            .ok();
-
-        let list = cloudpoint_lib::version::VersionDirList::try_get(
-            &client,
-            &USER_SETTINGS.base_url,
-            &USER_KEY,
-            s.sync_item,
-        )?;
-
-        let remote_ver = list.latest();
-        let remote_fingerprint = remote_ver.and_then(|e| e.fingerprint().ok());
-
-        let local_meta = meta(s.sync_item)?;
-        let local_archive = Rc::new(CtrArchive::open(s.sync_item)?);
-        let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
-        let local_ver = Version::new(
-            &local_tree,
-            local_meta,
-            ChunkStrategy::FixedSize(256 * 1024),
-            Concurrency::Serial,
-        )?;
-        let local_fingerprint = Some(local_ver.fingerprint());
-
-        log::debug!("Local: {:032x}", local_fingerprint.unwrap_or_default());
-        log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
-
-        match s.get_action(local_fingerprint, remote_fingerprint) {
-            SyncAction::Skip => {
-                log::info!("ignoring {}, is not enabled", s.sync_item,);
-            }
-            SyncAction::NoChange | SyncAction::NoChangeOnInit => {
-                log::info!("local and remote data match for {}", s.sync_item,);
-
-                if s.synced_fingerprint.is_none() {
-                    s.synced_fingerprint = local_fingerprint;
-                    s.save(AppPath::Db)?;
+            match reply_rx.recv()? {
+                ConflictWinner::Local => {
+                    ul(
+                        sync_state,
+                        Rc::clone(&client),
+                        &ui_tx,
+                        &title_label,
+                        &local_ver,
+                        &local_tree,
+                        local_fingerprint,
+                    )?;
                 }
-            }
-            SyncAction::Conflict | SyncAction::ConflictOnInit => {
-                log::info!("changed on server and locally for {}", s.sync_item,);
-
-                let is_first_sync = s.synced_fingerprint.is_none();
-
-                let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
-
-                alert_tx
-                    .send(AlertMsg::ResolveConflict {
-                        title_label: title_label.clone(),
-                        title_remote_time: remote_ver.map(|v| v.mtime().clone()),
-                        is_first_sync,
-                        reply_tx,
-                    })
-                    .ok();
-
-                match reply_rx.recv()? {
-                    ConflictWinner::Local => {
-                        ul(
-                            &mut s,
-                            Rc::clone(&client),
-                            &ui_tx,
-                            &title_label,
-                            &local_ver,
-                            &local_tree,
-                            local_fingerprint,
-                        )?;
-                    }
-                    ConflictWinner::Remote => {
-                        dl(
-                            &mut s,
-                            Rc::clone(&client),
-                            &ui_tx,
-                            &title_label,
-                            Rc::clone(&local_archive),
-                            &local_meta,
-                            &local_ver,
-                            local_tree,
-                            remote_fingerprint,
-                        )?;
-                    }
-                    ConflictWinner::Undecided => {}
-                };
-            }
-            SyncAction::Upload => {
-                ul(
-                    &mut s,
-                    Rc::clone(&client),
-                    &ui_tx,
-                    &title_label,
-                    &local_ver,
-                    &local_tree,
-                    local_fingerprint,
-                )?;
-            }
-            SyncAction::Download => {
-                dl(
-                    &mut s,
-                    Rc::clone(&client),
-                    &ui_tx,
-                    &title_label,
-                    Rc::clone(&local_archive),
-                    &local_meta,
-                    &local_ver,
-                    local_tree,
-                    remote_fingerprint,
-                )?;
-            }
+                ConflictWinner::Remote => {
+                    dl(
+                        sync_state,
+                        Rc::clone(&client),
+                        &ui_tx,
+                        &title_label,
+                        Rc::clone(&local_archive),
+                        &local_meta,
+                        &local_ver,
+                        local_tree,
+                        remote_fingerprint,
+                    )?;
+                }
+                ConflictWinner::Undecided => {}
+            };
         }
-
-        log::info!("sync completed for {}", s.sync_item);
+        SyncAction::Upload => {
+            ul(
+                sync_state,
+                Rc::clone(&client),
+                &ui_tx,
+                &title_label,
+                &local_ver,
+                &local_tree,
+                local_fingerprint,
+            )?;
+        }
+        SyncAction::Download => {
+            dl(
+                sync_state,
+                Rc::clone(&client),
+                &ui_tx,
+                &title_label,
+                Rc::clone(&local_archive),
+                &local_meta,
+                &local_ver,
+                local_tree,
+                remote_fingerprint,
+            )?;
+        }
     }
+
+    log::info!("sync completed for {}", sync_state.sync_item);
 
     Ok(())
 }

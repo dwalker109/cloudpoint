@@ -62,10 +62,10 @@ impl BaseScreen for SyncScreen {
                 self.upper_1 = title_short.clone();
                 self.upper_2 = message.clone();
             }
-            UiMsg::SyncDone => {
+            UiMsg::SyncDone { result, message } => {
                 self.task_running = false;
-                self.upper_1 = "Last sync completed at".into();
-                self.upper_2 = chrono::Utc::now().to_rfc2822();
+                self.upper_1 = result.clone();
+                self.upper_2 = message.clone();
             }
             _ => {}
         }
