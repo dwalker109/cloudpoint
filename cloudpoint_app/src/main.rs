@@ -12,6 +12,7 @@ pub mod screens;
 mod services;
 mod setup;
 mod sync;
+pub mod title;
 mod tree;
 
 use anyhow::Result;

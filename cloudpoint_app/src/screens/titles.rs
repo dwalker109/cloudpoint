@@ -2,11 +2,14 @@ use cloudpoint_lib::ctr::SmdhLanguage;
 
 use super::*;
 use crate::{app::TaskMsg, db::TitleDb};
-use std::{cmp, sync::mpsc::Sender};
+use std::{
+    cmp,
+    sync::{Arc, mpsc::Sender},
+};
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
-    title_db: Option<TitleDb>,
+    title_db: Option<Arc<TitleDb>>,
     selected_idx: usize,
     show_from: usize,
 }
@@ -43,7 +46,13 @@ impl Screen for TitlesScreen {
                 let mut colour = BLACK;
                 if item_idx == self.selected_idx {
                     colour = WHITE;
-                    ctx.rect(10.0, 40.0 + (view_idx * 16) as f32, 240.0, 16.0, ACCENT);
+                    ctx.rect(
+                        10.0,
+                        40.0 + (view_idx * 16) as f32,
+                        TOP_W - 20.0,
+                        16.0,
+                        ACCENT,
+                    );
                 }
                 ctx.text(
                     12.0,
@@ -58,6 +67,43 @@ impl Screen for TitlesScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
+        let Some((_, title)) = self.title_db.as_ref().and_then(|tdb| {
+            tdb.titles()
+                .enumerate()
+                .find(|(idx, _)| idx == &self.selected_idx)
+        }) else {
+            ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &"Loading titles...");
+
+            return;
+        };
+
+        let title_short = title.smdh.title_short(SmdhLanguage::English);
+        let title_publisher = title.smdh.title_publisher(SmdhLanguage::English);
+
+        ctx.text(
+            12.0,
+            12.0,
+            0.5,
+            BLACK,
+            &format!("{} | {:016X}", title.product_code, title.title_id),
+        );
+        ctx.text(12.0, 28.0, 0.5, BLACK, &title_short);
+        ctx.text(12.0, 44.0, 0.5, BLACK, &title_publisher);
+
+        ctx.text(
+            12.0,
+            80.0,
+            0.5,
+            BLACK,
+            &format!("Save status: {}", title.savedata_sync_status),
+        );
+        ctx.text(
+            12.0,
+            96.0,
+            0.5,
+            BLACK,
+            &format!("Extdata status: {}", title.extdata_sync_status),
+        );
     }
 }
 
@@ -69,7 +115,11 @@ impl BaseScreen for TitlesScreen {
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
             UiMsg::TitleDbReady { title_db } => {
-                self.title_db = Some(title_db.clone());
+                self.title_db = Some(Arc::clone(title_db));
+            }
+            UiMsg::TitleDbInvalidated => {
+                self.title_db = None;
+                self.task_tx.send(TaskMsg::BuildTitleDb).ok();
             }
             _ => {}
         }
@@ -78,21 +128,11 @@ impl BaseScreen for TitlesScreen {
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
         if keys_down.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP | KeyPad::CSTICK_UP) {
             self.selected_idx = self.selected_idx.saturating_sub(1);
-        } else if keys_down.intersects(KeyPad::DPAD_LEFT | KeyPad::CPAD_LEFT | KeyPad::CSTICK_LEFT)
-        {
-            self.selected_idx = self.selected_idx.saturating_sub(PAGE_SIZE - 1);
         } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN | KeyPad::CSTICK_DOWN)
         {
             self.selected_idx = cmp::min(
                 self.title_db.as_ref().unwrap().total_titles() - 1,
                 self.selected_idx + 1,
-            );
-        } else if keys_down
-            .intersects(KeyPad::DPAD_RIGHT | KeyPad::CPAD_RIGHT | KeyPad::CSTICK_RIGHT)
-        {
-            self.selected_idx = cmp::min(
-                self.title_db.as_ref().unwrap().total_titles() - 1,
-                self.selected_idx + PAGE_SIZE - 1,
             );
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
             return ScreenCommand::SwitchTo(ScreenId::Sync);
