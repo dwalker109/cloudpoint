@@ -1,7 +1,11 @@
 use cloudpoint_lib::ctr::SmdhLanguage;
 
 use super::*;
-use crate::{app::TaskMsg, db::TitleDb};
+use crate::{
+    app::TaskMsg,
+    db::TitleDb,
+    title::{self, TitleDetails},
+};
 use std::{
     cmp,
     sync::{Arc, mpsc::Sender},
@@ -25,6 +29,15 @@ impl TitlesScreen {
             show_from: 0,
         }
     }
+
+    fn selected_title(&self) -> Option<&TitleDetails> {
+        self.title_db.as_ref().and_then(|tdb| {
+            tdb.titles()
+                .enumerate()
+                .find(|(idx, _)| idx == &self.selected_idx)
+                .map(|(_, title)| title)
+        })
+    }
 }
 
 const PAGE_SIZE: usize = 12;
@@ -33,7 +46,7 @@ impl Screen for TitlesScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Title List");
+        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Titles");
 
         if let Some(title_db) = &self.title_db {
             for (view_idx, (item_idx, game_detail)) in title_db
@@ -67,11 +80,7 @@ impl Screen for TitlesScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        let Some((_, title)) = self.title_db.as_ref().and_then(|tdb| {
-            tdb.titles()
-                .enumerate()
-                .find(|(idx, _)| idx == &self.selected_idx)
-        }) else {
+        let Some(title) = self.selected_title() else {
             ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &"Loading titles...");
 
             return;
@@ -136,6 +145,18 @@ impl BaseScreen for TitlesScreen {
             );
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
             return ScreenCommand::SwitchTo(ScreenId::Sync);
+        } else if keys_down.contains(KeyPad::A) {
+            if let Some(title) = self.selected_title() {
+                self.task_tx
+                    .send(TaskMsg::StartSyncTargeted(
+                        [title.savedata_sync_item, title.extdata_sync_item]
+                            .iter()
+                            .flatten()
+                            .copied()
+                            .collect(),
+                    ))
+                    .ok();
+            }
         }
 
         self.clamp_viewport();

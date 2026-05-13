@@ -30,7 +30,7 @@ impl Screen for SyncScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Cloudpoint Sync");
+        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Sync");
         ctx.text_centered(0.0, 100.0, TOP_W, 0.6, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 120.0, TOP_W, 0.6, BLACK, &self.upper_2);
     }
@@ -74,7 +74,7 @@ impl BaseScreen for SyncScreen {
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
         if !self.task_running && keys_down.contains(KeyPad::A) {
             self.task_running = true;
-            self.task_tx.send(TaskMsg::StartSync).ok();
+            self.task_tx.send(TaskMsg::StartSyncAll).ok();
         } else if !self.task_running && keys_down.contains(KeyPad::X) {
             self.task_running = true;
             self.task_tx.send(TaskMsg::Autodiscover).ok();
