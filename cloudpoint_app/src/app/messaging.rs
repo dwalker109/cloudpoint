@@ -15,6 +15,7 @@ pub enum TaskMsg {
     ReadySync,
     StartSync,
     Autodiscover,
+    InvalidateTitleDb,
     BuildTitleDb,
 }
 
@@ -27,8 +28,9 @@ pub enum UiMsg {
         message: String,
     },
     SyncDone,
+    TitleDbInvalidated,
     TitleDbReady {
-        title_db: TitleDb,
+        title_db: Arc<TitleDb>,
     },
 }
 
@@ -72,11 +74,17 @@ pub fn handle_worker(
                 let _res = sync::run(Arc::clone(&state_db), ui_tx.clone(), alert_tx.clone());
                 ui_tx.send(UiMsg::SyncDone).ok();
             }
+            Ok(TaskMsg::InvalidateTitleDb) => {
+                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
+            }
             Ok(TaskMsg::BuildTitleDb) => {
                 let title_db =
-                    TitleDb::build(&state_db.read().expect("should get read lock for state db"))
-                        .expect("should build runtime title db");
-                ui_tx.send(UiMsg::TitleDbReady { title_db }).ok();
+                    TitleDb::build(Arc::clone(&state_db)).expect("should build runtime title db");
+                ui_tx
+                    .send(UiMsg::TitleDbReady {
+                        title_db: Arc::new(title_db),
+                    })
+                    .ok();
             }
             Err(_) => return,
         }

@@ -2,19 +2,16 @@ use crate::{
     config::AppPath,
     ctr_fs::{self, CtrArchive},
     ctr_title::{self, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title},
+    title::{TitleDetails, TitleSyncStatus},
 };
 use anyhow::Result;
-use cloudpoint_lib::{
-    ctr::CtrSmdh,
-    sync::{SyncItem, SyncState},
-    title::TitleDetails,
-};
+use cloudpoint_lib::sync::{SyncItem, SyncState};
 use ctru::services::{am::Am, fs::MediaType};
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 /// These titles don't support sync to another system so are added but not enabled
@@ -106,6 +103,10 @@ impl StateDb {
         self.1.len()
     }
 
+    pub fn state(&self, sync_item: &SyncItem) -> Option<&SyncState> {
+        self.1.get(sync_item)
+    }
+
     pub fn states(&self) -> impl Iterator<Item = &SyncState> {
         self.1.values()
     }
@@ -123,11 +124,10 @@ impl StateDb {
     }
 }
 
-#[derive(Clone)]
-pub struct TitleDb(Arc<Vec<TitleDetails>>);
+pub struct TitleDb(Vec<TitleDetails>);
 
 impl TitleDb {
-    pub fn build(state_db: &StateDb) -> Result<Self> {
+    pub fn build(state_db: Arc<RwLock<StateDb>>) -> Result<Self> {
         log::info!("building runtime title db");
 
         let mut titles = Vec::new();
@@ -140,31 +140,26 @@ impl TitleDb {
 
         for title in installed_apps {
             let title_id = title.id();
+            let product_code = title.product_code();
             let smdh = ctr_title::smdh(title_id)?;
 
-            let sync_items = state_db
-                .states()
-                .filter(|&s| s.via_title_ids.contains(&title_id))
-                .collect::<Vec<_>>();
+            log::info!("processing {title_id:016X}");
 
-            let lookup = |predicate: fn(&SyncItem) -> bool| {
-                sync_items
-                    .iter()
-                    .find(|&&s| predicate(&s.sync_item))
-                    .map(|&s| (true, s.enabled))
-                    .unwrap_or((false, false))
-            };
-            let (has_savedata, enabled_savedata) = lookup(|s| matches!(s, SyncItem::Savedata(..)));
-            let (has_extdata, enabled_extdata) = lookup(|s| matches!(s, SyncItem::Extdata(..)));
-
-            titles.push(TitleDetails {
+            let title = TitleDetails::new(
                 title_id,
+                &product_code,
                 smdh,
-                has_savedata,
-                has_extdata,
-                enabled_savedata,
-                enabled_extdata,
-            });
+                &state_db.read().expect("should get read lock for state db"),
+            );
+
+            if title.savedata_sync_status != TitleSyncStatus::Unavailable
+                || title.extdata_sync_status != TitleSyncStatus::Unavailable
+            {
+                log::debug!("added {title_id:016X}");
+                titles.push(title);
+            } else {
+                log::debug!("ignored {title_id:016X}, has no save or extdata");
+            }
         }
 
         titles.sort_by_key(|t| {
@@ -172,7 +167,7 @@ impl TitleDb {
                 .title_short(cloudpoint_lib::ctr::SmdhLanguage::English)
         });
 
-        Ok(Self(Arc::new(titles)))
+        Ok(Self(titles))
     }
 
     pub fn total_titles(&self) -> usize {

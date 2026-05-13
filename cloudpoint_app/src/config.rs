@@ -18,7 +18,7 @@ pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
     config::Config::builder()
         .set_default("base_url", "https://cloudpoint.dwalker.me")
         .unwrap()
-        .set_default("log_level", "info")
+        .set_default("log_level", "debug")
         .unwrap()
         .set_default("retain_log_qty", 10)
         .unwrap()
