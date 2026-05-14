@@ -12,7 +12,7 @@ use cloudpoint_lib::{http::CurlHttpClient, sync::SyncItem};
 
 use crate::{
     config::AppPath,
-    db::{StateDb, TitleDb},
+    db::{StateDb, TitleDb, TitleDetails},
     sync::{self, ConflictWinner},
 };
 
@@ -21,28 +21,18 @@ pub enum TaskMsg {
     SyncAllAuto,
     SyncTargeted(Vec<SyncItem>),
     DiscoverAll,
-    DiscoverTargeted(u64, bool),
+    DiscoverTargeted(u64),
     ToggleTargeted(u64),
-    TitleDbBuild,
+    TitleDbReady,
     TitleDbInvalidate,
 }
 
 pub enum UiMsg {
-    SyncReady {
-        total_states: usize,
-    },
-    SyncProgress {
-        title_short: String,
-        message: String,
-    },
-    SyncDone {
-        result: String,
-        message: String,
-    },
+    SyncReady { qty: usize },
+    SyncProgress { title_lbl: String, message: String },
+    SyncDone { result: String, message: String },
     TitleDbInvalidated,
-    TitleDbReady {
-        title_db: Arc<TitleDb>,
-    },
+    TitleDbReady { titles: Vec<TitleDetails> },
 }
 
 pub enum AlertMsg {
@@ -56,25 +46,55 @@ pub enum AlertMsg {
 
 pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx: Sender<AlertMsg>) {
     let mut state_db = StateDb::open(AppPath::Db).expect("state db should be accessible");
+    let mut title_db = TitleDb::build(&state_db).expect("should build runtime title db");
+
     let client = Rc::new(CurlHttpClient::new().expect("curl client should be available"));
 
     loop {
         match task_rx.recv() {
             Ok(TaskMsg::DiscoverAll) => {
-                state_db.discover_all().ok();
-                let total_states = state_db.total_states();
-                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
+                state_db.discover_all(true).ok();
+                ui_tx
+                    .send(UiMsg::SyncReady {
+                        qty: state_db.qty_auto(),
+                    })
+                    .ok();
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
             }
-            Ok(TaskMsg::DiscoverTargeted(title_id, auto_enabled)) => {
-                state_db.discover_for_title_id(title_id, auto_enabled).ok();
-                let total_states = state_db.total_states();
-                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
-                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
+            Ok(TaskMsg::DiscoverTargeted(title_id)) => {
+                state_db.discover_for_title_id(title_id, false).ok();
+                title_db.refresh_cascade(title_id, &state_db).ok();
+                ui_tx
+                    .send(UiMsg::SyncReady {
+                        qty: state_db.qty_auto(),
+                    })
+                    .ok();
+                ui_tx
+                    .send(UiMsg::TitleDbReady {
+                        titles: title_db.titles_sorted_vec(),
+                    })
+                    .ok();
+            }
+            Ok(TaskMsg::ToggleTargeted(title_id)) => {
+                state_db.toggle_for_title_id(title_id).ok();
+                title_db.refresh_cascade(title_id, &state_db).ok();
+                ui_tx
+                    .send(UiMsg::SyncReady {
+                        qty: state_db.qty_auto(),
+                    })
+                    .ok();
+                ui_tx
+                    .send(UiMsg::TitleDbReady {
+                        titles: title_db.titles_sorted_vec(),
+                    })
+                    .ok();
             }
             Ok(TaskMsg::SyncReady) => {
-                let total_states = state_db.auto_enabled_states();
-                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
+                ui_tx
+                    .send(UiMsg::SyncReady {
+                        qty: state_db.qty_auto(),
+                    })
+                    .ok();
             }
             Ok(TaskMsg::SyncAllAuto) => {
                 match sync::run(
@@ -120,20 +140,13 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
                         .ok(),
                 };
             }
-            Ok(TaskMsg::ToggleTargeted(title_id)) => {
-                state_db.toggle_for_title_id(title_id).ok();
-                let total_states = state_db.total_states();
-                ui_tx.send(UiMsg::SyncReady { total_states }).ok();
-                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
-            }
             Ok(TaskMsg::TitleDbInvalidate) => {
                 ui_tx.send(UiMsg::TitleDbInvalidated).ok();
             }
-            Ok(TaskMsg::TitleDbBuild) => {
-                let title_db = TitleDb::build(&state_db).expect("should build runtime title db");
+            Ok(TaskMsg::TitleDbReady) => {
                 ui_tx
                     .send(UiMsg::TitleDbReady {
-                        title_db: Arc::new(title_db),
+                        titles: title_db.titles_sorted_vec(),
                     })
                     .ok();
             }

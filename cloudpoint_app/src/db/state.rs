@@ -7,8 +7,9 @@ use crate::{
 };
 use anyhow::Result;
 use cloudpoint_lib::sync::{SyncItem, SyncState};
+use itertools::Itertools;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -79,48 +80,49 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn discover_all(&mut self) -> Result<()> {
+    pub fn discover_all(&mut self, auto_enabled: bool) -> Result<()> {
         log::info!("discovering all savedata and extdata");
 
         for title in SD_APP_TITLES.iter() {
-            self.discover_for_title_id(title.title_id, true)?;
+            self.discover_for_title_id(title.title_id, auto_enabled)?;
         }
 
         Ok(())
     }
 
     pub fn toggle_for_title_id(&mut self, title_id: u64) -> Result<()> {
-        let mut toggle_to = None;
-
-        for state in self
+        let states = self
             .states_mut()
             .filter(|s| s.via_title_ids.contains(&title_id))
-        {
-            toggle_to = toggle_to.or(Some(!state.auto_enabled));
-            state.auto_enabled = unsafe { toggle_to.unwrap_unchecked() };
+            .collect::<Vec<_>>();
+
+        let toggle_to = if states.iter().all(|s| s.auto_enabled == true) {
+            false
+        } else if states.iter().all(|s| s.auto_enabled == false) {
+            true
+        } else {
+            states
+                .iter()
+                .find_map(|s| {
+                    matches!(s.sync_item, SyncItem::Extdata(..)).then_some(s.auto_enabled)
+                })
+                .or_else(|| states.first().map(|s| !s.auto_enabled))
+                .unwrap_or_default()
+        };
+
+        for state in states {
+            state.auto_enabled = toggle_to;
             state.save(AppPath::Db)?;
         }
 
         Ok(())
     }
 
-    pub fn disable_for_title_id(&mut self, title_id: u64) -> Result<()> {
-        for state in self
-            .states_mut()
-            .filter(|s| s.via_title_ids.contains(&title_id))
-        {
-            state.auto_enabled = false;
-            state.save(AppPath::Db)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn total_states(&self) -> usize {
+    pub fn qty_total(&self) -> usize {
         self.1.len()
     }
 
-    pub fn auto_enabled_states(&self) -> usize {
+    pub fn qty_auto(&self) -> usize {
         self.1.iter().filter(|s| s.1.auto_enabled).count()
     }
 

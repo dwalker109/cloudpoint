@@ -250,6 +250,7 @@ dependencies = [
  "ctru-rs",
  "ctru-sys",
  "flexi_logger",
+ "itertools 0.14.0",
  "log",
  "postcard",
  "serde",

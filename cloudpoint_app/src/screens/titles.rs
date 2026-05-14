@@ -1,39 +1,33 @@
-use cloudpoint_lib::{ctr::SmdhLanguage, sync::SyncItem};
-
 use super::*;
-use crate::{
-    app::TaskMsg,
-    db::{TitleDb, TitleDetails},
-};
-use std::{
-    cmp,
-    sync::{Arc, mpsc::Sender},
-};
+use crate::{app::TaskMsg, db::TitleDetails};
+use cloudpoint_lib::ctr::SmdhLanguage;
+use std::{cmp, sync::mpsc::Sender};
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
     task_running: bool,
-    title_db: Option<Arc<TitleDb>>,
+    titles: Option<Vec<TitleDetails>>,
     selected_idx: usize,
     show_from: usize,
 }
 
 impl TitlesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
-        task_tx.send(TaskMsg::TitleDbBuild).ok();
+        task_tx.send(TaskMsg::TitleDbReady).ok();
 
         Self {
             task_tx,
             task_running: false,
-            title_db: None,
+            titles: None,
             selected_idx: 0,
             show_from: 0,
         }
     }
 
     fn selected_title(&self) -> Option<&TitleDetails> {
-        self.title_db.as_ref().and_then(|tdb| {
-            tdb.titles()
+        self.titles.as_ref().and_then(|titles| {
+            titles
+                .iter()
                 .enumerate()
                 .find(|(idx, _)| idx == &self.selected_idx)
                 .map(|(_, title)| title)
@@ -49,9 +43,9 @@ impl Screen for TitlesScreen {
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
         ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Titles");
 
-        if let Some(title_db) = &self.title_db {
-            for (view_idx, (item_idx, game_detail)) in title_db
-                .titles()
+        if let Some(titles) = &self.titles {
+            for (view_idx, (item_idx, game_detail)) in titles
+                .iter()
                 .enumerate()
                 .skip(self.show_from)
                 .take(PAGE_SIZE)
@@ -127,15 +121,15 @@ impl BaseScreen for TitlesScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
-            UiMsg::TitleDbReady { title_db } => {
+            UiMsg::TitleDbReady { titles } => {
                 self.task_running = false;
-                self.title_db = Some(Arc::clone(title_db));
+                self.titles = Some(titles.clone());
             }
             UiMsg::TitleDbInvalidated => {
                 if !self.task_running {
                     self.task_running = true;
-                    self.title_db = None;
-                    self.task_tx.send(TaskMsg::TitleDbBuild).ok();
+                    self.titles = None;
+                    self.task_tx.send(TaskMsg::TitleDbReady).ok();
                 }
             }
             _ => {}
@@ -148,7 +142,11 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN | KeyPad::CSTICK_DOWN)
         {
             self.selected_idx = cmp::min(
-                self.title_db.as_ref().unwrap().total_titles() - 1,
+                self.titles
+                    .as_ref()
+                    .and_then(|t| Some(t.len()))
+                    .unwrap_or_default()
+                    .saturating_sub(1),
                 self.selected_idx + 1,
             );
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
@@ -156,7 +154,7 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
-                    .send(TaskMsg::DiscoverTargeted(title.title_id, false))
+                    .send(TaskMsg::DiscoverTargeted(title.title_id))
                     .ok();
 
                 self.task_tx
@@ -174,7 +172,7 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.contains(KeyPad::Y) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
-                    .send(TaskMsg::DiscoverTargeted(title.title_id, true))
+                    .send(TaskMsg::DiscoverTargeted(title.title_id))
                     .ok();
                 self.task_tx
                     .send(TaskMsg::ToggleTargeted(title.title_id))
