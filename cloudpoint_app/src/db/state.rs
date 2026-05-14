@@ -1,5 +1,4 @@
 use crate::{
-    config::AppPath,
     ctr_fs::{self, CtrArchive},
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
@@ -7,30 +6,36 @@ use crate::{
 };
 use anyhow::Result;
 use cloudpoint_lib::sync::{SyncItem, SyncState};
-use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
 
-pub struct StateDb(PathBuf, HashMap<SyncItem, SyncState>);
+#[derive(Deserialize, Serialize)]
+pub struct StateDb(#[serde[skip]] PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let mut states: Vec<SyncState> = Vec::new();
+    pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+        let db_path = root_path.as_ref().join("state.db");
 
-        for f in fs::read_dir(&path)? {
-            let f = f?;
-            if let Ok(s) = postcard::from_bytes(&fs::read(f.path())?) {
-                states.push(s);
+        let state_db = match fs::read(&db_path) {
+            Ok(buf) => {
+                let mut state_db = postcard::from_bytes::<StateDb>(&buf)?;
+                state_db.0 = db_path;
+                state_db
             }
-        }
+            Err(_) => Self(db_path, HashMap::new()),
+        };
 
-        Ok(Self(
-            path.as_ref().to_path_buf(),
-            states.into_iter().map(|s| (s.sync_item, s)).collect(),
-        ))
+        Ok(state_db)
+    }
+
+    pub fn save(&mut self) -> Result<()> {
+        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+
+        Ok(())
     }
 
     pub fn discover_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
@@ -41,7 +46,6 @@ impl StateDb {
                 if existing_state.add_via_title_id(title_id) {
                     log::info!("updating {sync_item} reached via {title_id:016X}");
                     existing_state.auto_enabled = auto_enabled;
-                    existing_state.save(AppPath::Db)?;
                 } else {
                     log::info!(
                         "skipping {sync_item} discovered via {title_id:016X}, already tracked"
@@ -54,13 +58,12 @@ impl StateDb {
             if ctr_fs::CtrArchive::open(sync_item).is_ok() {
                 log::info!("adding {sync_item} discovered via {title_id:016X}");
 
-                let mut state = SyncState::new(
+                let state = SyncState::new(
                     sync_item,
                     title_id,
                     &CtrArchive::smdh(sync_item)?,
                     auto_enabled,
                 );
-                state.save(AppPath::Db)?;
 
                 self.1.insert(sync_item, state);
             }
@@ -112,7 +115,6 @@ impl StateDb {
 
         for state in states {
             state.auto_enabled = toggle_to;
-            state.save(AppPath::Db)?;
         }
 
         Ok(())
@@ -137,12 +139,11 @@ impl StateDb {
     pub fn states_mut(&mut self) -> impl Iterator<Item = &mut SyncState> {
         self.1.values_mut()
     }
+}
 
-    pub fn save_all(&mut self) -> Result<()> {
-        for state in self.1.values_mut() {
-            state.save(&self.0)?
-        }
-
-        Ok(())
+impl Drop for StateDb {
+    fn drop(&mut self) {
+        self.save()
+            .expect("should be able to save state db on shutdown")
     }
 }

@@ -1,9 +1,18 @@
 use crate::ctr_title::{self, SD_APP_TITLES};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use itertools::Itertools;
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    fs,
+    path::{Path, PathBuf},
+};
 
-use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
+use cloudpoint_lib::{
+    ctr::{CtrSmdh, SmdhLanguage},
+    sync::SyncItem,
+};
 
 use crate::{
     ctr_title::{
@@ -13,13 +22,27 @@ use crate::{
     db::StateDb,
 };
 
-pub struct TitleDb(HashMap<u64, TitleDetails>);
+#[derive(Serialize, Deserialize)]
+pub struct TitleDb(PathBuf, HashMap<u64, TitleDetails>);
 
 impl TitleDb {
-    pub fn build(state_db: &StateDb) -> Result<Self> {
+    pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+        let db_path = root_path.as_ref().join("title.db");
+
+        if let Ok(buf) = fs::read(&db_path) {
+            let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
+            title_db.0 = db_path;
+
+            Ok(title_db)
+        } else {
+            bail!("title db not found")
+        }
+    }
+
+    pub fn new(root_path: impl AsRef<Path>, state_db: &StateDb) -> Result<Self> {
         log::info!("building runtime title db");
 
-        let mut titles = HashMap::new();
+        let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
 
         for title in SD_APP_TITLES.iter() {
             let title_id = title.title_id;
@@ -28,41 +51,44 @@ impl TitleDb {
 
             log::info!("processing {title_id:016X}");
 
-            let title = TitleDetails::new(title_id, &product_code, smdh, &state_db);
+            let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
 
             if title.savedata_sync_status != TitleSyncStatus::Unavailable
                 || title.extdata_sync_status != TitleSyncStatus::Unavailable
             {
                 log::debug!("added {title_id:016X}");
-                titles.insert(title_id, title);
+                title_db.1.insert(title_id, title);
             } else {
                 log::debug!("ignored {title_id:016X}, has no save or extdata");
             }
         }
 
-        Ok(Self(titles))
+        Ok(title_db)
+    }
+
+    pub fn save(&mut self) -> Result<()> {
+        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+
+        Ok(())
     }
 
     pub fn total_titles(&self) -> usize {
-        self.0.len()
+        self.1.len()
     }
 
     pub fn titles_sorted_vec(&self) -> Vec<TitleDetails> {
-        self.0
+        self.1
             .values()
-            .sorted_by_key(|t| {
-                t.smdh
-                    .title_short(cloudpoint_lib::ctr::SmdhLanguage::English)
-            })
+            .sorted_by_key(|t| &t.title_short)
             .cloned()
             .collect()
     }
 
     pub fn refresh_cascade(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
-        let extdata_sync_item = self.0.get(&title_id).and_then(|t| t.extdata_sync_item);
+        let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
 
         for title in self
-            .0
+            .1
             .values_mut()
             .filter(|t| t.extdata_sync_item == extdata_sync_item)
         {
@@ -73,18 +99,26 @@ impl TitleDb {
     }
 }
 
-#[derive(Clone)]
+impl Drop for TitleDb {
+    fn drop(&mut self) {
+        self.save()
+            .expect("should be able to save title db on shutdown")
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TitleDetails {
     pub title_id: u64,
     pub product_code: String,
-    pub smdh: Arc<CtrSmdh>,
+    pub title_short: String,
+    pub title_publisher: String,
     pub savedata_sync_item: Option<SyncItem>,
     pub extdata_sync_item: Option<SyncItem>,
     pub savedata_sync_status: TitleSyncStatus,
     pub extdata_sync_status: TitleSyncStatus,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
 pub enum TitleSyncStatus {
     Unavailable,
     Available,
@@ -104,7 +138,7 @@ impl Display for TitleSyncStatus {
 }
 
 impl TitleDetails {
-    pub fn new(title_id: u64, product_code: &str, smdh: CtrSmdh, state_db: &StateDb) -> Self {
+    pub fn new(title_id: u64, product_code: &str, smdh: &CtrSmdh, state_db: &StateDb) -> Self {
         let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id);
         let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
             .or_else(|| infer_extdata_sync_item_for_title(title_id));
@@ -114,12 +148,17 @@ impl TitleDetails {
         Self {
             title_id,
             product_code: product_code.to_string(),
-            smdh: Arc::new(smdh),
+            title_short: smdh.title_short(SmdhLanguage::English).to_string(),
+            title_publisher: smdh.title_publisher(SmdhLanguage::English).to_string(),
             savedata_sync_item,
             extdata_sync_item,
             savedata_sync_status: sss,
             extdata_sync_status: ess,
         }
+    }
+
+    pub fn smdh(&self) -> Result<CtrSmdh> {
+        Ok(ctr_title::smdh(self.title_id)?)
     }
 
     pub fn refresh(&mut self, state_db: &StateDb) {
