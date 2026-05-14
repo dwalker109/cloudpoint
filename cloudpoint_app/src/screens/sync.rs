@@ -50,13 +50,13 @@ impl BaseScreen for SyncScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
-            UiMsg::SyncReady { total_states } => {
+            UiMsg::SyncReady { qty: total_states } => {
                 self.task_running = false;
                 self.upper_1 = "Ready to sync".into();
                 self.upper_2 = format!("{total_states} saves available");
             }
             UiMsg::SyncProgress {
-                title_short,
+                title_lbl: title_short,
                 message,
             } => {
                 self.upper_1 = title_short.clone();

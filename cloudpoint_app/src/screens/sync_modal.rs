@@ -36,7 +36,7 @@ impl ModalScreen for SyncModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) {
         match msg {
             UiMsg::SyncProgress {
-                title_short,
+                title_lbl: title_short,
                 message,
             } => {
                 self.upper_1 = title_short.clone();

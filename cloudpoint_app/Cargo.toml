@@ -17,6 +17,7 @@ flexi_logger = { workspace = true }
 chrono = { workspace = true }
 config = { workspace = true, features = ["ini"] }
 uuid = { workspace = true, features = ["v4"] }
+itertools = { workspace = true }
 
 [package.metadata.cargo-3ds]
 romfs_dir = "romfs"
