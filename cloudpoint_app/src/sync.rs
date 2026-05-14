@@ -77,7 +77,7 @@ pub fn run_one(
 
     ui_tx
         .send(UiMsg::SyncProgress {
-            title_short: title_label.clone(),
+            title_lbl: title_label.clone(),
             message: "Checking".into(),
         })
         .ok();
@@ -206,7 +206,7 @@ fn ul(
 
     ui_tx
         .send(UiMsg::SyncProgress {
-            title_short: title_label.into(),
+            title_lbl: title_label.into(),
             message: "Uploading".into(),
         })
         .ok();
@@ -270,7 +270,7 @@ fn dl(
     if USER_SETTINGS.backup {
         ui_tx
             .send(UiMsg::SyncProgress {
-                title_short: title_label.into(),
+                title_lbl: title_label.into(),
                 message: "Backing up existing data".into(),
             })
             .ok();
@@ -280,7 +280,7 @@ fn dl(
 
     ui_tx
         .send(UiMsg::SyncProgress {
-            title_short: title_label.into(),
+            title_lbl: title_label.into(),
             message: "Downloading".into(),
         })
         .ok();
