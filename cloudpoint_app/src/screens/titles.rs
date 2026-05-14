@@ -67,7 +67,7 @@ impl Screen for TitlesScreen {
                     40.0 + (view_idx * 16) as f32,
                     0.5,
                     colour,
-                    &game_detail.smdh.title_short(SmdhLanguage::English),
+                    &game_detail.title_short,
                 );
             }
         }
@@ -81,9 +81,6 @@ impl Screen for TitlesScreen {
             return;
         };
 
-        let title_short = title.smdh.title_short(SmdhLanguage::English);
-        let title_publisher = title.smdh.title_publisher(SmdhLanguage::English);
-
         ctx.text(
             12.0,
             12.0,
@@ -91,8 +88,8 @@ impl Screen for TitlesScreen {
             BLACK,
             &format!("{} | {:016X}", title.product_code, title.title_id),
         );
-        ctx.text(12.0, 28.0, 0.5, BLACK, &title_short);
-        ctx.text(12.0, 44.0, 0.5, BLACK, &title_publisher);
+        ctx.text(12.0, 28.0, 0.5, BLACK, &title.title_short);
+        ctx.text(12.0, 44.0, 0.5, BLACK, &title.title_publisher);
 
         ctx.text(
             12.0,
