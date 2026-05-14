@@ -3,7 +3,7 @@ use anyhow::{Result, bail};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Display,
     fs,
     path::{Path, PathBuf},
@@ -44,26 +44,64 @@ impl TitleDb {
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
 
-        for title in SD_APP_TITLES.iter() {
-            let title_id = title.title_id;
-            let product_code = &title.product_code;
-            let smdh = ctr_title::smdh(title_id)?;
-
-            log::info!("processing {title_id:016X}");
-
-            let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
-
-            if title.savedata_sync_status != TitleSyncStatus::Unavailable
-                || title.extdata_sync_status != TitleSyncStatus::Unavailable
-            {
-                log::debug!("added {title_id:016X}");
-                title_db.1.insert(title_id, title);
-            } else {
-                log::debug!("ignored {title_id:016X}, has no save or extdata");
-            }
+        for (&title_id, _) in SD_APP_TITLES.iter() {
+            title_db.add_title(title_id, state_db)?;
         }
 
         Ok(title_db)
+    }
+
+    pub fn refresh(&mut self, state_db: &StateDb) -> Result<()> {
+        log::info!("refreshing all titles");
+
+        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
+        self.1.retain(|k, _| current_title_ids.contains(k));
+
+        for title_id in SD_APP_TITLES.keys() {
+            self.add_title(*title_id, state_db)?;
+            self.refresh_links(*title_id, state_db)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn add_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+        let Some(title) = SD_APP_TITLES.get(&title_id) else {
+            bail!("cannot find title {title_id:016X}");
+        };
+
+        let title_id = title.title_id;
+        let product_code = &title.product_code;
+        let smdh = ctr_title::smdh(title_id)?;
+
+        log::info!("processing {title_id:016X}");
+
+        let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
+
+        if title.savedata_sync_status != TitleSyncStatus::Unavailable
+            || title.extdata_sync_status != TitleSyncStatus::Unavailable
+        {
+            log::debug!("added {title_id:016X}");
+            self.1.insert(title_id, title);
+        } else {
+            log::debug!("ignored {title_id:016X}, has no save or extdata");
+        }
+
+        Ok(())
+    }
+
+    pub fn refresh_links(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+        let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
+
+        for title in self
+            .1
+            .values_mut()
+            .filter(|t| t.extdata_sync_item == extdata_sync_item)
+        {
+            title.refresh(state_db);
+        }
+
+        Ok(())
     }
 
     pub fn save(&mut self) -> Result<()> {
@@ -82,20 +120,6 @@ impl TitleDb {
             .sorted_by_key(|t| &t.title_short)
             .cloned()
             .collect()
-    }
-
-    pub fn refresh_cascade(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
-        let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
-
-        for title in self
-            .1
-            .values_mut()
-            .filter(|t| t.extdata_sync_item == extdata_sync_item)
-        {
-            title.refresh(state_db);
-        }
-
-        Ok(())
     }
 }
 
