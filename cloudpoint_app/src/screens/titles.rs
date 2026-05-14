@@ -1,11 +1,9 @@
 use super::*;
 use crate::{app::TaskMsg, db::TitleDetails};
-use cloudpoint_lib::ctr::SmdhLanguage;
 use std::{cmp, sync::mpsc::Sender};
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
-    task_running: bool,
     titles: Option<Vec<TitleDetails>>,
     selected_idx: usize,
     show_from: usize,
@@ -13,11 +11,8 @@ pub struct TitlesScreen {
 
 impl TitlesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
-        task_tx.send(TaskMsg::TitleDbReady).ok();
-
         Self {
             task_tx,
-            task_running: false,
             titles: None,
             selected_idx: 0,
             show_from: 0,
@@ -116,21 +111,15 @@ impl BaseScreen for TitlesScreen {
         ScreenId::Titles
     }
 
-    fn handle_msg(&mut self, msg: &UiMsg) {
+    fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::TitleDbReady { titles } => {
-                self.task_running = false;
+            UiMsg::RefreshDone { titles, .. } => {
                 self.titles = Some(titles.clone());
-            }
-            UiMsg::TitleDbInvalidated => {
-                if !self.task_running {
-                    self.task_running = true;
-                    self.titles = None;
-                    self.task_tx.send(TaskMsg::TitleDbReady).ok();
-                }
             }
             _ => {}
         }
+
+        ScreenCommand::Noop
     }
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
@@ -151,29 +140,14 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
-                    .send(TaskMsg::DiscoverTargeted(title.title_id))
-                    .ok();
-
-                self.task_tx
-                    .send(TaskMsg::SyncTargeted(
-                        [title.savedata_sync_item, title.extdata_sync_item]
-                            .iter()
-                            .flatten()
-                            .copied()
-                            .collect(),
-                    ))
+                    .send(TaskMsg::SyncTargeted(title.title_id))
                     .ok();
             }
 
             return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
         } else if keys_down.contains(KeyPad::Y) {
             if let Some(title) = self.selected_title() {
-                self.task_tx
-                    .send(TaskMsg::DiscoverTargeted(title.title_id))
-                    .ok();
-                self.task_tx
-                    .send(TaskMsg::ToggleTargeted(title.title_id))
-                    .ok();
+                self.task_tx.send(TaskMsg::Toggle(title.title_id)).ok();
             }
         }
 

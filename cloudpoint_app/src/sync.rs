@@ -1,5 +1,5 @@
 use crate::{
-    app::{AlertMsg, UiMsg},
+    app::{ModalMsg, UiMsg},
     config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
@@ -37,7 +37,7 @@ pub enum ConflictWinner {
 pub fn run<'a>(
     states: impl Iterator<Item = &'a mut SyncState>,
     ui_tx: Sender<UiMsg>,
-    alert_tx: Sender<AlertMsg>,
+    alert_tx: Sender<ModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     let _keep_awake = KeepAwake::new();
@@ -52,7 +52,7 @@ pub fn run<'a>(
 pub fn run_one(
     sync_state: &mut SyncState,
     ui_tx: &Sender<UiMsg>,
-    alert_tx: &Sender<AlertMsg>,
+    alert_tx: &Sender<ModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     if Ac::new()?.wait_internet_connection().is_err() {
@@ -125,7 +125,7 @@ pub fn run_one(
             let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
 
             alert_tx
-                .send(AlertMsg::ResolveConflict {
+                .send(ModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
                     title_remote_time: remote_ver.map(|v| v.mtime().clone()),
                     is_first_sync,

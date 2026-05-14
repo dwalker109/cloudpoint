@@ -1,14 +1,13 @@
 use std::{
     rc::Rc,
     sync::{
-        Arc,
         mpsc::{Receiver, Sender},
         oneshot,
     },
 };
 
 use chrono::{DateTime, Utc};
-use cloudpoint_lib::{http::CurlHttpClient, sync::SyncItem};
+use cloudpoint_lib::http::CurlHttpClient;
 
 use crate::{
     config::AppPath,
@@ -17,35 +16,48 @@ use crate::{
 };
 
 pub enum TaskMsg {
-    SyncReady,
-    SyncAllAuto,
-    SyncTargeted(Vec<SyncItem>),
-    DiscoverAll,
-    DiscoverTargeted(u64),
-    ToggleTargeted(u64),
-    TitleDbReady,
-    TitleDbInvalidate,
+    // SyncReady,
+    // TitleDbReady,
+    SyncAuto,
+    SyncTargeted(u64),
+    Toggle(u64),
+    Refresh,
 }
 
 pub enum UiMsg {
-    SyncReady { qty: usize },
-    SyncProgress { title_lbl: String, message: String },
-    SyncDone { result: String, message: String },
-    TitleDbInvalidated,
-    TitleDbReady { titles: Vec<TitleDetails> },
+    // SyncReady { qty: usize },
+    SyncProgress {
+        title_lbl: String,
+        message: String,
+    },
+    SyncDone {
+        result: String,
+        message: String,
+    },
+    RefreshProgress {
+        message: String,
+        progress: usize,
+    },
+    RefreshDone {
+        qty_sync_states: usize,
+        titles: Vec<TitleDetails>,
+    },
 }
 
-pub enum AlertMsg {
+pub enum ModalMsg {
     ResolveConflict {
         title_label: String,
         title_remote_time: Option<DateTime<Utc>>,
         is_first_sync: bool,
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
+    Refresh,
 }
 
-pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx: Sender<AlertMsg>) {
-    let mut state_db = StateDb::open(AppPath::Db).expect("state db should be accessible");
+pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx: Sender<ModalMsg>) {
+    let mut state_db = StateDb::open(AppPath::Db)
+        .or_else(|_| StateDb::new(AppPath::Db))
+        .expect("state db should be accessible");
     let mut title_db = TitleDb::open(AppPath::Db)
         .or_else(|_| TitleDb::new(AppPath::Db, &state_db))
         .expect("title db should be accessible");
@@ -54,103 +66,85 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx:
 
     loop {
         match task_rx.recv() {
-            Ok(TaskMsg::DiscoverAll) => {
-                state_db.discover_all(true).ok();
+            Ok(TaskMsg::Refresh) => {
+                modal_tx.send(ModalMsg::Refresh).ok();
                 ui_tx
-                    .send(UiMsg::SyncReady {
-                        qty: state_db.qty_auto(),
+                    .send(UiMsg::RefreshProgress {
+                        message: "Refreshing sync items".into(),
+                        progress: 0,
                     })
                     .ok();
-                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
-            }
-            Ok(TaskMsg::DiscoverTargeted(title_id)) => {
-                state_db.discover_for_title_id(title_id, false).ok();
-                title_db.refresh_cascade(title_id, &state_db).ok();
+                state_db.refresh(true).ok();
                 ui_tx
-                    .send(UiMsg::SyncReady {
-                        qty: state_db.qty_auto(),
+                    .send(UiMsg::RefreshProgress {
+                        message: "Refreshing titles".into(),
+                        progress: 50,
                     })
                     .ok();
+                title_db.refresh(&state_db).ok();
                 ui_tx
-                    .send(UiMsg::TitleDbReady {
+                    .send(UiMsg::RefreshDone {
+                        qty_sync_states: state_db.qty_auto(),
                         titles: title_db.titles_sorted_vec(),
                     })
                     .ok();
             }
-            Ok(TaskMsg::ToggleTargeted(title_id)) => {
+            Ok(TaskMsg::Toggle(title_id)) => {
+                state_db.refresh_for_title_id(title_id, false).ok();
                 state_db.toggle_for_title_id(title_id).ok();
-                title_db.refresh_cascade(title_id, &state_db).ok();
+                title_db.refresh_links(title_id, &state_db).ok();
                 ui_tx
-                    .send(UiMsg::SyncReady {
-                        qty: state_db.qty_auto(),
-                    })
-                    .ok();
-                ui_tx
-                    .send(UiMsg::TitleDbReady {
+                    .send(UiMsg::RefreshDone {
+                        qty_sync_states: state_db.qty_auto(),
                         titles: title_db.titles_sorted_vec(),
                     })
                     .ok();
             }
-            Ok(TaskMsg::SyncReady) => {
-                ui_tx
-                    .send(UiMsg::SyncReady {
-                        qty: state_db.qty_auto(),
-                    })
-                    .ok();
-            }
-            Ok(TaskMsg::SyncAllAuto) => {
+            Ok(TaskMsg::SyncAuto) => {
                 match sync::run(
                     state_db.states_mut().filter(|s| s.auto_enabled),
                     ui_tx.clone(),
-                    alert_tx.clone(),
+                    modal_tx.clone(),
                     &client,
                 ) {
                     Ok(_) => ui_tx
                         .send(UiMsg::SyncDone {
-                            result: "Last sync completed at".into(),
+                            result: "Sync completed at ".into(),
                             message: chrono::Utc::now().to_rfc2822(),
                         })
                         .ok(),
-                    Err(err) => ui_tx
+                    Err(_err) => ui_tx
                         .send(UiMsg::SyncDone {
-                            result: "An error occurred during sync".into(),
-                            message: err.to_string(),
+                            result: "Sync failed at".into(),
+                            message: chrono::Utc::now().to_rfc2822(),
                         })
                         .ok(),
                 };
             }
-            Ok(TaskMsg::SyncTargeted(sync_items)) => {
+            Ok(TaskMsg::SyncTargeted(title_id)) => {
+                state_db.refresh_for_title_id(title_id, false).ok();
+                title_db.refresh_links(title_id, &state_db).ok();
                 match sync::run(
                     state_db
                         .states_mut()
-                        .filter(|s| sync_items.contains(&s.sync_item)),
+                        .filter(|s| s.via_title_ids.contains(&title_id)),
                     ui_tx.clone(),
-                    alert_tx.clone(),
+                    modal_tx.clone(),
                     &client,
                 ) {
                     Ok(_) => ui_tx
                         .send(UiMsg::SyncDone {
-                            result: "Last sync completed at".into(),
+                            result: "Sync completed at ".into(),
                             message: chrono::Utc::now().to_rfc2822(),
                         })
                         .ok(),
-                    Err(err) => ui_tx
+                    Err(_err) => ui_tx
                         .send(UiMsg::SyncDone {
-                            result: "An error occurred during sync".into(),
-                            message: err.to_string(),
+                            result: "Sync failed at".into(),
+                            message: chrono::Utc::now().to_rfc2822(),
                         })
                         .ok(),
                 };
-            }
-            Ok(TaskMsg::TitleDbInvalidate) => {
-                ui_tx.send(UiMsg::TitleDbInvalidated).ok();
-            }
-            Ok(TaskMsg::TitleDbReady) => {
-                ui_tx
-                    .send(UiMsg::TitleDbReady {
-                        titles: title_db.titles_sorted_vec(),
-                    })
-                    .ok();
             }
             Err(_) => return,
         }

@@ -1,8 +1,8 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ModalScreen, ScreenCommand, ScreenId, SyncScreen,
-        TitlesScreen,
+        BaseScreen, ConflictModalScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
+        SyncScreen, TitlesScreen,
     },
     services::CtrServices,
     setup,
@@ -23,16 +23,16 @@ pub struct App {
     modal_stack: Vec<Box<dyn ModalScreen>>,
     _task_tx: Sender<TaskMsg>,
     ui_rx: Receiver<UiMsg>,
-    alert_rx: Receiver<AlertMsg>,
+    alert_rx: Receiver<ModalMsg>,
 }
 
 impl App {
     pub fn run(mut services: CtrServices) -> Result<()> {
         let (task_tx, task_rx) = channel::<TaskMsg>();
         let (ui_tx, ui_rx) = channel::<UiMsg>();
-        let (alert_tx, alert_rx) = channel::<AlertMsg>();
+        let (modal_tx, modal_rx) = channel::<ModalMsg>();
 
-        let handle = setup::start_worker(task_rx, ui_tx, alert_tx)?;
+        let handle = setup::start_worker(task_rx, ui_tx, modal_tx)?;
 
         let mut app = App {
             screens: HashMap::from([
@@ -49,10 +49,11 @@ impl App {
             modal_stack: Vec::with_capacity(4),
             _task_tx: task_tx,
             ui_rx,
-            alert_rx,
+            alert_rx: modal_rx,
         };
 
         let mut render = Render::new();
+        let mut cmd_buffer = Vec::with_capacity(8);
 
         while services.apt.main_loop() {
             services.hid.scan_input();
@@ -63,19 +64,9 @@ impl App {
                 break;
             }
 
-            // if keys_down.contains(KeyPad::SELECT) {
-            //     let (tx, rx) = oneshot::channel::<ConflictWinner>();
-            //     app.modal_stack.push(Box::new(ConflictModalScreen::new(
-            //         "Test1 (test)".into(),
-            //         DateTime::<Utc>::from_timestamp(0, 0),
-            //         true,
-            //         tx,
-            //     )));
-            // }
-
             if let Ok(msg) = app.alert_rx.try_recv() {
                 match msg {
-                    AlertMsg::ResolveConflict {
+                    ModalMsg::ResolveConflict {
                         title_label,
                         title_remote_time,
                         is_first_sync,
@@ -88,37 +79,39 @@ impl App {
                             reply_tx,
                         )));
                     }
+                    ModalMsg::Refresh => {
+                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
+                    }
                 }
             }
 
             if let Ok(msg) = app.ui_rx.try_recv() {
                 for screen in app.screens.values_mut() {
-                    screen.handle_msg(&msg);
+                    cmd_buffer.push(screen.handle_msg(&msg));
                 }
 
                 for modal in app.modal_stack.iter_mut() {
-                    modal.handle_msg(&msg);
+                    cmd_buffer.push(modal.handle_msg(&msg));
                 }
             }
 
             if let Some(modal) = app.modal_stack.last_mut() {
-                let cmd = modal.handle_input(&keys_down, &keys_held);
-                match cmd {
-                    ScreenCommand::CloseModal => {
-                        app.modal_stack.pop();
-                    }
-                    _ => {}
-                }
+                cmd_buffer.push(modal.handle_input(&keys_down, &keys_held));
             } else {
                 let active_screen = app.screens.get_mut(&app.active_screen).unwrap();
+                cmd_buffer.push(active_screen.handle_input(&keys_down, &keys_held));
+            }
 
-                let cmd = active_screen.handle_input(&keys_down, &keys_held);
+            for cmd in cmd_buffer.drain(..) {
                 match cmd {
                     ScreenCommand::SwitchTo(id) => {
                         app.active_screen = id;
                     }
                     ScreenCommand::OpenModal(screen) => {
                         app.modal_stack.push(screen);
+                    }
+                    ScreenCommand::CloseModal => {
+                        app.modal_stack.pop();
                     }
                     _ => {}
                 }

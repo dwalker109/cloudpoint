@@ -1,5 +1,5 @@
 use crate::{
-    app::{AlertMsg, TaskMsg, UiMsg, worker_thread},
+    app::{ModalMsg, TaskMsg, UiMsg, worker_thread},
     config::AppPath,
 };
 use anyhow::{Context, Result};
@@ -25,11 +25,11 @@ pub fn sdmc() -> Result<()> {
 pub fn start_worker(
     task_rx: Receiver<TaskMsg>,
     ui_tx: Sender<UiMsg>,
-    alert_tx: Sender<AlertMsg>,
+    modal_tx: Sender<ModalMsg>,
 ) -> Result<JoinHandle<()>> {
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
-        .spawn(move || worker_thread(task_rx, ui_tx, alert_tx))?;
+        .spawn(move || worker_thread(task_rx, ui_tx, modal_tx))?;
 
     Ok(handle)
 }

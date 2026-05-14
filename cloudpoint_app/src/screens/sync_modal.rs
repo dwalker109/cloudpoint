@@ -33,7 +33,7 @@ impl Screen for SyncModalScreen {
 }
 
 impl ModalScreen for SyncModalScreen {
-    fn handle_msg(&mut self, msg: &UiMsg) {
+    fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::SyncProgress {
                 title_lbl: title_short,
@@ -49,6 +49,8 @@ impl ModalScreen for SyncModalScreen {
             }
             _ => {}
         }
+
+        ScreenCommand::Noop
     }
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
