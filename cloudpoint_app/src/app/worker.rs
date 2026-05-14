@@ -46,7 +46,9 @@ pub enum AlertMsg {
 
 pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, alert_tx: Sender<AlertMsg>) {
     let mut state_db = StateDb::open(AppPath::Db).expect("state db should be accessible");
-    let mut title_db = TitleDb::build(&state_db).expect("should build runtime title db");
+    let mut title_db = TitleDb::open(AppPath::Db)
+        .or_else(|_| TitleDb::new(AppPath::Db, &state_db))
+        .expect("title db should be accessible");
 
     let client = Rc::new(CurlHttpClient::new().expect("curl client should be available"));
 

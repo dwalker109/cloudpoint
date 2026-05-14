@@ -115,7 +115,6 @@ pub fn run_one(
 
             if sync_state.synced_fingerprint.is_none() {
                 sync_state.synced_fingerprint = local_fingerprint;
-                sync_state.save(AppPath::Db)?;
             }
         }
         SyncAction::Conflict | SyncAction::ConflictOnInit => {
@@ -227,7 +226,6 @@ fn ul(
     )?;
 
     s.synced_fingerprint = local_fingerprint;
-    s.save(AppPath::Db)?;
 
     Ok(())
 }
@@ -310,7 +308,6 @@ fn dl(
     archive.finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
-    s.save(AppPath::Db)?;
 
     Ok(())
 }

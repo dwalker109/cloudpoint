@@ -67,17 +67,6 @@ impl SyncState {
         }
     }
 
-    pub fn save(&mut self, root_path: impl AsRef<Path>) -> Result<()> {
-        log::info!("Writing db for {} ({})", self.sync_item, self.title_short);
-
-        fs::write(
-            root_path.as_ref().join(PathBuf::from(self.sync_item)),
-            postcard::to_allocvec(&self)?,
-        )?;
-
-        Ok(())
-    }
-
     pub fn add_via_title_id(&mut self, via: u64) -> bool {
         self.via_title_ids.insert(via)
     }
