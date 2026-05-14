@@ -104,7 +104,9 @@ impl Screen for ConflictModalScreen {
 }
 
 impl ModalScreen for ConflictModalScreen {
-    fn handle_msg(&mut self, _msg: &UiMsg) {}
+    fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
+        ScreenCommand::Noop
+    }
 
     fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand {
         let mut winner = None;

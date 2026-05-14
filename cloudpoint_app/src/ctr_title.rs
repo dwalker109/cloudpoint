@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{collections::HashMap, sync::LazyLock};
 
 use crate::ctr_fs::CtrArchive;
 use anyhow::Result;
@@ -28,7 +28,7 @@ impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
     }
 }
 
-pub static SD_APP_TITLES: LazyLock<Vec<CtrAmTitle>> = LazyLock::new(|| {
+pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| {
     let am = Am::new().expect("am service should be available");
     let title_list = am
         .title_list(MediaType::Sd)
@@ -36,7 +36,7 @@ pub static SD_APP_TITLES: LazyLock<Vec<CtrAmTitle>> = LazyLock::new(|| {
     let applications = title_list
         .iter()
         .filter(|t| (t.id() >> 32) as u32 == 0x00040000)
-        .map(CtrAmTitle::from)
+        .map(|t| (t.id(), CtrAmTitle::from(t)))
         .collect();
 
     applications

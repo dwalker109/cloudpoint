@@ -4,11 +4,11 @@ use crate::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
     },
 };
-use anyhow::Result;
+use anyhow::{Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -20,14 +20,23 @@ impl StateDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
         let db_path = root_path.as_ref().join("state.db");
 
-        let state_db = match fs::read(&db_path) {
-            Ok(buf) => {
-                let mut state_db = postcard::from_bytes::<StateDb>(&buf)?;
-                state_db.0 = db_path;
-                state_db
-            }
-            Err(_) => Self(db_path, HashMap::new()),
-        };
+        if let Ok(buf) = fs::read(&db_path) {
+            let mut state_db = postcard::from_bytes::<StateDb>(&buf)?;
+            state_db.0 = db_path;
+
+            Ok(state_db)
+        } else {
+            bail!("state db not found")
+        }
+    }
+
+    pub fn new(root_path: impl AsRef<Path>) -> Result<Self> {
+        log::info!("building all savedata and extdata");
+
+        let db_path = root_path.as_ref().join("state.db");
+
+        let mut state_db = Self(db_path, HashMap::new());
+        state_db.refresh(true)?;
 
         Ok(state_db)
     }
@@ -38,7 +47,29 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn discover_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
+    pub fn refresh(&mut self, auto_enabled: bool) -> Result<()> {
+        log::info!("refreshing all savedata and extdata");
+
+        for (&title_id, _) in SD_APP_TITLES.iter() {
+            self.refresh_for_title_id(title_id, auto_enabled)?;
+        }
+
+        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
+
+        for state in self.1.values_mut() {
+            state.via_title_ids = state
+                .via_title_ids
+                .intersection(&current_title_ids)
+                .copied()
+                .collect();
+        }
+
+        self.1.retain(|_, s| !s.via_title_ids.is_empty());
+
+        Ok(())
+    }
+
+    pub fn refresh_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
         log::info!("processing {title_id:016X}");
 
         let mut process = |sync_item| -> Result<()> {
@@ -58,14 +89,15 @@ impl StateDb {
             if ctr_fs::CtrArchive::open(sync_item).is_ok() {
                 log::info!("adding {sync_item} discovered via {title_id:016X}");
 
-                let state = SyncState::new(
+                self.1.insert(
                     sync_item,
-                    title_id,
-                    &CtrArchive::smdh(sync_item)?,
-                    auto_enabled,
+                    SyncState::new(
+                        sync_item,
+                        title_id,
+                        &CtrArchive::smdh(sync_item)?,
+                        auto_enabled,
+                    ),
                 );
-
-                self.1.insert(sync_item, state);
             }
 
             Ok(())
@@ -78,16 +110,6 @@ impl StateDb {
             process(sync_item)?;
         } else if let Some(sync_item) = infer_extdata_sync_item_for_title(title_id) {
             process(sync_item)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn discover_all(&mut self, auto_enabled: bool) -> Result<()> {
-        log::info!("discovering all savedata and extdata");
-
-        for title in SD_APP_TITLES.iter() {
-            self.discover_for_title_id(title.title_id, auto_enabled)?;
         }
 
         Ok(())
