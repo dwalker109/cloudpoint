@@ -70,38 +70,46 @@ impl Screen for TitlesScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        let Some(title) = self.selected_title() else {
-            ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &"Loading titles...");
 
+        let Some(title) = self.selected_title() else {
             return;
         };
 
+        ctx.text(12.0, 12.0, 0.7, BLACK, &title.title_short);
+        ctx.text(12.0, 36.0, 0.7, BLACK, &title.title_publisher);
         ctx.text(
             12.0,
-            12.0,
-            0.5,
+            60.0,
+            0.7,
             BLACK,
-            &format!("{} | {:016X}", title.product_code, title.title_id),
+            &format!("{:05X}", (title.title_id >> 8) as u32),
         );
-        ctx.text(12.0, 28.0, 0.5, BLACK, &title.title_short);
-        ctx.text(12.0, 44.0, 0.5, BLACK, &title.title_publisher);
+        ctx.text(12.0, 84.0, 0.7, BLACK, &title.product_code);
 
-        ctx.text(
-            12.0,
-            80.0,
+        ctx.text_centered(
+            0.0,
+            142.0,
+            BOT_W,
             0.5,
             BLACK,
-            &format!("Include save in auto sync: {}", title.savedata_sync_status),
+            &format!("Save auto sync: {}", title.savedata_sync_status),
         );
-        ctx.text(
-            12.0,
-            96.0,
+        ctx.text_centered(
+            0.0,
+            160.0,
+            BOT_W,
             0.5,
             BLACK,
-            &format!(
-                "Include extdata in auto sync: {}",
-                title.extdata_sync_status
-            ),
+            &format!("Extdata auto sync: {}", title.extdata_sync_status),
+        );
+
+        ctx.text_centered(
+            0.0,
+            212.0,
+            BOT_W,
+            0.6,
+            BLACK,
+            "(Y) to toggle auto sync for this title".into(),
         );
     }
 }
