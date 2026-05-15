@@ -55,12 +55,45 @@ pub enum ModalMsg {
 }
 
 pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx: Sender<ModalMsg>) {
-    let mut state_db = StateDb::open(AppPath::Db)
-        .or_else(|_| StateDb::new(AppPath::Db))
-        .expect("state db should be accessible");
-    let mut title_db = TitleDb::open(AppPath::Db)
-        .or_else(|_| TitleDb::new(AppPath::Db, &state_db))
-        .expect("title db should be accessible");
+    let (mut state_db, mut title_db) = {
+        if let (Ok(state_db), Ok(title_db)) =
+            (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
+        {
+            (state_db, title_db)
+        } else {
+            modal_tx.send(ModalMsg::Refresh).ok();
+            ui_tx
+                .send(UiMsg::RefreshProgress {
+                    message: "Refreshing sync items".into(),
+                    progress: 0,
+                })
+                .ok();
+            let state_db = StateDb::new(AppPath::Db).expect("state db should be creatable");
+            ui_tx
+                .send(UiMsg::RefreshProgress {
+                    message: "Refreshing titles".into(),
+                    progress: 50,
+                })
+                .ok();
+            let title_db =
+                TitleDb::new(AppPath::Db, &state_db).expect("title db should be creatable");
+            ui_tx
+                .send(UiMsg::RefreshDone {
+                    qty_sync_states: state_db.qty_auto(),
+                    titles: title_db.titles_sorted_vec(),
+                })
+                .ok();
+
+            (state_db, title_db)
+        }
+    };
+
+    ui_tx
+        .send(UiMsg::RefreshDone {
+            qty_sync_states: state_db.qty_auto(),
+            titles: title_db.titles_sorted_vec(),
+        })
+        .ok();
 
     let client = Rc::new(CurlHttpClient::new().expect("curl client should be available"));
 
