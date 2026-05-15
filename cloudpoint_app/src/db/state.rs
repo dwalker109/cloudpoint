@@ -84,7 +84,7 @@ impl StateDb {
 
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
-                if existing_state.add_via_title_id(title_id) {
+                if existing_state.via_title_ids.insert(title_id) {
                     log::info!("updating {sync_item} reached via {title_id:016X}");
                     existing_state.auto_enabled = auto_enabled;
                 } else {

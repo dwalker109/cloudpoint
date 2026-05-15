@@ -61,8 +61,10 @@ fn run_one(
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     if Ac::new()?.wait_internet_connection().is_err() {
-        bail!("You are not connected to the internet");
+        bail!("No internet connection");
     }
+
+    log::info!("Starting sync of {:?}", sync_state.sync_item);
 
     let Ok(smdh) = CtrArchive::smdh(sync_state.sync_item) else {
         log::info!(
@@ -72,13 +74,13 @@ fn run_one(
         bail!("{} not found; was the title deleted?", sync_state.sync_item);
     };
 
+    sync_state.safe_adopt(*USER_KEY);
+
     let title_label = format!(
         "{} ({})",
         smdh.title_short(SmdhLanguage::English),
         smdh.title_publisher(SmdhLanguage::English)
     );
-
-    log::info!("Starting sync of {title_label}",);
 
     sync_progress.label(&title_label).message("Checking").send();
 
@@ -107,9 +109,6 @@ fn run_one(
     log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
 
     match sync_state.get_action(local_fingerprint, remote_fingerprint) {
-        SyncAction::Skip => {
-            log::info!("ignoring {}, is not enabled", sync_state.sync_item,);
-        }
         SyncAction::NoChange | SyncAction::NoChangeOnInit => {
             log::info!("local and remote data match for {}", sync_state.sync_item,);
 
