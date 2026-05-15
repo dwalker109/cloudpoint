@@ -11,11 +11,11 @@ run ip:
     cargo 3ds run -a {{ ip }} --release
 
 [working-directory('cloudpoint_app/cia')]
-cia ver: build
+cia major micro: build
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
-        -l "Cloudpoint save and extdata sync" \
+        -l "Cloudpoint save & extdata sync" \
         -p "Dan Walker" \
         -i icon.png \
         -o cloudpoint.smdh
@@ -26,8 +26,8 @@ cia ver: build
         -i banner.png \
         -ca banner.bcwav \
         -o banner.bnr
-    ./makerom -f cia \
-        -ver {{ ver }} \
+    ./makerom -f cia -v \
+        -major {{ major }} -micro {{ micro }} \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint_app.elf \
         -DROMFS_PATH="../romfs" \
@@ -39,7 +39,7 @@ cia ver: build
     rm banner.bcwav banner.bnr cloudpoint.smdh
 
 deploy:
-    scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/root/data
+    scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/mnt/data
 
 [working-directory('cloudpoint_app/src/ctr_gfx/c2d')]
 citro2d:
