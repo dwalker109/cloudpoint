@@ -1,4 +1,7 @@
-use crate::ctr_title::{self, SD_APP_TITLES};
+use crate::{
+    app::{RefreshProgress, UiMsg},
+    ctr_title::{self, SD_APP_TITLES},
+};
 use anyhow::{Result, bail};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -7,6 +10,7 @@ use std::{
     fmt::Display,
     fs,
     path::{Path, PathBuf},
+    sync::mpsc::Sender,
 };
 
 use cloudpoint_lib::{
@@ -39,33 +43,41 @@ impl TitleDb {
         }
     }
 
-    pub fn new(root_path: impl AsRef<Path>, state_db: &StateDb) -> Result<Self> {
+    pub fn new(
+        root_path: impl AsRef<Path>,
+        state_db: &StateDb,
+        ui_tx: &Sender<UiMsg>,
+    ) -> Result<Self> {
         log::info!("building runtime title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-
-        for (&title_id, _) in SD_APP_TITLES.iter() {
-            title_db.add_title(title_id, state_db)?;
-        }
+        title_db.refresh(state_db, ui_tx)?;
 
         Ok(title_db)
     }
 
-    pub fn refresh(&mut self, state_db: &StateDb) -> Result<()> {
+    pub fn refresh(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::info!("refreshing all titles");
+
+        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
         self.1.retain(|k, _| current_title_ids.contains(k));
 
-        for title_id in SD_APP_TITLES.keys() {
+        let total = SD_APP_TITLES.len();
+        for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
             self.add_title(*title_id, state_db)?;
             self.refresh_links(*title_id, state_db)?;
+            refresh_progress
+                .message("Refreshing titles")
+                .progress((i + 1) * 100 / total)
+                .send();
         }
 
         Ok(())
     }
 
-    pub fn add_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+    fn add_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
         let Some(title) = SD_APP_TITLES.get(&title_id) else {
             bail!("cannot find title {title_id:016X}");
         };

@@ -5,10 +5,9 @@ use std::sync::mpsc::Sender;
 pub struct SyncScreen {
     task_tx: Sender<TaskMsg>,
     sync_running: bool,
+    progress: usize,
     upper_1: String,
     upper_2: String,
-    lower_1: String,
-    lower_2: String,
 }
 
 impl SyncScreen {
@@ -16,10 +15,9 @@ impl SyncScreen {
         Self {
             task_tx,
             sync_running: false,
+            progress: 0,
             upper_1: String::with_capacity(256),
             upper_2: String::with_capacity(256),
-            lower_1: "(A) to sync".into(),
-            lower_2: "(X) to refresh".into(),
         }
     }
 }
@@ -35,9 +33,19 @@ impl Screen for SyncScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
-        let colour = if self.sync_running { DARK_GREY } else { BLACK };
-        ctx.text_centered(0.0, 100.0, BOT_W, 0.6, colour, &self.lower_1);
-        ctx.text_centered(0.0, 120.0, BOT_W, 0.6, colour, &self.lower_2);
+        if self.sync_running {
+            ctx.rect(40.0, 110.0, 240.0, 24.0, GREY_TRANS);
+            ctx.rect(
+                40.0,
+                110.0,
+                self.progress as f32 * 240.0 / 100.0,
+                24.0,
+                WHITE,
+            );
+        } else {
+            ctx.text_centered(0.0, 100.0, BOT_W, 0.6, BLACK, "(A) to sync");
+            ctx.text_centered(0.0, 120.0, BOT_W, 0.6, BLACK, "(X) to refresh");
+        }
     }
 }
 
@@ -58,12 +66,18 @@ impl BaseScreen for SyncScreen {
                     titles.len()
                 );
             }
-            UiMsg::SyncProgress { title_lbl, message } => {
+            UiMsg::SyncProgress {
+                label: title_lbl,
+                message,
+                progress,
+            } => {
                 self.upper_1 = title_lbl.clone();
                 self.upper_2 = message.clone();
+                self.progress = *progress;
             }
             UiMsg::SyncDone { result, message } => {
                 self.sync_running = false;
+                self.progress = 0;
                 self.upper_1 = result.clone();
                 self.upper_2 = message.clone();
             }

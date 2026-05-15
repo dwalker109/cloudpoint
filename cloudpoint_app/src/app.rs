@@ -9,12 +9,14 @@ use crate::{
 };
 use anyhow::Result;
 use ctru::services::hid::KeyPad;
+pub use msg::*;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, Sender, channel},
 };
-pub use worker::*;
+pub use worker::worker_thread;
 
+mod msg;
 mod worker;
 
 pub struct App {

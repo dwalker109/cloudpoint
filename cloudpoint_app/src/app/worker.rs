@@ -1,58 +1,14 @@
-use std::{
-    rc::Rc,
-    sync::{
-        mpsc::{Receiver, Sender},
-        oneshot,
-    },
-};
-
-use chrono::{DateTime, Utc};
-use cloudpoint_lib::http::CurlHttpClient;
-
+use super::*;
 use crate::{
     config::AppPath,
-    db::{StateDb, TitleDb, TitleDetails},
-    sync::{self, ConflictWinner},
+    db::{StateDb, TitleDb},
+    sync,
 };
-
-pub enum TaskMsg {
-    // SyncReady,
-    // TitleDbReady,
-    SyncAuto,
-    SyncTargeted(u64),
-    Toggle(u64),
-    Refresh,
-}
-
-pub enum UiMsg {
-    // SyncReady { qty: usize },
-    SyncProgress {
-        title_lbl: String,
-        message: String,
-    },
-    SyncDone {
-        result: String,
-        message: String,
-    },
-    RefreshProgress {
-        message: String,
-        progress: usize,
-    },
-    RefreshDone {
-        qty_sync_states: usize,
-        titles: Vec<TitleDetails>,
-    },
-}
-
-pub enum ModalMsg {
-    ResolveConflict {
-        title_label: String,
-        title_remote_time: Option<DateTime<Utc>>,
-        is_first_sync: bool,
-        reply_tx: oneshot::Sender<ConflictWinner>,
-    },
-    Refresh,
-}
+use cloudpoint_lib::http::CurlHttpClient;
+use std::{
+    rc::Rc,
+    sync::mpsc::{Receiver, Sender},
+};
 
 pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx: Sender<ModalMsg>) {
     let (mut state_db, mut title_db) = {
@@ -62,27 +18,9 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
             (state_db, title_db)
         } else {
             modal_tx.send(ModalMsg::Refresh).ok();
-            ui_tx
-                .send(UiMsg::RefreshProgress {
-                    message: "Refreshing sync items".into(),
-                    progress: 0,
-                })
-                .ok();
-            let state_db = StateDb::new(AppPath::Db).expect("state db should be creatable");
-            ui_tx
-                .send(UiMsg::RefreshProgress {
-                    message: "Refreshing titles".into(),
-                    progress: 50,
-                })
-                .ok();
+            let state_db = StateDb::new(AppPath::Db, &ui_tx).expect("state db should be creatable");
             let title_db =
-                TitleDb::new(AppPath::Db, &state_db).expect("title db should be creatable");
-            ui_tx
-                .send(UiMsg::RefreshDone {
-                    qty_sync_states: state_db.qty_auto(),
-                    titles: title_db.titles_sorted_vec(),
-                })
-                .ok();
+                TitleDb::new(AppPath::Db, &state_db, &ui_tx).expect("title db should be creatable");
 
             (state_db, title_db)
         }
@@ -101,20 +39,8 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(ModalMsg::Refresh).ok();
-                ui_tx
-                    .send(UiMsg::RefreshProgress {
-                        message: "Refreshing sync items".into(),
-                        progress: 0,
-                    })
-                    .ok();
-                state_db.refresh(true).ok();
-                ui_tx
-                    .send(UiMsg::RefreshProgress {
-                        message: "Refreshing titles".into(),
-                        progress: 50,
-                    })
-                    .ok();
-                title_db.refresh(&state_db).ok();
+                state_db.refresh(true, &ui_tx).ok();
+                title_db.refresh(&state_db, &ui_tx).ok();
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -134,30 +60,26 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     .ok();
             }
             Ok(TaskMsg::SyncAuto) => {
-                match sync::run(
+                let (result, message) = match sync::run(
                     state_db.states_mut().filter(|s| s.auto_enabled),
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => ui_tx
-                        .send(UiMsg::SyncDone {
-                            result: "Sync completed at ".into(),
-                            message: chrono::Utc::now().to_rfc2822(),
-                        })
-                        .ok(),
-                    Err(_err) => ui_tx
-                        .send(UiMsg::SyncDone {
-                            result: "Sync failed at".into(),
-                            message: chrono::Utc::now().to_rfc2822(),
-                        })
-                        .ok(),
+                    Ok(_) => ("Sync completed at", chrono::Utc::now().to_rfc2822()),
+                    Err(err) => ("Sync failed", err.to_string()),
                 };
+                ui_tx
+                    .send(UiMsg::SyncDone {
+                        result: result.into(),
+                        message,
+                    })
+                    .ok();
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
                 state_db.refresh_for_title_id(title_id, false).ok();
                 title_db.refresh_links(title_id, &state_db).ok();
-                match sync::run(
+                let (result, message) = match sync::run(
                     state_db
                         .states_mut()
                         .filter(|s| s.via_title_ids.contains(&title_id)),
@@ -165,19 +87,15 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => ui_tx
-                        .send(UiMsg::SyncDone {
-                            result: "Sync completed at ".into(),
-                            message: chrono::Utc::now().to_rfc2822(),
-                        })
-                        .ok(),
-                    Err(_err) => ui_tx
-                        .send(UiMsg::SyncDone {
-                            result: "Sync failed at".into(),
-                            message: chrono::Utc::now().to_rfc2822(),
-                        })
-                        .ok(),
+                    Ok(_) => ("Sync completed at", chrono::Utc::now().to_rfc2822()),
+                    Err(err) => ("Sync failed", err.to_string()),
                 };
+                ui_tx
+                    .send(UiMsg::SyncDone {
+                        result: result.into(),
+                        message,
+                    })
+                    .ok();
             }
             Err(_) => return,
         }
