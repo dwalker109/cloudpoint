@@ -14,7 +14,7 @@ serde_json = { workspace = true }
 chunktree = { workspace = true }
 postcard = { workspace = true }
 log = { workspace = true }
-uuid = { workspace = true, features = ["v4"] }
+uuid = { workspace = true, features = ["v4", "serde"] }
 flate2 = { workspace = true }
 
 [dev-dependencies]

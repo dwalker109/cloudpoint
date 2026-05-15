@@ -1,6 +1,7 @@
 use crate::ctr::{CtrSmdh, SmdhLanguage};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::PathBuf};
+use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum SyncItem {
@@ -35,6 +36,7 @@ pub struct SyncState {
     pub fs_safe_name: String,
     pub synced_fingerprint: Option<u128>,
     pub via_title_ids: HashSet<u64>,
+    pub via_user_key: Uuid,
 }
 
 impl SyncState {
@@ -59,11 +61,15 @@ impl SyncState {
             fs_safe_name,
             synced_fingerprint: None,
             via_title_ids: HashSet::from([via_title_id]),
+            via_user_key: Uuid::nil(),
         }
     }
 
-    pub fn add_via_title_id(&mut self, via: u64) -> bool {
-        self.via_title_ids.insert(via)
+    pub fn safe_adopt(&mut self, user_key: Uuid) {
+        if self.via_user_key != user_key {
+            self.synced_fingerprint = None;
+            self.via_user_key = user_key;
+        }
     }
 
     pub fn get_action(
@@ -93,7 +99,6 @@ impl SyncState {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SyncAction {
-    Skip,
     NoChange,
     NoChangeOnInit,
     Conflict,
@@ -207,6 +212,21 @@ mod tests {
         assert!(matches!(res, SyncAction::NoChange));
     }
 
+    #[test]
+    fn unmatched_user_key_resets_sync_state() {
+        let via_user_key = Uuid::new_v4();
+        let mut s = SyncState {
+            synced_fingerprint: Some(u128::MAX),
+            via_user_key,
+            ..fixture()
+        };
+
+        s.safe_adopt(Uuid::new_v4());
+
+        assert!(s.synced_fingerprint.is_none());
+        assert!(s.via_user_key != via_user_key);
+    }
+
     fn fixture() -> SyncState {
         SyncState {
             sync_item: SyncItem::Savedata(0x00040000_1234ABCD),
@@ -216,6 +236,7 @@ mod tests {
             title_publisher: "Cloudpoint, Inc.".into(),
             fs_safe_name: "Foo Bar  Yeah ".into(),
             synced_fingerprint: None,
+            via_user_key: Uuid::max(),
         }
     }
 }
