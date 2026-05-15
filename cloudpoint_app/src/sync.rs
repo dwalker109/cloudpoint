@@ -1,5 +1,5 @@
 use crate::{
-    app::{ModalMsg, UiMsg},
+    app::{ModalMsg, SyncProgress, UiMsg},
     config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
@@ -41,17 +41,22 @@ pub fn run<'a>(
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     let _keep_awake = KeepAwake::new();
+    let mut sync_progress = SyncProgress::new(ui_tx);
 
-    for sync_state in states {
-        run_one(sync_state, &ui_tx, &alert_tx, &client)?;
+    let states = states.collect::<Vec<_>>();
+    let total = states.len();
+
+    for (i, sync_state) in states.into_iter().enumerate() {
+        run_one(sync_state, &mut sync_progress, &alert_tx, &client)?;
+        sync_progress.progress((i + 1) * 100 / total);
     }
 
     Ok(())
 }
 
-pub fn run_one(
+fn run_one(
     sync_state: &mut SyncState,
-    ui_tx: &Sender<UiMsg>,
+    sync_progress: &mut SyncProgress,
     alert_tx: &Sender<ModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
@@ -75,12 +80,7 @@ pub fn run_one(
 
     log::info!("Starting sync of {title_label}",);
 
-    ui_tx
-        .send(UiMsg::SyncProgress {
-            title_lbl: title_label.clone(),
-            message: "Checking".into(),
-        })
-        .ok();
+    sync_progress.label(&title_label).message("Checking").send();
 
     let list = cloudpoint_lib::version::VersionDirList::try_get(
         &client,
@@ -138,8 +138,7 @@ pub fn run_one(
                     ul(
                         sync_state,
                         Rc::clone(&client),
-                        &ui_tx,
-                        &title_label,
+                        sync_progress,
                         &local_ver,
                         &local_tree,
                         local_fingerprint,
@@ -149,8 +148,7 @@ pub fn run_one(
                     dl(
                         sync_state,
                         Rc::clone(&client),
-                        &ui_tx,
-                        &title_label,
+                        sync_progress,
                         Rc::clone(&local_archive),
                         &local_meta,
                         &local_ver,
@@ -165,8 +163,7 @@ pub fn run_one(
             ul(
                 sync_state,
                 Rc::clone(&client),
-                &ui_tx,
-                &title_label,
+                sync_progress,
                 &local_ver,
                 &local_tree,
                 local_fingerprint,
@@ -176,8 +173,7 @@ pub fn run_one(
             dl(
                 sync_state,
                 Rc::clone(&client),
-                &ui_tx,
-                &title_label,
+                sync_progress,
                 Rc::clone(&local_archive),
                 &local_meta,
                 &local_ver,
@@ -195,20 +191,14 @@ pub fn run_one(
 fn ul(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
-    ui_tx: &Sender<UiMsg>,
-    title_label: &str,
+    sync_progress: &mut SyncProgress,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
     local_tree: &Tree<CtrArchiveLeaf>,
     local_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("Uploading {}", s.sync_item);
 
-    ui_tx
-        .send(UiMsg::SyncProgress {
-            title_lbl: title_label.into(),
-            message: "Uploading".into(),
-        })
-        .ok();
+    sync_progress.message("Uploading").send();
 
     let mut store = HttpStore::new(
         Rc::clone(&client),
@@ -233,8 +223,7 @@ fn ul(
 fn dl(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
-    ui_tx: &Sender<UiMsg>,
-    title_label: &str,
+    sync_progress: &mut SyncProgress,
     archive: Rc<CtrArchive>,
     local_meta: &CtrMeta,
     local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
@@ -266,22 +255,11 @@ fn dl(
     }
 
     if USER_SETTINGS.backup {
-        ui_tx
-            .send(UiMsg::SyncProgress {
-                title_lbl: title_label.into(),
-                message: "Backing up existing data".into(),
-            })
-            .ok();
-
+        sync_progress.message("Backing up existing data").send();
         backup(&local_tree, &s)?;
     }
 
-    ui_tx
-        .send(UiMsg::SyncProgress {
-            title_lbl: title_label.into(),
-            message: "Downloading".into(),
-        })
-        .ok();
+    sync_progress.message("Downloading").send();
 
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();

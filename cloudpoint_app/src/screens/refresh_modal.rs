@@ -22,7 +22,14 @@ impl Screen for RefreshModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &self.progress.to_string());
+        ctx.rect(40.0, 110.0, 240.0, 24.0, GREY_TRANS);
+        ctx.rect(
+            40.0,
+            110.0,
+            self.progress as f32 * 240.0 / 100.0,
+            24.0,
+            ACCENT,
+        );
     }
 }
 
