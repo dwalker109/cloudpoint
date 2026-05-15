@@ -18,8 +18,8 @@ impl SyncScreen {
             sync_running: false,
             upper_1: String::with_capacity(256),
             upper_2: String::with_capacity(256),
-            lower_1: "Press (A) to sync".into(),
-            lower_2: "Press (X) to refresh".into(),
+            lower_1: "(A) to sync".into(),
+            lower_2: "(X) to refresh".into(),
         }
     }
 }
@@ -29,8 +29,8 @@ impl Screen for SyncScreen {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
         ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Sync");
-        ctx.text_centered(0.0, 100.0, TOP_W, 0.6, BLACK, &self.upper_1);
-        ctx.text_centered(0.0, 120.0, TOP_W, 0.6, BLACK, &self.upper_2);
+        ctx.text_centered(0.0, 116.0, TOP_W, 0.6, BLACK, &self.upper_1);
+        ctx.text_centered(0.0, 136.0, TOP_W, 0.6, BLACK, &self.upper_2);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
