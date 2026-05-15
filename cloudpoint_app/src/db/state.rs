@@ -1,4 +1,5 @@
 use crate::{
+    app::{RefreshProgress, UiMsg},
     ctr_fs::{self, CtrArchive},
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
@@ -11,6 +12,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::mpsc::Sender,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -30,13 +32,13 @@ impl StateDb {
         }
     }
 
-    pub fn new(root_path: impl AsRef<Path>) -> Result<Self> {
+    pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
         log::info!("building all savedata and extdata");
 
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.refresh(true)?;
+        state_db.refresh(true, ui_tx)?;
 
         Ok(state_db)
     }
@@ -47,11 +49,19 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn refresh(&mut self, auto_enabled: bool) -> Result<()> {
+    pub fn refresh(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::info!("refreshing all savedata and extdata");
 
-        for (&title_id, _) in SD_APP_TITLES.iter() {
+        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
+
+        let total = SD_APP_TITLES.len();
+
+        for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
             self.refresh_for_title_id(title_id, auto_enabled)?;
+            refresh_progress
+                .message("Refreshing sync items")
+                .progress((i + 1) * 100 / total)
+                .send();
         }
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();

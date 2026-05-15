@@ -13,7 +13,7 @@ impl SyncModalScreen {
             task_running: true,
             upper_1: String::new(),
             upper_2: String::new(),
-            lower: "Press (A) to close".into(),
+            lower: "(A) to continue".into(),
         }
     }
 }
@@ -35,11 +35,8 @@ impl Screen for SyncModalScreen {
 impl ModalScreen for SyncModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::SyncProgress {
-                title_lbl: title_short,
-                message,
-            } => {
-                self.upper_1 = title_short.clone();
+            UiMsg::SyncProgress { label, message, .. } => {
+                self.upper_1 = label.clone();
                 self.upper_2 = message.clone();
             }
             UiMsg::SyncDone { result, message } => {
