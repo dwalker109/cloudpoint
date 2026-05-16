@@ -11,7 +11,7 @@ run ip:
     cargo 3ds run -a {{ ip }} --release
 
 [working-directory('cloudpoint_app/cia')]
-cia major micro: build
+cia major minor micro: build
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
@@ -27,7 +27,7 @@ cia major micro: build
         -ca banner.bcwav \
         -o banner.bnr
     ./makerom -f cia -v \
-        -major {{ major }} -micro {{ micro }} \
+        -ver $(just ver {{ major }} {{ minor }} {{ micro }}) \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint_app.elf \
         -DROMFS_PATH="../romfs" \
@@ -37,6 +37,12 @@ cia major micro: build
         -logo logo.bcma.lz \
         -o cloudpoint.cia
     rm banner.bcwav banner.bnr cloudpoint.smdh
+
+ver major minor micro:
+    @[ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
+    @[ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
+    @[ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
+    @echo $(( ({{ major }} << 10) | ({{ minor }} << 4) | {{ micro }} ))
 
 deploy:
     scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/mnt/data
