@@ -28,6 +28,14 @@ impl TitlesScreen {
                 .map(|(_, title)| title)
         })
     }
+
+    fn max_idx(&self) -> usize {
+        self.titles
+            .as_ref()
+            .and_then(|t| Some(t.len()))
+            .unwrap_or_default()
+            .saturating_sub(1)
+    }
 }
 
 const PAGE_SIZE: usize = 12;
@@ -132,17 +140,14 @@ impl BaseScreen for TitlesScreen {
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
         if keys_down.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP | KeyPad::CSTICK_UP) {
-            self.selected_idx = self.selected_idx.saturating_sub(1);
+            self.selected_idx = self
+                .selected_idx
+                .checked_sub(1)
+                .or_else(|| Some(self.max_idx()))
+                .unwrap_or_default();
         } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN | KeyPad::CSTICK_DOWN)
         {
-            self.selected_idx = cmp::min(
-                self.titles
-                    .as_ref()
-                    .and_then(|t| Some(t.len()))
-                    .unwrap_or_default()
-                    .saturating_sub(1),
-                self.selected_idx + 1,
-            );
+            self.selected_idx = (self.selected_idx + 1) % (self.max_idx() + 1);
         } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
             return ScreenCommand::SwitchTo(ScreenId::Sync);
         } else if keys_down.contains(KeyPad::A) {
