@@ -12,23 +12,20 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: devkitpro/devkitarm:latest
+    env:
+      HOME: /root
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache cargo-3ds
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-3ds
-          key: cargo-3ds-${{ runner.os }}
-
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          targets: armv6k-nintendo-3ds
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+            -y --default-toolchain nightly --profile minimal
+          echo "/root/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install cargo-3ds
-        run: cargo install cargo-3ds --locked 2>/dev/null || true
+        run: cargo install cargo-3ds --locked
 
       - name: Build
         run: cargo 3ds build --release
@@ -38,7 +35,7 @@ jobs:
         with:
           name: cloudpoint
           path: target/armv6k-nintendo-3ds/release/cloudpoint.3dsx
-
+          
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
