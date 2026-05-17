@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install SSH client
+        run: apt-get install -y openssh-client
+
       - name: Set up SSH for private deps
         uses: webfactory/ssh-agent@v0.9.0
         with:
