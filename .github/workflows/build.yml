@@ -43,11 +43,6 @@ jobs:
       
       - name: Build
         run: cargo 3ds build --release
-        env:
-          BINDGEN_EXTRA_CLANG_ARGS: >-
-            --sysroot=/opt/devkitpro/devkitARM/arm-none-eabi
-            -I/opt/devkitpro/devkitARM/arm-none-eabi/include
-            -I/opt/devkitpro/libctru/include
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
