@@ -1,4 +1,5 @@
 use crate::ctr::{CtrSmdh, SmdhLanguage};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::PathBuf};
 use uuid::Uuid;
@@ -35,6 +36,7 @@ pub struct SyncState {
     pub title_publisher: String,
     pub fs_safe_name: String,
     pub synced_fingerprint: Option<u128>,
+    pub synced_at: Option<DateTime<Utc>>,
     pub via_title_ids: HashSet<u64>,
     pub via_user_key: Uuid,
 }
@@ -60,6 +62,7 @@ impl SyncState {
             title_publisher,
             fs_safe_name,
             synced_fingerprint: None,
+            synced_at: None,
             via_title_ids: HashSet::from([via_title_id]),
             via_user_key: Uuid::nil(),
         }
@@ -68,6 +71,7 @@ impl SyncState {
     pub fn safe_adopt(&mut self, user_key: Uuid) {
         if self.via_user_key != user_key {
             self.synced_fingerprint = None;
+            self.synced_at = None;
             self.via_user_key = user_key;
         }
     }
@@ -236,6 +240,7 @@ mod tests {
             title_publisher: "Cloudpoint, Inc.".into(),
             fs_safe_name: "Foo Bar  Yeah ".into(),
             synced_fingerprint: None,
+            synced_at: None,
             via_user_key: Uuid::max(),
         }
     }

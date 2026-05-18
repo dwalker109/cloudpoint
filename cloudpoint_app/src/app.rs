@@ -70,14 +70,14 @@ impl App {
                 match msg {
                     ModalMsg::ResolveConflict {
                         title_label,
+                        title_local_time,
                         title_remote_time,
-                        is_first_sync,
                         reply_tx,
                     } => {
                         app.modal_stack.push(Box::new(ConflictModalScreen::new(
                             title_label,
+                            title_local_time,
                             title_remote_time,
-                            is_first_sync,
                             reply_tx,
                         )));
                     }
