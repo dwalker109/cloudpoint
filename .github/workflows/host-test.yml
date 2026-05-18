@@ -14,7 +14,7 @@ jobs:
 
       - name: Install SSH client
         shell: bash
-        run: apt-get update && apt-get install -y openssh-client
+        run: sudo apt-get update && sudo apt-get install -y openssh-client
 
       - name: Set up SSH for private deps
         if: ${{ inputs.ssh-private-key != '' }}
@@ -36,8 +36,7 @@ jobs:
       - name: Install zlib and deps for host tests
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zlib1g-dev pkg-config libssl-dev
+          sudo apt-get update && sudo apt-get install -y zlib1g-dev pkg-config libssl-dev
 
       - name: Run host tests
         run: cargo test --workspace
