@@ -14,6 +14,7 @@ jobs:
       image: devkitpro/devkitarm:latest
     env:
       HOME: /root
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +41,7 @@ jobs:
       image: devkitpro/devkitarm:latest
     env:
       HOME: /root
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     permissions:
       contents: write
 
