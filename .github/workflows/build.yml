@@ -33,3 +33,4 @@ jobs:
         with:
           name: cloudpoint
           path: target/armv6k-nintendo-3ds/release/cloudpoint_app.3dsx
+

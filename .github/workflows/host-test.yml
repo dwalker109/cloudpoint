@@ -1,0 +1,29 @@
+name: Host Tests
+
+on:
+  push:
+
+jobs:
+  host-test:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust (nightly)
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly --profile minimal --component rust-src
+          echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH
+
+      - name: Install zlib and deps for host tests
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zlib1g-dev pkg-config libssl-dev
+
+      - name: Run host tests
+        run: cargo test --workspace
+        shell: bash

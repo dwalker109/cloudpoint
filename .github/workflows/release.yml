@@ -22,10 +22,6 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
 
-      - name: Run tests
-        run: just test
-        shell: bash
-
       - name: Build 3DSX
         run: just build
         shell: bash
