@@ -16,6 +16,8 @@ jobs:
       HOME: /root
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Setup build environment
         uses: ./.github/actions/setup
         with:
@@ -42,6 +44,8 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Setup release environment
         uses: ./.github/actions/setup
         with:

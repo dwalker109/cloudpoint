@@ -12,9 +12,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
     - name: Install SSH client
       run: apt-get update && apt-get install -y openssh-client
 
