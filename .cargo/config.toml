@@ -1,13 +1,13 @@
 [target.armv6k-nintendo-3ds]
 linker = "/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc"
 
-[target.armv6k-nintendo-3ds.env]
-PKG_CONFIG = "/opt/devkitpro/portlibs/3ds/bin/arm-none-eabi-pkg-config"
-PKG_CONFIG_PATH = "/opt/devkitpro/portlibs/3ds/lib/pkgconfig"
-PKG_CONFIG_ALLOW_CROSS = "1"
+[env]
+PKG_CONFIG_armv6k_nintendo_3ds             = "/opt/devkitpro/portlibs/3ds/bin/arm-none-eabi-pkg-config"
+PKG_CONFIG_PATH_armv6k_nintendo_3ds        = "/opt/devkitpro/portlibs/3ds/lib/pkgconfig"
+PKG_CONFIG_ALLOW_CROSS_armv6k_nintendo_3ds = "1"
 
-CC = "/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc"
-AR = "/opt/devkitpro/devkitARM/bin/arm-none-eabi-ar"
+CC_armv6k_nintendo_3ds = "/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc"
+AR_armv6k_nintendo_3ds = "/opt/devkitpro/devkitARM/bin/arm-none-eabi-ar"
 
 LIBZ_SYS_STATIC = "0"
-Z_PREFIX = "/opt/devkitpro/portlibs/3ds"
+Z_PREFIX_armv6k_nintendo_3ds = "/opt/devkitpro/portlibs/3ds"
