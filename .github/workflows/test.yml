@@ -20,10 +20,21 @@ jobs:
           toolchain: nightly
           components: rust-src
 
-      - name: Install just
-        run: cargo install just --locked
+      - name: Install SSH client
         shell: bash
-    
+        run: apt-get update && apt-get install -y openssh-client
+
+      - name: Set up SSH for private deps
+        if: ${{ inputs.ssh-private-key != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ inputs.ssh-private-key }}
+
+      - name: Configure git to use SSH for GitHub
+        if: ${{ inputs.ssh-private-key != '' }}
+        shell: bash
+        run: git config --global url."git@github.com:".insteadOf "https://github.com/"
+
       - name: Run tests
-        run: just test
+        run: cargo test --lib
         shell: bash
