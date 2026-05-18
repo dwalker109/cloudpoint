@@ -1,11 +1,11 @@
-use chrono::{DateTime, Utc};
-
 use super::*;
 use crate::sync::ConflictWinner;
+use chrono::{DateTime, Utc};
 use std::sync::oneshot;
 
 pub struct ConflictModalScreen {
     title_label: String,
+    title_local_time: Option<DateTime<Utc>>,
     title_remote_time: Option<DateTime<Utc>>,
     is_first_sync: bool,
     reply_tx: Option<oneshot::Sender<ConflictWinner>>,
@@ -16,14 +16,15 @@ pub struct ConflictModalScreen {
 impl ConflictModalScreen {
     pub fn new(
         title_label: String,
+        title_local_time: Option<DateTime<Utc>>,
         title_remote_time: Option<DateTime<Utc>>,
-        is_first_sync: bool,
         reply_tx: oneshot::Sender<ConflictWinner>,
     ) -> Self {
         Self {
             title_label,
+            title_local_time,
             title_remote_time,
-            is_first_sync,
+            is_first_sync: title_local_time.is_none(),
             reply_tx: Some(reply_tx),
             input_hold_up: 0,
             input_hold_down: 0,
@@ -36,26 +37,47 @@ impl Screen for ConflictModalScreen {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
         ctx.text_centered(
             0.0,
-            70.0,
+            50.0,
             TOP_W,
             0.5,
             BLACK,
             match self.is_first_sync {
                 true => "There is already data on the server for this title:",
-                false => "The data for this title has changed both here and on the server:",
+                false => "This title has changed both here and on the server:",
             },
         );
-        ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, &self.title_label);
-        ctx.text_centered(0.0, 140.0, TOP_W, 0.5, BLACK, "Modified:");
+        ctx.text_centered(0.0, 105.0, TOP_W, 0.7, BLACK, &self.title_label);
+
+        ctx.text_centered(0.0, 160.0, TOP_W / 2.0, 0.55, DARK_GREY, "Last synced");
         ctx.text_centered(
             0.0,
+            180.0,
+            TOP_W / 2.0,
+            0.5,
+            BLACK,
+            &self
+                .title_local_time
+                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                .unwrap_or_else(|| "Never".into()),
+        );
+
+        ctx.text_centered(
+            TOP_W / 2.0,
             160.0,
-            TOP_W,
+            TOP_W / 2.0,
+            0.55,
+            DARK_GREY,
+            "Version on server",
+        );
+        ctx.text_centered(
+            TOP_W / 2.0,
+            180.0,
+            TOP_W / 2.0,
             0.5,
             BLACK,
             &self
                 .title_remote_time
-                .map(|t| t.to_rfc2822())
+                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| "Unknown".into()),
         );
     }
