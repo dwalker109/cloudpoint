@@ -1,8 +1,6 @@
-use std::sync::{mpsc::Sender, oneshot};
-
-use chrono::{DateTime, Utc};
-
 use crate::{db::TitleDetails, sync::ConflictWinner};
+use chrono::{DateTime, Utc};
+use std::sync::{mpsc::Sender, oneshot};
 
 pub enum TaskMsg {
     SyncAuto,
@@ -14,8 +12,8 @@ pub enum TaskMsg {
 pub enum ModalMsg {
     ResolveConflict {
         title_label: String,
+        title_local_time: Option<DateTime<Utc>>,
         title_remote_time: Option<DateTime<Utc>>,
-        is_first_sync: bool,
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
     Refresh,

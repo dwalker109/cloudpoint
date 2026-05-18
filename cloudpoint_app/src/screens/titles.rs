@@ -1,6 +1,6 @@
 use super::*;
 use crate::{app::TaskMsg, db::TitleDetails};
-use std::{cmp, sync::mpsc::Sender};
+use std::sync::mpsc::Sender;
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,

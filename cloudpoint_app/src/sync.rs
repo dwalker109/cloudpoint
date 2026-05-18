@@ -7,6 +7,7 @@ use crate::{
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::{Result, bail};
+use chrono::Utc;
 use chunktree::{
     store::MemStore,
     tree::{Leaf, Tree},
@@ -115,19 +116,19 @@ fn run_one(
             if sync_state.synced_fingerprint.is_none() {
                 sync_state.synced_fingerprint = local_fingerprint;
             }
+
+            sync_state.synced_at = Some(Utc::now());
         }
         SyncAction::Conflict | SyncAction::ConflictOnInit => {
             log::info!("changed on server and locally for {}", sync_state.sync_item,);
-
-            let is_first_sync = sync_state.synced_fingerprint.is_none();
 
             let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
 
             alert_tx
                 .send(ModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
+                    title_local_time: sync_state.synced_at,
                     title_remote_time: remote_ver.map(|v| v.mtime().clone()),
-                    is_first_sync,
                     reply_tx,
                 })
                 .ok();
@@ -215,6 +216,7 @@ fn ul(
     )?;
 
     s.synced_fingerprint = local_fingerprint;
+    s.synced_at = Some(Utc::now());
 
     Ok(())
 }
@@ -285,6 +287,7 @@ fn dl(
     archive.finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
+    s.synced_at = Some(Utc::now());
 
     Ok(())
 }
