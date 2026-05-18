@@ -1,7 +1,5 @@
 fn main() {
     citro2d();
-    https_curl();
-
     println!("cargo:rerun-if-changed=build.rs");
 }
 
@@ -16,13 +14,4 @@ fn citro2d() {
     println!("cargo:rustc-link-arg=-Wl,-lcitro3d");
     println!("cargo:rustc-link-arg=-Wl,-lctru");
     println!("cargo:rustc-link-arg=-Wl,--end-group");
-}
-
-fn https_curl() {
-    let portlibs = "/opt/devkitpro/portlibs/3ds/lib";
-    println!("cargo:rustc-link-search=native={portlibs}");
-    println!("cargo:rustc-link-lib=static=mbedtls");
-    println!("cargo:rustc-link-lib=static=mbedx509");
-    println!("cargo:rustc-link-lib=static=mbedcrypto");
-    println!("cargo:rustc-link-lib=static=z");
 }
