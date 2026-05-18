@@ -9,7 +9,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      HOME: /github/home
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
@@ -24,7 +23,7 @@ jobs:
       - name: Install just
         run: cargo install just --locked
         shell: bash
-
+    
       - name: Run tests
         run: just test
         shell: bash
