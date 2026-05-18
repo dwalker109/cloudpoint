@@ -2,9 +2,6 @@
 name: Build
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   pull_request:
 
 jobs:
@@ -24,57 +21,16 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
 
+      - name: Run tests
+        run: just test
+        shell: bash
+
       - name: Build 3DSX
         run: just build
+        shell: bash
 
       - name: Upload 3DSX artifact
         uses: actions/upload-artifact@v4
         with:
           name: cloudpoint
           path: target/armv6k-nintendo-3ds/release/cloudpoint_app.3dsx
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    container:
-      image: devkitpro/devkitarm:latest
-    env:
-      HOME: /root
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup release environment
-        uses: ./.github/actions/setup
-        with:
-          ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
-
-      - name: Build 3DSX
-        run: just build
-
-      - name: Parse release tag
-        run: |
-          tag=${GITHUB_REF#refs/tags/v}
-          IFS='.' read -r major minor micro <<< "$tag"
-          if [[ -z "$major" || -z "$minor" || -z "$micro" ]]; then
-            echo "Invalid release tag format: $GITHUB_REF" >&2
-            exit 1
-          fi
-          echo "MAJOR=$major" >> $GITHUB_ENV
-          echo "MINOR=$minor" >> $GITHUB_ENV
-          echo "MICRO=$micro" >> $GITHUB_ENV
-
-      - name: Build CIA from release tag
-        run: just cia ${{ env.MAJOR }} ${{ env.MINOR }} ${{ env.MICRO }}
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            target/armv6k-nintendo-3ds/release/cloudpoint_app.3dsx
-            cloudpoint_app/cia/cloudpoint.cia
-          generate_release_notes: true

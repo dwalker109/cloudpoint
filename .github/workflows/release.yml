@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
+    env:
+      HOME: /root
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup release environment
+        uses: ./.github/actions/setup
+        with:
+          ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
+
+      - name: Run tests
+        run: just test
+        shell: bash
+
+      - name: Build 3DSX
+        run: just build
+        shell: bash
+
+      - name: Parse release tag
+        run: |
+          tag=$(jq -r '.release.tag_name' "$GITHUB_EVENT_PATH")
+          if [[ -z "$tag" ]]; then
+            echo "Invalid release payload: missing tag_name" >&2
+            exit 1
+          fi
+          IFS='.' read -r major minor micro <<< "$tag"
+          if [[ -z "$major" || -z "$minor" || -z "$micro" ]]; then
+            echo "Invalid release tag format: $tag" >&2
+            exit 1
+          fi
+          echo "MAJOR=$major" >> $GITHUB_ENV
+          echo "MINOR=$minor" >> $GITHUB_ENV
+          echo "MICRO=$micro" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build CIA from release tag
+        run: just cia ${{ env.MAJOR }} ${{ env.MINOR }} ${{ env.MICRO }}
+        shell: bash
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/armv6k-nintendo-3ds/release/cloudpoint_app.3dsx
+            cloudpoint_app/cia/cloudpoint.cia
+          generate_release_notes: true
