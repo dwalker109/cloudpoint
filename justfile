@@ -2,7 +2,7 @@ default:
     @just --list
 
 test:
-    cargo test --lib -p cloudpoint_lib
+    cargo test --lib
 
 build:
     cargo 3ds build --release
