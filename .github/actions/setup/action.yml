@@ -38,6 +38,10 @@ runs:
       shell: bash
       run: apt-get install -y clang
 
+    - name: Install zlib (for test suite running on Linux)
+      shell: bash
+      run: apt-get install -y zlib1g-dev
+
     - name: Install cargo-3ds
       shell: bash
       run: cargo install cargo-3ds --locked
