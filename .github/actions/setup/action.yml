@@ -13,6 +13,7 @@ runs:
   using: composite
   steps:
     - name: Install SSH client
+      shell: bash
       run: apt-get update && apt-get install -y openssh-client
 
     - name: Set up SSH for private deps
@@ -23,19 +24,24 @@ runs:
 
     - name: Configure git to use SSH for GitHub
       if: ${{ inputs.ssh-private-key != '' }}
+      shell: bash
       run: git config --global url."git@github.com:".insteadOf "https://github.com/"
 
     - name: Install Rust
+      shell: bash
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
           -y --default-toolchain nightly --profile minimal --component rust-src
         echo "/root/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install clang
+      shell: bash
       run: apt-get install -y clang
 
     - name: Install cargo-3ds
+      shell: bash
       run: cargo install cargo-3ds --locked
 
     - name: Install just
+      shell: bash
       run: cargo install just --locked
