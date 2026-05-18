@@ -9,7 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      HOME: /root
+      HOME: /github/home
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
