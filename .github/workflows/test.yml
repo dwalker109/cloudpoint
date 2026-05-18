@@ -36,5 +36,5 @@ jobs:
         run: git config --global url."git@github.com:".insteadOf "https://github.com/"
 
       - name: Run tests
-        run: cargo test --lib
+        run: cargo test --lib -p cloudpoint_lib
         shell: bash
