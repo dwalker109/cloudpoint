@@ -44,9 +44,17 @@ impl Screen for SyncScreen {
                 24.0,
                 WHITE,
             );
+            ctx.text_centered(
+                0.0,
+                210.0,
+                BOT_W,
+                0.6,
+                WHITE,
+                "Please do not touch \u{E078}",
+            );
         } else {
-            ctx.text_centered(0.0, 90.0, BOT_W, 0.9, BLACK, "\u{E000} Sync");
-            ctx.text_centered(0.0, 130.0, BOT_W, 0.9, BLACK, "\u{E002} Refresh");
+            ctx.text_centered(0.0, 90.0, BOT_W, 0.9, WHITE, "\u{E000} Auto Sync");
+            ctx.text_centered(0.0, 130.0, BOT_W, 0.9, WHITE, "\u{E002} Refresh");
         }
     }
 }
@@ -62,9 +70,9 @@ impl BaseScreen for SyncScreen {
                 qty_sync_states,
                 titles,
             } => {
-                self.upper_1 = "Ready to sync".into();
+                self.upper_1 = "Ready to auto sync".into();
                 self.upper_2 = format!(
-                    "{qty_sync_states} auto sync items enabled across {} titles",
+                    "{qty_sync_states} items enabled across {} titles",
                     titles.len()
                 );
             }

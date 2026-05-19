@@ -26,11 +26,11 @@ impl Screen for SyncModalScreen {
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
         let text = if self.task_running {
-            "\u{E007}"
+            "Please do not touch \u{E078}"
         } else {
             "\u{E000} Continue"
         };
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &text);
+        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, ACCENT, &text);
     }
 }
 

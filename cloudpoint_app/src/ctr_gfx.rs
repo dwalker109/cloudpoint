@@ -4,7 +4,6 @@ mod icons;
 
 use crate::screens::{BaseScreen, ModalScreen};
 use c2d::*;
-use ctru::prelude::KeyPad;
 pub use draw::DrawContext;
 pub use icons::*;
 
