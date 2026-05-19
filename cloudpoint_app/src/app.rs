@@ -1,8 +1,8 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
-        SyncScreen, TitlesScreen,
+        BaseScreen, ConflictModalScreen, ErrorModalScreen, ModalScreen, RefreshModalScreen,
+        ScreenCommand, ScreenId, SyncScreen, TitlesScreen,
     },
     services::CtrServices,
     setup,
@@ -82,27 +82,6 @@ impl App {
                 )));
             }
 
-            if let Ok(msg) = app.alert_rx.try_recv() {
-                match msg {
-                    ModalMsg::ResolveConflict {
-                        title_label,
-                        title_local_time,
-                        title_remote_time,
-                        reply_tx,
-                    } => {
-                        app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                            title_label,
-                            title_local_time,
-                            title_remote_time,
-                            reply_tx,
-                        )));
-                    }
-                    ModalMsg::Refresh => {
-                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
-                    }
-                }
-            }
-
             if let Ok(msg) = app.ui_rx.try_recv() {
                 for screen in app.screens.values_mut() {
                     cmd_buffer.push(screen.handle_msg(&msg));
@@ -132,6 +111,31 @@ impl App {
                         app.modal_stack.pop();
                     }
                     _ => {}
+                }
+            }
+
+            if let Ok(msg) = app.alert_rx.try_recv() {
+                match msg {
+                    ModalMsg::ResolveConflict {
+                        title_label,
+                        title_local_time,
+                        title_remote_time,
+                        reply_tx,
+                    } => {
+                        app.modal_stack.push(Box::new(ConflictModalScreen::new(
+                            title_label,
+                            title_local_time,
+                            title_remote_time,
+                            reply_tx,
+                        )));
+                    }
+                    ModalMsg::Refresh => {
+                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
+                    }
+                    ModalMsg::Error { label, message } => {
+                        app.modal_stack
+                            .push(Box::new(ErrorModalScreen::new(label, message)));
+                    }
                 }
             }
 

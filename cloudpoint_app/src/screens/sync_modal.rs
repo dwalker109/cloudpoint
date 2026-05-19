@@ -30,7 +30,7 @@ impl Screen for SyncModalScreen {
         } else {
             "\u{E000} Continue"
         };
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &text);
+        ctx.text_centered(0.0, 110.0, BOT_W, 0.7, ACCENT, &text);
     }
 }
 

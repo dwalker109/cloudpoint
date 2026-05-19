@@ -79,26 +79,27 @@ impl Screen for TitlesScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
+        ctx.rect(0.0, 0.0, BOT_W, BOT_H / 2.0, ACCENT);
+        ctx.rect(0.0, BOT_H / 2.0, BOT_W, BOT_H / 2.0, WHITE);
 
         let Some(title) = self.selected_title() else {
             return;
         };
 
-        ctx.text(12.0, 12.0, 0.7, BLACK, &title.title_short);
-        ctx.text(12.0, 36.0, 0.7, BLACK, &title.title_publisher);
+        ctx.text(12.0, 12.0, 0.7, WHITE, &title.title_short);
+        ctx.text(12.0, 36.0, 0.7, WHITE, &title.title_publisher);
         ctx.text(
             12.0,
             60.0,
             0.7,
-            BLACK,
+            WHITE,
             &format!("{:05X}", (title.title_id >> 8) as u32),
         );
-        ctx.text(12.0, 84.0, 0.7, BLACK, &title.product_code);
+        ctx.text(12.0, 84.0, 0.7, WHITE, &title.product_code);
 
         ctx.text_centered(
             0.0,
-            142.0,
+            132.0,
             BOT_W,
             0.5,
             BLACK,
@@ -106,7 +107,7 @@ impl Screen for TitlesScreen {
         );
         ctx.text_centered(
             0.0,
-            160.0,
+            150.0,
             BOT_W,
             0.5,
             BLACK,
@@ -115,10 +116,18 @@ impl Screen for TitlesScreen {
 
         ctx.text_centered(
             0.0,
-            212.0,
+            178.0,
             BOT_W,
-            0.6,
-            BLACK,
+            0.7,
+            ACCENT,
+            "\u{E000} Sync this title now".into(),
+        );
+        ctx.text_centered(
+            0.0,
+            200.0,
+            BOT_W,
+            0.7,
+            ACCENT,
             "\u{E003} Toggle auto sync for this title".into(),
         );
     }
