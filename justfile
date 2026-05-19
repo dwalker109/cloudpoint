@@ -83,3 +83,17 @@ citro2d:
         -march=armv6k -mtune=mpcore -mfloat-abi=hard \
         -mfpu=vfpv2 -mtp=soft -D__3DS__ -DARM11 -O2
     arm-none-eabi-ar rcs libextern.a /tmp/extern.o
+
+[working-directory('cloudpoint_app')]
+pack-icons:
+    tex3ds --format rgba8888 \
+        --compress auto \
+        --atlas \
+        `ls icons/*.png | sort` \
+        -o romfs/icons.t3x \
+        --header src/ctr_gfx/icons/icons.h
+    bindgen src/ctr_gfx/icons/icons.h \
+        --no-layout-tests \
+        --raw-line '// @generated — run `just pack-icons` to regenerate' \
+        -o src/ctr_gfx/icons/bindings.rs
+    sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/ctr_gfx/icons/bindings.rs

@@ -4,7 +4,6 @@ pub struct SyncModalScreen {
     task_running: bool,
     upper_1: String,
     upper_2: String,
-    lower: String,
 }
 
 impl SyncModalScreen {
@@ -13,7 +12,6 @@ impl SyncModalScreen {
             task_running: true,
             upper_1: String::new(),
             upper_2: String::new(),
-            lower: "(A) to continue".into(),
         }
     }
 }
@@ -27,8 +25,12 @@ impl Screen for SyncModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        let colour = if self.task_running { DARK_GREY } else { BLACK };
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, colour, &self.lower);
+        let text = if self.task_running {
+            "\u{E007}"
+        } else {
+            "\u{E000} Continue"
+        };
+        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, BLACK, &text);
     }
 }
 
