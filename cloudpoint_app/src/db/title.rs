@@ -165,10 +165,10 @@ pub enum TitleSyncStatus {
 impl Display for TitleSyncStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TitleSyncStatus::Unavailable => write!(f, "Unavailable"),
-            TitleSyncStatus::Available => write!(f, "Available"),
-            TitleSyncStatus::Enabled => write!(f, "Enabled"),
-            TitleSyncStatus::Disabled => write!(f, "Disabled"),
+            TitleSyncStatus::Available => unreachable!(),
+            TitleSyncStatus::Unavailable => write!(f, "Not available"),
+            TitleSyncStatus::Enabled => write!(f, "Yes"),
+            TitleSyncStatus::Disabled => write!(f, "No"),
         }
     }
 }

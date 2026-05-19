@@ -60,29 +60,40 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     .ok();
             }
             Ok(TaskMsg::SyncAuto) => {
-                let (result, message) = match sync::run(
+                match sync::run(
                     state_db.states_mut().filter(|s| s.auto_enabled),
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => (
-                        "Sync completed at",
-                        chrono::Utc::now().format("%H:%M").to_string(),
-                    ),
-                    Err(err) => ("Sync failed", err.to_string()),
+                    Ok(_) => {
+                        ui_tx
+                            .send(UiMsg::SyncDone {
+                                result: "Sync completed".into(),
+                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                            })
+                            .ok();
+                    }
+                    Err(e) => {
+                        ui_tx
+                            .send(UiMsg::SyncDone {
+                                result: "Sync failed".into(),
+                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                            })
+                            .ok();
+                        modal_tx
+                            .send(ModalMsg::Error {
+                                label: "Error".into(),
+                                message: e.to_string(),
+                            })
+                            .ok();
+                    }
                 };
-                ui_tx
-                    .send(UiMsg::SyncDone {
-                        result: result.into(),
-                        message,
-                    })
-                    .ok();
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
                 state_db.refresh_for_title_id(title_id, false).ok();
                 title_db.refresh_links(title_id, &state_db).ok();
-                let (result, message) = match sync::run(
+                match sync::run(
                     state_db
                         .states_mut()
                         .filter(|s| s.via_title_ids.contains(&title_id)),
@@ -90,16 +101,33 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => (
-                        "Sync completed at",
-                        chrono::Utc::now().format("%H:%M").to_string(),
-                    ),
-                    Err(err) => ("Sync failed", err.to_string()),
+                    Ok(_) => {
+                        ui_tx
+                            .send(UiMsg::SyncDone {
+                                result: "Sync completed".into(),
+                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                            })
+                            .ok();
+                    }
+                    Err(e) => {
+                        ui_tx
+                            .send(UiMsg::SyncDone {
+                                result: "Sync failed".into(),
+                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                            })
+                            .ok();
+                        modal_tx
+                            .send(ModalMsg::Error {
+                                label: "Error".into(),
+                                message: e.to_string(),
+                            })
+                            .ok();
+                    }
                 };
                 ui_tx
-                    .send(UiMsg::SyncDone {
-                        result: result.into(),
-                        message,
+                    .send(UiMsg::RefreshDone {
+                        qty_sync_states: state_db.qty_auto(),
+                        titles: title_db.titles_sorted_vec(),
                     })
                     .ok();
             }
