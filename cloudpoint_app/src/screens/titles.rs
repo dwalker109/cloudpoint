@@ -4,7 +4,7 @@ use std::sync::mpsc::Sender;
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
-    titles: Option<Vec<TitleDetails>>,
+    titles: Vec<TitleDetails>,
     selected_idx: usize,
     show_from: usize,
 }
@@ -13,28 +13,22 @@ impl TitlesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
         Self {
             task_tx,
-            titles: None,
+            titles: Vec::new(),
             selected_idx: 0,
             show_from: 0,
         }
     }
 
     fn selected_title(&self) -> Option<&TitleDetails> {
-        self.titles.as_ref().and_then(|titles| {
-            titles
-                .iter()
-                .enumerate()
-                .find(|(idx, _)| idx == &self.selected_idx)
-                .map(|(_, title)| title)
-        })
+        self.titles
+            .iter()
+            .enumerate()
+            .find(|(idx, _)| idx == &self.selected_idx)
+            .map(|(_, title)| title)
     }
 
     fn max_idx(&self) -> usize {
-        self.titles
-            .as_ref()
-            .and_then(|t| Some(t.len()))
-            .unwrap_or_default()
-            .saturating_sub(1)
+        self.titles.len().saturating_sub(1)
     }
 }
 
@@ -48,8 +42,9 @@ impl Screen for TitlesScreen {
         ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
         ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
 
-        if let Some(titles) = &self.titles {
-            for (view_idx, (item_idx, game_detail)) in titles
+        if !self.titles.is_empty() {
+            for (view_idx, (item_idx, game_detail)) in self
+                .titles
                 .iter()
                 .enumerate()
                 .skip(self.show_from)
@@ -75,6 +70,9 @@ impl Screen for TitlesScreen {
                     &game_detail.title_short,
                 );
             }
+        } else {
+            ctx.text_centered(0.0, 116.0, TOP_W, 0.6, BLACK, &"No titles found.");
+            ctx.text_centered(0.0, 136.0, TOP_W, 0.6, BLACK, &"Add some and come back!");
         }
     }
 
@@ -141,7 +139,7 @@ impl BaseScreen for TitlesScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::RefreshDone { titles, .. } => {
-                self.titles = Some(titles.clone());
+                self.titles = titles.clone();
             }
             _ => {}
         }
@@ -166,9 +164,9 @@ impl BaseScreen for TitlesScreen {
                 self.task_tx
                     .send(TaskMsg::SyncTargeted(title.title_id))
                     .ok();
-            }
 
-            return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
+                return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
+            }
         } else if keys_down.contains(KeyPad::Y) {
             if let Some(title) = self.selected_title() {
                 self.task_tx.send(TaskMsg::Toggle(title.title_id)).ok();
