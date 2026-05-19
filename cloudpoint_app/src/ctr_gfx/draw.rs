@@ -1,5 +1,3 @@
-use ctru::prelude::KeyPad;
-
 use super::c2d::*;
 use std::ffi::CString;
 
@@ -31,6 +29,7 @@ impl Drop for SpriteSheet {
 
 pub struct DrawContext {
     buf: C2D_TextBuf,
+    glyph_w: f32,
     icons: SpriteSheet,
 }
 
@@ -38,7 +37,24 @@ impl DrawContext {
     pub(crate) fn new(buf: C2D_TextBuf) -> Self {
         let icons = SpriteSheet::load("romfs:/icons.t3x").expect("should load icons spritesheet");
 
-        Self { buf, icons }
+        let glyph_w = unsafe {
+            let measure_buf = C2D_TextBufNew(16);
+            let cs = CString::new("\u{E000}").unwrap();
+            let mut t: C2D_Text = std::mem::zeroed();
+            C2D_TextParse(&mut t, measure_buf, cs.as_ptr());
+            C2D_TextOptimize(&t);
+            let mut gw: f32 = 0.0;
+            let mut gh: f32 = 0.0;
+            C2D_TextGetDimensions(&t, 1.0, 1.0, &mut gw, &mut gh);
+            C2D_TextBufDelete(measure_buf);
+            gw
+        };
+
+        Self {
+            buf,
+            glyph_w,
+            icons,
+        }
     }
 
     pub fn icon(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
@@ -75,7 +91,11 @@ impl DrawContext {
             C2D_TextParse(&mut t, self.buf, cs.as_ptr());
             C2D_TextOptimize(&t);
             C2D_TextGetDimensions(&t, scale, scale, &mut tw, &mut th);
-            let padding = (8.0 + 32.0 / (tw / scale)).min(20.0) * scale;
+            let padding = if contains_glyph(s) {
+                self.glyph_w * scale * 0.5
+            } else {
+                0.0
+            };
             let tx = x + (w - (tw + padding)) / 2.0;
             let ty = y;
             C2D_DrawText(
@@ -122,4 +142,8 @@ impl DrawContext {
             (tw, th)
         }
     }
+}
+
+fn contains_glyph(s: &str) -> bool {
+    s.chars().any(|c| c >= '\u{E000}' && c <= '\u{E0FF}')
 }

@@ -17,6 +17,10 @@ pub enum ModalMsg {
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
     Refresh,
+    Error {
+        label: String,
+        message: String,
+    },
 }
 
 pub enum UiMsg {

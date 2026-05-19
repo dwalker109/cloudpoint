@@ -1,23 +1,18 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
-        SyncScreen, TitlesScreen,
+        BaseScreen, ConflictModalScreen, ErrorModalScreen, ModalScreen, RefreshModalScreen,
+        ScreenCommand, ScreenId, SyncScreen, TitlesScreen,
     },
     services::CtrServices,
     setup,
-    sync::ConflictWinner,
 };
 use anyhow::Result;
-use chrono::Utc;
 use ctru::services::hid::KeyPad;
 pub use msg::*;
 use std::{
     collections::HashMap,
-    sync::{
-        mpsc::{Receiver, Sender, channel},
-        oneshot,
-    },
+    sync::mpsc::{Receiver, Sender, channel},
 };
 pub use worker::worker_thread;
 
@@ -71,38 +66,6 @@ impl App {
                 break;
             }
 
-            if keys_down.contains(KeyPad::SELECT) {
-                let (tx, rx) = oneshot::channel::<ConflictWinner>();
-
-                app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                    "Shit".into(),
-                    Some(Utc::now()),
-                    Some(Utc::now()),
-                    tx,
-                )));
-            }
-
-            if let Ok(msg) = app.alert_rx.try_recv() {
-                match msg {
-                    ModalMsg::ResolveConflict {
-                        title_label,
-                        title_local_time,
-                        title_remote_time,
-                        reply_tx,
-                    } => {
-                        app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                            title_label,
-                            title_local_time,
-                            title_remote_time,
-                            reply_tx,
-                        )));
-                    }
-                    ModalMsg::Refresh => {
-                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
-                    }
-                }
-            }
-
             if let Ok(msg) = app.ui_rx.try_recv() {
                 for screen in app.screens.values_mut() {
                     cmd_buffer.push(screen.handle_msg(&msg));
@@ -132,6 +95,31 @@ impl App {
                         app.modal_stack.pop();
                     }
                     _ => {}
+                }
+            }
+
+            if let Ok(msg) = app.alert_rx.try_recv() {
+                match msg {
+                    ModalMsg::ResolveConflict {
+                        title_label,
+                        title_local_time,
+                        title_remote_time,
+                        reply_tx,
+                    } => {
+                        app.modal_stack.push(Box::new(ConflictModalScreen::new(
+                            title_label,
+                            title_local_time,
+                            title_remote_time,
+                            reply_tx,
+                        )));
+                    }
+                    ModalMsg::Refresh => {
+                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
+                    }
+                    ModalMsg::Error { label, message } => {
+                        app.modal_stack
+                            .push(Box::new(ErrorModalScreen::new(label, message)));
+                    }
                 }
             }
 
