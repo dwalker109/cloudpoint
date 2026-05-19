@@ -6,18 +6,13 @@ use crate::{
     },
     services::CtrServices,
     setup,
-    sync::ConflictWinner,
 };
 use anyhow::Result;
-use chrono::Utc;
 use ctru::services::hid::KeyPad;
 pub use msg::*;
 use std::{
     collections::HashMap,
-    sync::{
-        mpsc::{Receiver, Sender, channel},
-        oneshot,
-    },
+    sync::mpsc::{Receiver, Sender, channel},
 };
 pub use worker::worker_thread;
 
@@ -69,17 +64,6 @@ impl App {
 
             if keys_down.contains(KeyPad::START) {
                 break;
-            }
-
-            if keys_down.contains(KeyPad::SELECT) {
-                let (tx, rx) = oneshot::channel::<ConflictWinner>();
-
-                app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                    "Shit".into(),
-                    Some(Utc::now()),
-                    Some(Utc::now()),
-                    tx,
-                )));
             }
 
             if let Ok(msg) = app.ui_rx.try_recv() {
