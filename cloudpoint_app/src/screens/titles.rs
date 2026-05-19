@@ -44,7 +44,7 @@ impl Screen for TitlesScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "\u{E026}");
+        ctx.icon(ICON_LIST, (TOP_W / 2.0) - 16.0, 0.0, 1.0);
         ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
         ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
 

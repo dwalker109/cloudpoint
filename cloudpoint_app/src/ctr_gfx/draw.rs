@@ -1,5 +1,6 @@
+use ctru::prelude::KeyPad;
+
 use super::c2d::*;
-use crate::ctr_gfx::*;
 use std::ffi::CString;
 
 struct SpriteSheet(C2D_SpriteSheet);
@@ -74,12 +75,14 @@ impl DrawContext {
             C2D_TextParse(&mut t, self.buf, cs.as_ptr());
             C2D_TextOptimize(&t);
             C2D_TextGetDimensions(&t, scale, scale, &mut tw, &mut th);
-            let tx = x + (w - tw) / 2.0;
+            let padding = (8.0 + 32.0 / (tw / scale)).min(20.0) * scale;
+            let tx = x + (w - (tw + padding)) / 2.0;
+            let ty = y;
             C2D_DrawText(
                 &t,
                 C2D_WithColor as u32,
                 tx,
-                y,
+                ty,
                 0.5,
                 scale,
                 scale,
@@ -106,7 +109,7 @@ impl DrawContext {
         self.text_centered(x, ty, w, scale, fg, label);
     }
 
-    fn text_dimensions(&self, scale: f32, s: &str) -> (f32, f32) {
+    pub fn text_dimensions(&self, scale: f32, s: &str) -> (f32, f32) {
         unsafe {
             let cs = CString::new(s).unwrap_or_default();
             let mut t: C2D_Text = std::mem::zeroed();

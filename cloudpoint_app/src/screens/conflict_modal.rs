@@ -9,8 +9,6 @@ pub struct ConflictModalScreen {
     title_remote_time: Option<DateTime<Utc>>,
     is_first_sync: bool,
     reply_tx: Option<oneshot::Sender<ConflictWinner>>,
-    input_hold_up: u8,
-    input_hold_down: u8,
 }
 
 impl ConflictModalScreen {
@@ -26,8 +24,6 @@ impl ConflictModalScreen {
             title_remote_time,
             is_first_sync: title_local_time.is_none(),
             reply_tx: Some(reply_tx),
-            input_hold_up: 0,
-            input_hold_down: 0,
         }
     }
 }
@@ -42,8 +38,8 @@ impl Screen for ConflictModalScreen {
             0.5,
             BLACK,
             match self.is_first_sync {
-                true => "There is already data on the server for this title:",
-                false => "This title has changed both here and on the server:",
+                true => "There is already data on the server for this title",
+                false => "This title has changed both here and on the server",
             },
         );
         ctx.text_centered(0.0, 105.0, TOP_W, 0.7, BLACK, &self.title_label);
@@ -84,37 +80,24 @@ impl Screen for ConflictModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        ctx.text_centered(0.0, 36.0, BOT_W, 0.45, BLACK, "Hold a direction to proceed");
-        ctx.button(
+        ctx.text_centered(0.0, 36.0, BOT_W, 0.7, BLACK, "Choose which to keep");
+        ctx.text_centered(
             40.0,
-            64.0,
+            86.0,
             BOT_W - 80.0,
-            36.0,
+            0.9,
             ACCENT,
-            WHITE,
-            "\u{E079} Upload from this console",
-            0.6 + (self.input_hold_up as f32 / 2000.0),
+            "\u{E079} + \u{E000} Local",
         );
-        ctx.button(
+        ctx.text_centered(
             40.0,
-            114.0,
+            126.0,
             BOT_W - 80.0,
-            36.0,
+            0.9,
             ACCENT,
-            WHITE,
-            "\u{E07A} Download from the server",
-            0.6 + (self.input_hold_down as f32 / 2000.0),
+            "\u{E07A} + \u{E000} Server",
         );
-        ctx.button(
-            40.0,
-            164.0,
-            BOT_W - 80.0,
-            36.0,
-            ACCENT,
-            WHITE,
-            "\u{E07E} Skip for now",
-            0.6,
-        );
+        ctx.text_centered(40.0, 166.0, BOT_W - 80.0, 0.9, ACCENT, "\u{E001} Skip");
     }
 }
 
@@ -127,27 +110,17 @@ impl ModalScreen for ConflictModalScreen {
         let mut winner = None;
 
         'check: {
-            if keys_held == &KeyPad::DPAD_UP {
-                self.input_hold_up += 1;
-                if self.input_hold_up > 60 {
-                    winner = Some(ConflictWinner::Local);
-                }
+            if keys_held.contains(KeyPad::DPAD_UP) && keys_down.contains(KeyPad::A) {
+                winner = Some(ConflictWinner::Local);
                 break 'check;
-            } else {
-                self.input_hold_up = 0;
             }
 
-            if keys_held == &KeyPad::DPAD_DOWN {
-                self.input_hold_down += 1;
-                if self.input_hold_down > 60 {
-                    winner = Some(ConflictWinner::Remote);
-                }
+            if keys_held.contains(KeyPad::DPAD_DOWN) && keys_down.contains(KeyPad::A) {
+                winner = Some(ConflictWinner::Remote);
                 break 'check;
-            } else {
-                self.input_hold_down = 0;
             }
 
-            if keys_down.intersects(KeyPad::DPAD_LEFT | KeyPad::DPAD_RIGHT) {
+            if keys_down == &KeyPad::B {
                 winner = Some(ConflictWinner::Undecided);
             }
         }

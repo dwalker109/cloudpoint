@@ -45,8 +45,8 @@ impl Screen for SyncScreen {
                 WHITE,
             );
         } else {
-            ctx.text_centered(0.0, 100.0, BOT_W, 0.6, BLACK, "\u{E000} Sync");
-            ctx.text_centered(0.0, 120.0, BOT_W, 0.6, BLACK, "\u{E002} Refresh");
+            ctx.text_centered(0.0, 90.0, BOT_W, 0.9, BLACK, "\u{E000} Sync");
+            ctx.text_centered(0.0, 130.0, BOT_W, 0.9, BLACK, "\u{E002} Refresh");
         }
     }
 }

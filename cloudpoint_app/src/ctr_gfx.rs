@@ -4,6 +4,7 @@ mod icons;
 
 use crate::screens::{BaseScreen, ModalScreen};
 use c2d::*;
+use ctru::prelude::KeyPad;
 pub use draw::DrawContext;
 pub use icons::*;
 
@@ -38,7 +39,7 @@ impl Render {
             Self {
                 upper_screen: C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT),
                 lower_screen: C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT),
-                text_buf: C2D_TextBufNew(256),
+                text_buf: C2D_TextBufNew(1024),
             }
         }
     }

@@ -2,3 +2,4 @@
 #pragma once
 
 #define icons_cloud_idx 0
+#define icons_list_idx 1

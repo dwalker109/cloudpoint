@@ -3,3 +3,4 @@
 // @generated — run `just pack-icons` to regenerate
 
 pub const ICON_CLOUD: u32 = 0;
+pub const ICON_LIST: u32 = 1;
