@@ -84,14 +84,7 @@ impl Screen for ConflictModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        ctx.text_centered(
-            0.0,
-            36.0,
-            BOT_W,
-            0.45,
-            BLACK,
-            "How would you like to proceed?",
-        );
+        ctx.text_centered(0.0, 36.0, BOT_W, 0.45, BLACK, "Hold a direction to proceed");
         ctx.button(
             40.0,
             64.0,
@@ -99,8 +92,8 @@ impl Screen for ConflictModalScreen {
             36.0,
             ACCENT,
             WHITE,
-            "Hold UP: use the data from this console",
-            0.4 + (self.input_hold_up as f32 / 2000.0),
+            "\u{E079} Upload from this console",
+            0.6 + (self.input_hold_up as f32 / 2000.0),
         );
         ctx.button(
             40.0,
@@ -109,8 +102,8 @@ impl Screen for ConflictModalScreen {
             36.0,
             ACCENT,
             WHITE,
-            "Hold DOWN: use the data from the server",
-            0.4 + (self.input_hold_down as f32 / 2000.0),
+            "\u{E07A} Download from the server",
+            0.6 + (self.input_hold_down as f32 / 2000.0),
         );
         ctx.button(
             40.0,
@@ -119,8 +112,8 @@ impl Screen for ConflictModalScreen {
             36.0,
             ACCENT,
             WHITE,
-            "Press LEFT/RIGHT: skip for now",
-            0.4,
+            "\u{E07E} Skip for now",
+            0.6,
         );
     }
 }
