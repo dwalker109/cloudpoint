@@ -66,7 +66,10 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => ("Sync completed at", chrono::Utc::now().to_rfc2822()),
+                    Ok(_) => (
+                        "Sync completed at",
+                        chrono::Utc::now().format("%H:%M").to_string(),
+                    ),
                     Err(err) => ("Sync failed", err.to_string()),
                 };
                 ui_tx
@@ -87,7 +90,10 @@ pub fn worker_thread(task_rx: Receiver<TaskMsg>, ui_tx: Sender<UiMsg>, modal_tx:
                     modal_tx.clone(),
                     &client,
                 ) {
-                    Ok(_) => ("Sync completed at", chrono::Utc::now().to_rfc2822()),
+                    Ok(_) => (
+                        "Sync completed at",
+                        chrono::Utc::now().format("%H:%M").to_string(),
+                    ),
                     Err(err) => ("Sync failed", err.to_string()),
                 };
                 ui_tx

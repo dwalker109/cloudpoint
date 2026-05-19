@@ -1,1 +1,2 @@
 cloudpoint_app/cia/** filter=lfs diff=lfs merge=lfs -binary
+cloudpoint_app/icons/** filter=lfs diff=lfs merge=lfs -binary

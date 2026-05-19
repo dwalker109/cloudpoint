@@ -44,7 +44,9 @@ impl Screen for TitlesScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Titles");
+        ctx.icon(ICON_LIST, (TOP_W / 2.0) - 16.0, 0.0, 1.0);
+        ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
+        ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
 
         if let Some(titles) = &self.titles {
             for (view_idx, (item_idx, game_detail)) in titles
@@ -117,7 +119,7 @@ impl Screen for TitlesScreen {
             BOT_W,
             0.6,
             BLACK,
-            "(Y) to toggle auto sync for this title".into(),
+            "\u{E003} Toggle auto sync for this title".into(),
         );
     }
 }
