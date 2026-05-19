@@ -1,0 +1,46 @@
+name: Setup build environment
+
+description: |
+  Checkout the repository and install the dependencies required to build Cloudpoint with just and cargo-3ds.
+
+inputs:
+  ssh-private-key:
+    description: SSH private key for private dependencies.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install SSH client
+      shell: bash
+      run: apt-get update && apt-get install -y openssh-client
+
+    - name: Set up SSH for private deps
+      if: ${{ inputs.ssh-private-key != '' }}
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-private-key }}
+
+    - name: Install Rust
+      shell: bash
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+          -y --default-toolchain nightly --profile minimal --component rust-src
+        echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH
+
+    - name: Install clang
+      shell: bash
+      run: apt-get install -y clang
+
+    - name: Install zlib (for test suite running on Linux)
+      shell: bash
+      run: apt-get install -y zlib1g-dev
+
+    - name: Install cargo-3ds
+      shell: bash
+      run: cargo install cargo-3ds --locked
+
+    - name: Install just
+      shell: bash
+      run: cargo install just --locked

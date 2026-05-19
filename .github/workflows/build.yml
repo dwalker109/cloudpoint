@@ -1,0 +1,31 @@
+# .github/workflows/build.yml
+name: Build
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup
+        with:
+          ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
+
+      - name: Build 3DSX
+        run: just build
+        shell: bash
+
+      - name: Upload 3DSX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudpoint
+          path: target/armv6k-nintendo-3ds/release/cloudpoint.3dsx

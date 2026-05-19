@@ -216,6 +216,7 @@ dependencies = [
 [[package]]
 name = "chunktree"
 version = "0.1.0"
+source = "git+ssh://git@github.com/dwalker109/chunktree.git?branch=main#4d5f3623bf0ca68ee5e1a4b40e66e60caca74cc7"
 dependencies = [
  "fastcdc",
  "flate2",
@@ -239,8 +240,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "cloudpoint_app"
-version = "0.1.0"
+name = "cloudpoint"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -260,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "cloudpoint_lib"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "chrono",
