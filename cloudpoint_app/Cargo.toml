@@ -1,6 +1,5 @@
 [package]
-name = "cloudpoint_app"
-version = "0.1.0"
+name = "cloudpoint"
 edition = "2024"
 
 [dependencies]

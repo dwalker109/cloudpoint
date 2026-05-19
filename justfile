@@ -2,7 +2,7 @@ default:
     @just --list
 
 test:
-    cargo test --lib
+    cargo test --lib -p cloudpoint_lib
 
 build:
     cargo 3ds build --release
@@ -29,7 +29,7 @@ cia major minor micro: build
     ./makerom -f cia -v \
         -ver $(just ver {{ major }} {{ minor }} {{ micro }}) \
         -target t \
-        -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint_app.elf \
+        -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint.elf \
         -DROMFS_PATH="../romfs" \
         -rsf cloudpoint.rsf \
         -icon cloudpoint.smdh \
