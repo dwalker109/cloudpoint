@@ -1,13 +1,50 @@
 use super::c2d::*;
+use crate::ctr_gfx::*;
 use std::ffi::CString;
+
+struct SpriteSheet(C2D_SpriteSheet);
+
+impl SpriteSheet {
+    fn load(path: &str) -> Option<Self> {
+        let cs = CString::new(path).ok()?;
+        let sheet = unsafe { C2D_SpriteSheetLoad(cs.as_ptr()) };
+        if sheet.is_null() {
+            None
+        } else {
+            Some(Self(sheet))
+        }
+    }
+
+    fn image(&self, index: usize) -> C2D_Image {
+        unsafe { C2D_SpriteSheetGetImage(self.0, index) }
+    }
+}
+
+impl Drop for SpriteSheet {
+    fn drop(&mut self) {
+        unsafe {
+            C2D_SpriteSheetFree(self.0);
+        }
+    }
+}
 
 pub struct DrawContext {
     buf: C2D_TextBuf,
+    icons: SpriteSheet,
 }
 
 impl DrawContext {
     pub(crate) fn new(buf: C2D_TextBuf) -> Self {
-        Self { buf }
+        let icons = SpriteSheet::load("romfs:/icons.t3x").expect("should load icons spritesheet");
+
+        Self { buf, icons }
+    }
+
+    pub fn icon(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
+        let img = self.icons.image(icon_index as usize);
+        unsafe {
+            C2D_DrawImageAt(img, x, y, 0.5, std::ptr::null(), scale, scale);
+        }
     }
 
     pub fn rect(&self, x: f32, y: f32, w: f32, h: f32, colour: u32) {

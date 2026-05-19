@@ -1,10 +1,11 @@
 mod c2d;
 mod draw;
-
-use c2d::*;
-pub use draw::DrawContext;
+mod icons;
 
 use crate::screens::{BaseScreen, ModalScreen};
+use c2d::*;
+pub use draw::DrawContext;
+pub use icons::*;
 
 const GFX_TOP: gfxScreen_t = gfxScreen_t_GFX_TOP;
 const GFX_BOTTOM: gfxScreen_t = gfxScreen_t_GFX_BOTTOM;
@@ -20,7 +21,7 @@ pub const BLACK: u32 = 0xFF000000;
 pub const GREY: u32 = 0xFFCCCCCC;
 pub const GREY_TRANS: u32 = 0xAACCCCCC;
 pub const DARK_GREY: u32 = 0xFF888888;
-pub const ACCENT: u32 = 0xFFDB86F9;
+pub const ACCENT: u32 = 0xFFF986DB;
 
 pub struct Render {
     upper_screen: *mut C3D_RenderTarget,
