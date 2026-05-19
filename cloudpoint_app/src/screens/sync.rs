@@ -26,7 +26,9 @@ impl Screen for SyncScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
         ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.text_centered(0.0, 6.0, TOP_W, 0.7, WHITE, "Sync");
+        ctx.icon(ICON_CLOUD, (TOP_W / 2.0) - 16.0, 0.0, 1.0);
+        ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
+        ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
         ctx.text_centered(0.0, 116.0, TOP_W, 0.6, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 136.0, TOP_W, 0.6, BLACK, &self.upper_2);
     }
@@ -43,8 +45,8 @@ impl Screen for SyncScreen {
                 WHITE,
             );
         } else {
-            ctx.text_centered(0.0, 100.0, BOT_W, 0.6, BLACK, "(A) to sync");
-            ctx.text_centered(0.0, 120.0, BOT_W, 0.6, BLACK, "(X) to refresh");
+            ctx.text_centered(0.0, 90.0, BOT_W, 0.9, BLACK, "\u{E000} Sync");
+            ctx.text_centered(0.0, 130.0, BOT_W, 0.9, BLACK, "\u{E002} Refresh");
         }
     }
 }
