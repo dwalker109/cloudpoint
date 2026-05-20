@@ -129,7 +129,7 @@ impl TitleDb {
     pub fn titles_sorted_vec(&self) -> Vec<TitleDetails> {
         self.1
             .values()
-            .sorted_by_key(|t| &t.title_short)
+            .sorted_by_key(|t| t.title_short.to_lowercase())
             .cloned()
             .collect()
     }
