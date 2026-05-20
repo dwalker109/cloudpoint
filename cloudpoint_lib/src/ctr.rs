@@ -28,22 +28,27 @@ impl From<Vec<u8>> for CtrSmdh {
 
 impl CtrSmdh {
     pub fn magic(&self) -> String {
+        log::debug!("getting smdh magic");
         decode_utf16(&self.0[0x0000..0x0004])
     }
 
     pub fn version(&self) -> u16 {
+        log::debug!("getting smdh version");
         u16::from_le_bytes([self.0[0x0004], self.0[0x0005]])
     }
 
     pub fn title_short(&self, lang: SmdhLanguage) -> String {
+        log::debug!("getting smdh title_short");
         CtrSmdh::extract_title_field(&self.0, lang.idx(), 0x0008, 0x0080)
     }
 
     pub fn title_long(&self, lang: SmdhLanguage) -> String {
+        log::debug!("getting smdh title_long");
         CtrSmdh::extract_title_field(&self.0, lang.idx(), 0x0088, 0x0100)
     }
 
     pub fn title_publisher(&self, lang: SmdhLanguage) -> String {
+        log::debug!("getting smdh title_publisher");
         CtrSmdh::extract_title_field(&self.0, lang.idx(), 0x0188, 0x0080)
     }
 

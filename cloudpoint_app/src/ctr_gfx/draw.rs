@@ -129,7 +129,7 @@ impl DrawContext {
         self.text_centered(x, ty, w, scale, fg, label);
     }
 
-    pub fn text_dimensions(&self, scale: f32, s: &str) -> (f32, f32) {
+    fn text_dimensions(&self, scale: f32, s: &str) -> (f32, f32) {
         unsafe {
             let cs = CString::new(s).unwrap_or_default();
             let mut t: C2D_Text = std::mem::zeroed();

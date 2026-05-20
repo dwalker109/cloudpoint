@@ -1,5 +1,3 @@
-use std::env;
-
 fn main() {
     https_curl();
     println!("cargo:rerun-if-changed=build.rs");
@@ -16,5 +14,5 @@ fn https_curl() {
         println!("cargo:rustc-link-lib=static=mbedx509");
         println!("cargo:rustc-link-lib=static=mbedcrypto");
         println!("cargo:rustc-link-lib=static=z");
-    } 
+    }
 }

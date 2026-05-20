@@ -42,7 +42,13 @@ pub struct SyncState {
 }
 
 impl SyncState {
-    pub fn new(sync_item: SyncItem, via_title_id: u64, smdh: &CtrSmdh, auto_enabled: bool) -> Self {
+    pub fn new(
+        sync_item: SyncItem,
+        via_title_id: u64,
+        via_user_key: Uuid,
+        smdh: &CtrSmdh,
+        auto_enabled: bool,
+    ) -> Self {
         let title_short = smdh.title_short(SmdhLanguage::English);
         let title_publisher = smdh.title_publisher(SmdhLanguage::English);
 
@@ -64,12 +70,14 @@ impl SyncState {
             synced_fingerprint: None,
             synced_at: None,
             via_title_ids: HashSet::from([via_title_id]),
-            via_user_key: Uuid::nil(),
+            via_user_key,
         }
     }
 
     pub fn safe_adopt(&mut self, user_key: Uuid) {
         if self.via_user_key != user_key {
+            log::info!("user.key has changed, adopting (new sync dialog is normal)");
+
             self.synced_fingerprint = None;
             self.synced_at = None;
             self.via_user_key = user_key;
@@ -81,7 +89,13 @@ impl SyncState {
         local_fingerprint: Option<u128>,
         remote_fingerprint: Option<u128>,
     ) -> SyncAction {
-        match (local_fingerprint, remote_fingerprint) {
+        log::debug!(
+            "deriving sync action for l={:?} r={:?}",
+            local_fingerprint,
+            remote_fingerprint
+        );
+
+        let result = match (local_fingerprint, remote_fingerprint) {
             (None, None) => unreachable!(),
             (None, Some(_)) => SyncAction::Download,
             (Some(_), None) => SyncAction::Upload,
@@ -97,7 +111,11 @@ impl SyncState {
                     (false, false) => unreachable!(),
                 }
             }
-        }
+        };
+
+        log::debug!("derived action is {:?}", result);
+
+        result
     }
 }
 
