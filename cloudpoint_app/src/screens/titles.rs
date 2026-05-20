@@ -112,18 +112,16 @@ impl Screen for TitlesScreen {
             &format!("Extdata auto sync: {}", title.extdata_sync_status),
         );
 
-        ctx.text_centered(
-            0.0,
+        ctx.text(
+            20.0,
             178.0,
-            BOT_W,
             0.7,
             ACCENT,
-            "\u{E000} Sync this title now".into(),
+            "\u{E000} Run sync now for this title".into(),
         );
-        ctx.text_centered(
-            0.0,
+        ctx.text(
+            20.0,
             200.0,
-            BOT_W,
             0.7,
             ACCENT,
             "\u{E003} Toggle auto sync for this title".into(),
