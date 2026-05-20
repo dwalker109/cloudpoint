@@ -99,7 +99,7 @@ impl Screen for TitlesScreen {
             0.0,
             132.0,
             BOT_W,
-            0.5,
+            0.55,
             BLACK,
             &format!("Save auto sync: {}", title.savedata_sync_status),
         );
@@ -107,7 +107,7 @@ impl Screen for TitlesScreen {
             0.0,
             150.0,
             BOT_W,
-            0.5,
+            0.55,
             BLACK,
             &format!("Extdata auto sync: {}", title.extdata_sync_status),
         );
