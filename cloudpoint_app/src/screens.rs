@@ -2,24 +2,26 @@ use crate::{app::UiMsg, ctr_gfx::*};
 pub use conflict_modal::ConflictModalScreen;
 use ctru::prelude::KeyPad;
 pub use error_modal::ErrorModalScreen;
+pub use help::HelpScreen;
 pub use refresh_modal::RefreshModalScreen;
 pub use sync::SyncScreen;
 pub use sync_modal::SyncModalScreen;
 pub use titles::TitlesScreen;
 
-mod sync;
-mod titles;
-mod settings {}
 mod conflict_modal;
 mod error_modal;
+mod help;
 mod refresh_modal;
+mod shared;
+mod sync;
 mod sync_modal;
+mod titles;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenId {
     Sync,
     Titles,
-    Settings,
+    Help,
 }
 
 pub enum ScreenCommand {
