@@ -36,7 +36,6 @@ cia major minor micro: build
         -banner banner.bnr \
         -logo logo.bcma.lz \
         -o cloudpoint.cia
-    rm banner.bcwav banner.bnr cloudpoint.smdh
 
 ver major minor micro:
     @[ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
