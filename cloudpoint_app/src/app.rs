@@ -1,8 +1,8 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ErrorModalScreen, ModalScreen, RefreshModalScreen,
-        ScreenCommand, ScreenId, SyncScreen, TitlesScreen,
+        BaseScreen, ConflictModalScreen, ErrorModalScreen, HelpScreen, ModalScreen,
+        RefreshModalScreen, ScreenCommand, ScreenId, SyncScreen, TitlesScreen,
     },
     services::CtrServices,
     setup,
@@ -45,6 +45,10 @@ impl App {
                 (
                     ScreenId::Titles,
                     Box::new(TitlesScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
+                ),
+                (
+                    ScreenId::Help,
+                    Box::new(HelpScreen::new()) as Box<dyn BaseScreen>,
                 ),
             ]),
             active_screen: ScreenId::Sync,

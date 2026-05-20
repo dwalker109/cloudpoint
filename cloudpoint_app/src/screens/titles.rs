@@ -36,11 +36,7 @@ const PAGE_SIZE: usize = 12;
 
 impl Screen for TitlesScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
-        ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.icon(ICON_LIST, (TOP_W / 2.0) - 16.0, 0.0, 1.0);
-        ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
-        ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
+        super::shared::header(ctx, self.id());
 
         if !self.titles.is_empty() {
             for (view_idx, (item_idx, game_detail)) in self
@@ -155,8 +151,6 @@ impl BaseScreen for TitlesScreen {
         } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN | KeyPad::CSTICK_DOWN)
         {
             self.selected_idx = (self.selected_idx + 1) % (self.max_idx() + 1);
-        } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
-            return ScreenCommand::SwitchTo(ScreenId::Sync);
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
@@ -169,6 +163,8 @@ impl BaseScreen for TitlesScreen {
             if let Some(title) = self.selected_title() {
                 self.task_tx.send(TaskMsg::Toggle(title.title_id)).ok();
             }
+        } else if keys_down.contains(KeyPad::R) {
+            return ScreenCommand::SwitchTo(ScreenId::Sync);
         }
 
         self.clamp_viewport();

@@ -24,11 +24,8 @@ impl SyncScreen {
 
 impl Screen for SyncScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
-        ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
-        ctx.icon(ICON_CLOUD, (TOP_W / 2.0) - 16.0, 0.0, 1.0);
-        ctx.text(6.0, 0.0, 1.0, WHITE, "\u{E004}");
-        ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
+        super::shared::header(ctx, self.id());
+
         ctx.text_centered(0.0, 116.0, TOP_W, 0.6, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 136.0, TOP_W, 0.6, BLACK, &self.upper_2);
     }
@@ -103,8 +100,10 @@ impl BaseScreen for SyncScreen {
             self.task_tx.send(TaskMsg::SyncAuto).ok();
         } else if !self.sync_running && keys_down.contains(KeyPad::X) {
             self.task_tx.send(TaskMsg::Refresh).ok();
-        } else if keys_down.intersects(KeyPad::L | KeyPad::R) {
+        } else if keys_down.contains(KeyPad::L) {
             return ScreenCommand::SwitchTo(ScreenId::Titles);
+        } else if keys_down.contains(KeyPad::R) {
+            return ScreenCommand::SwitchTo(ScreenId::Help);
         }
 
         ScreenCommand::Noop
