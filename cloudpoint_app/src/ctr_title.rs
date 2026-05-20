@@ -29,6 +29,8 @@ impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
 }
 
 pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| {
+    log::info!("building cached list of titles on SD");
+
     let am = Am::new().expect("am service should be available");
     let title_list = am
         .title_list(MediaType::Sd)
@@ -43,11 +45,15 @@ pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| 
 });
 
 pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
-    // Fetching CtrSmdh for a Savedata sync item really fetches it from the title - no archive needs to exist
-    Ok(CtrArchive::smdh(SyncItem::Savedata(title_id))?.into())
+    log::debug!("looking up smdh for {title_id} via faked SyncItem");
+
+    let fake_sync_item = SyncItem::Savedata(title_id);
+    Ok(CtrArchive::smdh(fake_sync_item)?.into())
 }
 
 pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
+    log::debug!("looking up ctr meta for {sync_item}");
+
     match sync_item {
         SyncItem::Savedata(title_id) => Ok(CtrMeta::new(ctr_get_title_version(title_id)?)),
         SyncItem::Extdata(_) => Ok(CtrMeta::new(0)),
@@ -55,6 +61,8 @@ pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
 }
 
 pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
+    log::debug!("looking up savedata for title {title_id:016X} by probing save archive");
+
     let maybe_archive_id = SyncItem::Savedata(title_id);
 
     CtrArchive::open(maybe_archive_id)
@@ -66,6 +74,10 @@ pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
     ctr_getr_ext_data_id_for_title(title_id)
         .ok()
         .and_then(|extdata_id| {
+            log::debug!(
+                "looking up extdata for title {title_id:016X} by probing title reported extdata id"
+            );
+
             let maybe_archive_id = SyncItem::Extdata(extdata_id);
 
             CtrArchive::open(maybe_archive_id)
@@ -75,6 +87,8 @@ pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 }
 
 pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
+    log::debug!("looking up extdata for title {title_id:016X} by inference");
+
     let maybe_archive_id = SyncItem::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
 
     CtrArchive::open(maybe_archive_id)

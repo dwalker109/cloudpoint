@@ -60,6 +60,8 @@ pub struct CtrArchive {
 
 impl CtrArchive {
     pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
+        log::debug!("fetching smdh for {:?}", sync_item);
+
         match sync_item {
             SyncItem::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
             SyncItem::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
@@ -67,6 +69,8 @@ impl CtrArchive {
     }
 
     pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
+        log::debug!("opening archive for {:?}", sync_item);
+
         let path = CtrArchivePath::new(sync_item)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
 
@@ -81,30 +85,62 @@ impl CtrArchive {
     }
 
     pub fn open_file(&self, path: &CtrFsPath, flags: u8) -> Result<CtrFile, IoError> {
+        log::debug!(
+            "opening file {:?} in archive for {:?}",
+            path,
+            self.sync_item
+        );
+
         Ok(CtrFile {
             file_handle: ctr_open_file(self.archive_handle, path.fs_path(), flags)?,
         })
     }
 
     pub fn create_file(&self, path: &CtrFsPath, size: u64) -> Result<(), IoError> {
+        log::debug!(
+            "creating file {:?} in archive for {:?}",
+            path,
+            self.sync_item
+        );
+
         ctr_create_file(self.archive_handle, path.fs_path(), size)
     }
 
     pub fn delete_file(&self, path: &CtrFsPath) -> Result<(), IoError> {
+        log::debug!(
+            "deleting file {:?} in archive for {:?}",
+            path,
+            self.sync_item
+        );
+
         ctr_delete_file(self.archive_handle, path.fs_path())
     }
 
     pub fn open_directory(&self, path: &CtrFsPath) -> Result<CtrDirectory, IoError> {
+        log::debug!(
+            "opening directory {:?} in archive for {:?}",
+            path,
+            self.sync_item
+        );
+
         Ok(CtrDirectory {
             directory_handle: ctr_open_directory(self.archive_handle, path.fs_path())?,
         })
     }
 
     pub fn create_directory(&self, path: &CtrFsPath) -> Result<(), IoError> {
+        log::debug!(
+            "creating directory {:?} in archive for {:?}",
+            path,
+            self.sync_item
+        );
+
         ctr_create_directory(self.archive_handle, path.fs_path())
     }
 
     pub fn finalise(&self) -> Result<(), IoError> {
+        log::debug!("finalising save write in archive for {:?}", self.sync_item);
+
         if let SyncItem::Savedata(title_id) = self.sync_item {
             ctr_commit_archive(self.archive_handle)?;
             ctr_reset_secure_save_meta(title_id)?;
@@ -116,10 +152,12 @@ impl CtrArchive {
 
 impl Drop for CtrArchive {
     fn drop(&mut self) {
+        log::debug!("dropping archive for {:?}", self.sync_item);
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
 
+#[derive(Debug)]
 pub struct CtrFsPath(CString);
 
 impl CtrFsPath {
@@ -138,24 +176,47 @@ pub struct CtrFile {
 
 impl CtrFile {
     pub fn read(&self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
+        log::debug!(
+            "reading from handle {} at offset {} with length {}",
+            self.file_handle,
+            offset,
+            length
+        );
+
         ctr_read_file(self.file_handle, offset, length)
     }
 
     pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
+        log::debug!(
+            "writing to handle {} at offset {} with length {}",
+            self.file_handle,
+            offset,
+            buffer.len()
+        );
+
         ctr_write_file(self.file_handle, offset, buffer, flags)
     }
 
     pub fn size(&self) -> Result<u64, IoError> {
+        log::debug!("getting size of file at handle {}", self.file_handle,);
+
         ctr_get_file_size(self.file_handle)
     }
 
     pub fn set_size(&self, size: u64) -> Result<(), IoError> {
+        log::debug!(
+            "setting size of file at handle {} to {}",
+            self.file_handle,
+            size
+        );
+
         ctr_set_file_size(self.file_handle, size)
     }
 }
 
 impl Drop for CtrFile {
     fn drop(&mut self) {
+        log::debug!("dropping handle {}", self.file_handle);
         ctr_close_file(self.file_handle).expect("file should be closable");
     }
 }
@@ -166,12 +227,15 @@ pub struct CtrDirectory {
 
 impl CtrDirectory {
     pub fn read(&self) -> Result<Vec<FS_DirectoryEntry>, IoError> {
+        log::debug!("reading directory at handle {}", self.directory_handle,);
+
         ctr_read_directory(self.directory_handle)
     }
 }
 
 impl Drop for CtrDirectory {
     fn drop(&mut self) {
+        log::debug!("dropping handle {}", self.directory_handle);
         ctr_close_directory(self.directory_handle).expect("dir should be closable");
     }
 }

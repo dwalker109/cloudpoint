@@ -12,6 +12,8 @@ pub struct CtrServices {
 
 impl CtrServices {
     pub fn init() -> Result<Self> {
+        log::debug!("initialising all ctr services");
+
         let apt = Apt::new()?;
         let hid = Hid::new()?;
         let _am = Am::new()?;

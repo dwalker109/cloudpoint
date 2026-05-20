@@ -61,6 +61,8 @@ impl App {
         let mut render = Render::new();
         let mut cmd_buffer = Vec::with_capacity(8);
 
+        log::info!("entering main_loop");
+
         while services.apt.main_loop() {
             services.hid.scan_input();
             let keys_down = services.hid.keys_down();
@@ -135,12 +137,15 @@ impl App {
             );
         }
 
+        log::info!("exited main_loop");
+
         // Dropping the app is important since it:
         // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
         // * drops task_tx (allowing running worker task to finish, but causes error the next time task_rx is polled, exiting cleanly)
         //
         // All of this means that the handle will join when asked, allowing a clean shutdown instead of just killing the
         // worker at a potentially bad point (like halfway through a file write).
+        log::debug!("about to drop app and await worker exit");
         drop(app);
         handle
             .join()

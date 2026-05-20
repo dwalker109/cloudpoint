@@ -2,7 +2,18 @@ use crate::{
     app::{RefreshProgress, UiMsg},
     ctr_title::{self, SD_APP_TITLES},
 };
+use crate::{
+    ctr_title::{
+        infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
+        lookup_savedata_sync_item_for_title,
+    },
+    db::StateDb,
+};
 use anyhow::{Result, bail};
+use cloudpoint_lib::{
+    ctr::{CtrSmdh, SmdhLanguage},
+    sync::SyncItem,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -13,24 +24,13 @@ use std::{
     sync::mpsc::Sender,
 };
 
-use cloudpoint_lib::{
-    ctr::{CtrSmdh, SmdhLanguage},
-    sync::SyncItem,
-};
-
-use crate::{
-    ctr_title::{
-        infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_savedata_sync_item_for_title,
-    },
-    db::StateDb,
-};
-
 #[derive(Serialize, Deserialize)]
 pub struct TitleDb(PathBuf, HashMap<u64, TitleDetails>);
 
 impl TitleDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+        log::debug!("loading runtime title db from disk");
+
         let db_path = root_path.as_ref().join("title.db");
 
         if let Ok(buf) = fs::read(&db_path) {
@@ -48,7 +48,7 @@ impl TitleDb {
         state_db: &StateDb,
         ui_tx: &Sender<UiMsg>,
     ) -> Result<Self> {
-        log::info!("building runtime title db");
+        log::debug!("building runtime title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
         title_db.refresh(state_db, ui_tx)?;
@@ -57,7 +57,7 @@ impl TitleDb {
     }
 
     pub fn refresh(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::info!("refreshing all titles");
+        log::debug!("refreshing runtime title db");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
 
@@ -78,6 +78,8 @@ impl TitleDb {
     }
 
     fn add_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+        log::debug!("processing {title_id:016X}");
+
         let Some(title) = SD_APP_TITLES.get(&title_id) else {
             bail!("cannot find title {title_id:016X}");
         };
@@ -86,23 +88,23 @@ impl TitleDb {
         let product_code = &title.product_code;
         let smdh = ctr_title::smdh(title_id)?;
 
-        log::info!("processing {title_id:016X}");
-
         let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
 
         if title.savedata_sync_status != TitleSyncStatus::Unavailable
             || title.extdata_sync_status != TitleSyncStatus::Unavailable
         {
-            log::debug!("added {title_id:016X}");
+            log::info!("added {title_id:016X}, has save or extdata");
             self.1.insert(title_id, title);
         } else {
-            log::debug!("ignored {title_id:016X}, has no save or extdata");
+            log::info!("ignored {title_id:016X}, has no save or extdata");
         }
 
         Ok(())
     }
 
     pub fn refresh_links(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+        log::info!("refreshing all links for title {title_id:016X}");
+
         let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
 
         for title in self
@@ -117,6 +119,8 @@ impl TitleDb {
     }
 
     pub fn save(&mut self) -> Result<()> {
+        log::debug!("saving title db to disk");
+
         fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
@@ -179,7 +183,8 @@ impl TitleDetails {
         let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
             .or_else(|| infer_extdata_sync_item_for_title(title_id));
 
-        let (sss, ess) = Self::sync_items_status(&savedata_sync_item, &extdata_sync_item, state_db);
+        let (savedata_sync_status, extdata_sync_status) =
+            Self::sync_items_status(&savedata_sync_item, &extdata_sync_item, state_db);
 
         Self {
             title_id,
@@ -188,8 +193,8 @@ impl TitleDetails {
             title_publisher: smdh.title_publisher(SmdhLanguage::English).to_string(),
             savedata_sync_item,
             extdata_sync_item,
-            savedata_sync_status: sss,
-            extdata_sync_status: ess,
+            savedata_sync_status,
+            extdata_sync_status,
         }
     }
 

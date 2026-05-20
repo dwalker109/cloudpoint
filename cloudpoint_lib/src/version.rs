@@ -20,6 +20,8 @@ impl VersionDirList {
         user_key: &Uuid,
         sync_item: SyncItem,
     ) -> Result<VersionDirList> {
+        log::debug!("getting version dir listing for user.key {user_key}, sync_item {sync_item}");
+
         let url = format!(
             "{base_url}/sync/{user_key}/archives/{sync_item}/?json",
             sync_item = PathBuf::from(sync_item).display()
@@ -37,6 +39,11 @@ impl VersionDirList {
     }
 
     pub fn latest(&self) -> Option<&VersionDirEntry> {
+        log::debug!(
+            "getting latest of {} versions from listing",
+            self.paths.len()
+        );
+
         self.paths
             .as_slice()
             .iter()
@@ -54,6 +61,8 @@ pub struct VersionDirEntry {
 
 impl VersionDirEntry {
     pub fn fingerprint(&self) -> Result<u128> {
+        log::debug!("getting fingerprint from dir listing {}", self.name);
+
         Ok(u128::from_str_radix(&self.name, 16)?)
     }
 
@@ -68,6 +77,10 @@ impl VersionDirEntry {
         sync_item: SyncItem,
         fingerprint: u128,
     ) -> Result<Version<T, K>> {
+        log::debug!(
+            "getting version for user.key {user_key}, sync_item {sync_item}, fingerprint {fingerprint}"
+        );
+
         let url = format!(
             "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:032x}",
             sync_item = PathBuf::from(sync_item).display(),
@@ -88,6 +101,10 @@ impl VersionDirEntry {
         sync_item: SyncItem,
         version: &Version<T, K>,
     ) -> Result<()> {
+        log::debug!(
+            "putting version for user.key {user_key}, sync_item {sync_item}, (fingerprint not logged, expensive)",
+        );
+
         let url = format!(
             "{base_url}/sync/{user_key}/archives/{sync_item}/{fingerprint:032x}",
             sync_item = PathBuf::from(sync_item).display(),
