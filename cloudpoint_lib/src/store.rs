@@ -30,6 +30,8 @@ impl HttpStore {
 
 impl StoreRead for HttpStore {
     fn get_chunk(&self, hash: u128) -> Result<impl Read, StoreError> {
+        log::debug!("getting store chunk for hash {hash}");
+
         let res = self.0.get(&self.fq_hash_url(hash), &[]).map_err(|err| {
             io::Error::new(
                 io::ErrorKind::Other,
@@ -43,6 +45,8 @@ impl StoreRead for HttpStore {
 
 impl StoreWrite for HttpStore {
     fn put_chunk(&mut self, hash: u128, data: &mut (impl Read + ?Sized)) -> Result<(), StoreError> {
+        log::debug!("putting store chunk for hash {hash}");
+
         let url = self.fq_hash_url(hash);
 
         let should_upload = self
@@ -57,7 +61,11 @@ impl StoreWrite for HttpStore {
             .status
             != 200;
 
+        log::debug!("does store chunk already exist? {should_upload}");
+
         if should_upload {
+            log::debug!("completing upload for hash {hash}");
+
             let mut body = Vec::new();
             let mut gzip_encoder = GzEncoder::new(data, Compression::best());
             gzip_encoder.read_to_end(&mut body)?;

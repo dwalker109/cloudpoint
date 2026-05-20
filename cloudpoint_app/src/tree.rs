@@ -141,6 +141,8 @@ impl Leaf for CtrArchiveLeaf {
 }
 
 pub fn from_archive(archive: Rc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
+    log::debug!("creating local tree for {:?}", archive.as_ref());
+
     let ctx = CtrArchiveLeafContext { archive };
     let mut results = HashMap::new();
 
@@ -151,6 +153,8 @@ pub fn from_archive(archive: Rc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
         ctx: &<CtrArchiveLeaf as Leaf>::Context,
         results: &mut HashMap<PathBuf, CtrArchiveLeaf>,
     ) -> Result<()> {
+        log::debug!("checking {dir_path}");
+
         let path = CtrFsPath::new(dir_path)?;
         let directory = ctx.archive.open_directory(&path)?;
         let entries = directory.read()?;
@@ -163,9 +167,11 @@ pub fn from_archive(archive: Rc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
             .join("");
 
             if entry.attributes & FS_ATTRIBUTE_DIRECTORY != 0 {
+                log::debug!("found subdir, descending");
                 fq_path.push('/');
                 walk_sub(&fq_path, ctx, results)?;
             } else {
+                log::debug!("found file, adding");
                 let fq_path = PathBuf::from(fq_path);
                 let leaf = CtrArchiveLeaf::new(&fq_path, ctx.clone())?;
                 results.insert(fq_path, leaf);

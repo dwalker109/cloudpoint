@@ -1,5 +1,6 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
+    config::USER_KEY,
     ctr_fs::{self, CtrArchive},
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
@@ -20,6 +21,8 @@ pub struct StateDb(#[serde[skip]] PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+        log::debug!("loading all savedata and extdata from disk");
+
         let db_path = root_path.as_ref().join("state.db");
 
         if let Ok(buf) = fs::read(&db_path) {
@@ -33,7 +36,7 @@ impl StateDb {
     }
 
     pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
-        log::info!("building all savedata and extdata");
+        log::debug!("building all savedata and extdata");
 
         let db_path = root_path.as_ref().join("state.db");
 
@@ -44,13 +47,15 @@ impl StateDb {
     }
 
     pub fn save(&mut self) -> Result<()> {
+        log::debug!("saving state db to disk");
+
         fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
     }
 
     pub fn refresh(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::info!("refreshing all savedata and extdata");
+        log::debug!("refreshing all savedata and extdata");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
 
@@ -80,12 +85,13 @@ impl StateDb {
     }
 
     pub fn refresh_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
-        log::info!("processing {title_id:016X}");
+        log::debug!("processing refresh for title {title_id:016X}");
 
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
                 if existing_state.via_title_ids.insert(title_id) {
                     log::info!("updating {sync_item} reached via {title_id:016X}");
+
                     existing_state.auto_enabled = auto_enabled;
                 } else {
                     log::info!(
@@ -104,6 +110,7 @@ impl StateDb {
                     SyncState::new(
                         sync_item,
                         title_id,
+                        *USER_KEY,
                         &CtrArchive::smdh(sync_item)?,
                         auto_enabled,
                     ),
@@ -126,6 +133,8 @@ impl StateDb {
     }
 
     pub fn toggle_for_title_id(&mut self, title_id: u64) -> Result<()> {
+        log::debug!("toggling auto sync enabled setting for title {title_id:016X}");
+
         let states = self
             .states_mut()
             .filter(|s| s.via_title_ids.contains(&title_id))
@@ -146,6 +155,13 @@ impl StateDb {
         };
 
         for state in states {
+            log::debug!(
+                "state for {:?} was {}, toggling to {}",
+                state.sync_item,
+                state.auto_enabled,
+                toggle_to
+            );
+
             state.auto_enabled = toggle_to;
         }
 

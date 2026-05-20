@@ -18,7 +18,7 @@ pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
     config::Config::builder()
         .set_default("base_url", "https://cloudpoint.dwalker.me")
         .unwrap()
-        .set_default("log_level", "debug")
+        .set_default("log_level", "info")
         .unwrap()
         .set_default("retain_log_qty", 10)
         .unwrap()
@@ -38,11 +38,15 @@ pub static USER_KEY: LazyLock<Uuid> = LazyLock::new(|| {
     let path = AppPath::Base.join("user.key");
 
     if fs::exists(&path).unwrap_or_default() {
+        log::info!("using existing user.key");
+
         let raw = fs::read_to_string(&path).expect("userkey should be accessible");
         let userkey = Uuid::try_parse(&raw).expect("userkey should be a uuid");
 
         userkey
     } else {
+        log::info!("creating new user.key");
+
         let userkey = Uuid::new_v4();
         let mut buf = Uuid::encode_buffer();
         fs::write(&path, userkey.as_hyphenated().encode_lower(&mut buf))
@@ -52,6 +56,7 @@ pub static USER_KEY: LazyLock<Uuid> = LazyLock::new(|| {
     }
 });
 
+#[derive(Debug)]
 pub enum AppPath {
     Base,
     Db,

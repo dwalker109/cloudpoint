@@ -2,6 +2,8 @@ pub struct KeepAwake(());
 
 impl KeepAwake {
     pub fn new() -> Self {
+        log::debug!("entering sleep prevent context...");
+
         if let Err(e) = ffi::ctr_prevent_sleep() {
             log::warn!("could not prevent sleep: {e}");
         }
@@ -12,6 +14,8 @@ impl KeepAwake {
 
 impl Drop for KeepAwake {
     fn drop(&mut self) {
+        log::debug!("...existing sleep prevent context");
+
         if let Err(e) = ffi::ctr_allow_sleep() {
             log::warn!("could not allow sleep: {e}");
         }

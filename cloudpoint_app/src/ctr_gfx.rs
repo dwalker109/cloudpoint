@@ -32,6 +32,8 @@ pub struct Render {
 
 impl Render {
     pub fn new() -> Self {
+        log::debug!("initialising renderer");
+
         unsafe {
             C3D_Init(C3D_DEFAULT_CMDBUF_SIZE as usize);
             C2D_Init(C2D_DEFAULT_MAX_OBJECTS as usize);
@@ -73,6 +75,8 @@ impl Render {
 
 impl Drop for Render {
     fn drop(&mut self) {
+        log::debug!("dropping renderer");
+
         unsafe {
             C2D_TextBufDelete(self.text_buf);
             C2D_Fini();

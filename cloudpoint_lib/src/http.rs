@@ -117,6 +117,8 @@ impl CurlHttpClient {
     }
 
     pub fn get(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response> {
+        log::debug!("performing libcurl GET to {url}");
+
         self.reset_request()?;
 
         let url_c = CString::new(url)?;
@@ -138,6 +140,8 @@ impl CurlHttpClient {
     }
 
     pub fn head(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response> {
+        log::debug!("performing libcurl HEAD to {url}");
+
         self.reset_request()?;
 
         let url_c = CString::new(url)?;
@@ -161,6 +165,8 @@ impl CurlHttpClient {
     }
 
     pub fn put(&self, url: &str, data: &[u8], headers: &[(&str, &str)]) -> Result<Response> {
+        log::debug!("performing libcurl PUT to {url}");
+
         self.reset_request()?;
 
         let url_c = CString::new(url)?;

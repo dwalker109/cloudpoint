@@ -61,17 +61,19 @@ fn run_one(
     alert_tx: &Sender<ModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
+    log::info!("Starting sync of {}", sync_state.sync_item);
+
     if Ac::new()?.wait_internet_connection().is_err() {
+        log::warn!("internet down");
         bail!("No internet connection");
     }
-
-    log::info!("Starting sync of {:?}", sync_state.sync_item);
 
     let Ok(smdh) = CtrArchive::smdh(sync_state.sync_item) else {
         log::info!(
             "{} archive does not exist, cannot sync",
             sync_state.sync_item,
         );
+
         bail!("{} not found; was the title deleted?", sync_state.sync_item);
     };
 
@@ -196,7 +198,7 @@ fn ul(
     local_tree: &Tree<CtrArchiveLeaf>,
     local_fingerprint: Option<u128>,
 ) -> Result<()> {
-    log::info!("Uploading {}", s.sync_item);
+    log::info!("uploading {}", s.sync_item);
 
     sync_progress.message("Uploading").send();
 
@@ -231,7 +233,7 @@ fn dl(
     local_tree: Tree<CtrArchiveLeaf>,
     remote_fingerprint: Option<u128>,
 ) -> Result<()> {
-    log::info!("Downloading {}", s.sync_item);
+    log::info!("downloading {}", s.sync_item);
 
     let remote_ver = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
@@ -276,8 +278,8 @@ fn dl(
     }
 
     if u.progress().is_err() {
-        log::info!(
-            "error occurred while downloading the version: {:?}",
+        log::error!(
+            "error occurred while downloading version: {:?}",
             u.progress()
         );
 
@@ -300,7 +302,7 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
         chrono::Utc::now().format("%Y%m%d-%H%M%S"),
     ));
 
-    log::info!("Backing up to {:?}", root_dir);
+    log::info!("backing up to {:?}", root_dir);
 
     for leaf in local_tree.leaves() {
         let dst_path: PathBuf = root_dir.join(
@@ -315,7 +317,7 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
         io::copy(&mut leaf.data()?, &mut writer)?;
     }
 
-    log::info!("Backup complete");
+    log::info!("backup complete");
 
     Ok(())
 }
