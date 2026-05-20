@@ -39,12 +39,12 @@ impl Screen for ConflictModalScreen {
             BLACK,
             match self.is_first_sync {
                 true => "There is already data on the server for this title",
-                false => "This title has changed both here and on the server",
+                false => "This title has changed both locally and on the server",
             },
         );
         ctx.text_centered(0.0, 105.0, TOP_W, 0.7, BLACK, &self.title_label);
 
-        ctx.text_centered(0.0, 160.0, TOP_W / 2.0, 0.55, DARK_GREY, "Last synced");
+        ctx.text_centered(0.0, 160.0, TOP_W / 2.0, 0.55, DARK_GREY, "Last local sync");
         ctx.text_centered(
             0.0,
             180.0,
@@ -80,24 +80,36 @@ impl Screen for ConflictModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        ctx.text_centered(0.0, 40.0, BOT_W, 0.7, BLACK, "Choose which to keep:");
+
+        ctx.text_centered(40.0, 30.0, BOT_W - 80.0, 1.0, ACCENT, "\u{E079} + \u{E000}");
         ctx.text_centered(
             40.0,
-            86.0,
+            60.0,
             BOT_W - 80.0,
-            0.9,
+            0.6,
             ACCENT,
-            "\u{E079} + \u{E000} Local",
+            "Keep local & upload to server",
         );
+
+        ctx.text_centered(40.0, 95.0, BOT_W - 80.0, 1.0, ACCENT, "\u{E07A} + \u{E000}");
         ctx.text_centered(
             40.0,
-            126.0,
+            125.0,
             BOT_W - 80.0,
-            0.9,
+            0.6,
             ACCENT,
-            "\u{E07A} + \u{E000} Server",
+            "Keep server & replace local",
         );
-        ctx.text_centered(40.0, 166.0, BOT_W - 80.0, 0.9, ACCENT, "\u{E001} Skip");
+
+        ctx.text_centered(40.0, 160.0, BOT_W - 80.0, 1.0, ACCENT, "\u{E001}");
+        ctx.text_centered(
+            40.0,
+            190.0,
+            BOT_W - 80.0,
+            0.6,
+            ACCENT,
+            "Skip & decide next time",
+        );
     }
 }
 
