@@ -2,7 +2,9 @@ use crate::{app::UiMsg, ctr_gfx::*};
 pub use conflict_modal::ConflictModalScreen;
 use ctru::prelude::KeyPad;
 pub use error_modal::ErrorModalScreen;
-pub use help::HelpScreen;
+pub use link::LinkScreen;
+pub use link_client_modal::LinkClientModalScreen;
+pub use link_host_modal::LinkHostModalScreen;
 pub use refresh_modal::RefreshModalScreen;
 pub use sync::SyncScreen;
 pub use sync_modal::SyncModalScreen;
@@ -10,7 +12,9 @@ pub use titles::TitlesScreen;
 
 mod conflict_modal;
 mod error_modal;
-mod help;
+mod link;
+mod link_client_modal;
+mod link_host_modal;
 mod refresh_modal;
 mod shared;
 mod sync;
@@ -21,13 +25,14 @@ mod titles;
 pub enum ScreenId {
     Sync,
     Titles,
-    Help,
+    Link,
 }
 
 pub enum ScreenCommand {
     SwitchTo(ScreenId),
     OpenModal(Box<dyn ModalScreen>),
     CloseModal,
+    RestartApp,
     Noop,
 }
 
