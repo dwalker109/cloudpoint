@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     config::AppPath,
     db::{StateDb, TitleDb},
-    sync,
+    link, sync,
 };
 use anyhow::Result;
 use cloudpoint_lib::http::CurlHttpClient;
@@ -14,7 +14,7 @@ use std::{
 pub fn worker_thread(
     task_rx: Receiver<TaskMsg>,
     ui_tx: Sender<UiMsg>,
-    modal_tx: Sender<ModalMsg>,
+    modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
     let (mut state_db, mut title_db) = {
         if let (Ok(state_db), Ok(title_db)) =
@@ -23,7 +23,7 @@ pub fn worker_thread(
             log::debug!("state db and title db loaded from disk on startup");
             (state_db, title_db)
         } else {
-            modal_tx.send(ModalMsg::Refresh)?;
+            modal_tx.send(OpenModalMsg::Refresh)?;
             let state_db = StateDb::new(AppPath::Db, &ui_tx).expect("state db should be creatable");
             let title_db =
                 TitleDb::new(AppPath::Db, &state_db, &ui_tx).expect("title db should be creatable");
@@ -43,7 +43,7 @@ pub fn worker_thread(
     loop {
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
-                modal_tx.send(ModalMsg::Refresh)?;
+                modal_tx.send(OpenModalMsg::Refresh)?;
                 state_db.refresh(true, &ui_tx)?;
                 title_db.refresh(&state_db, &ui_tx)?;
                 ui_tx.send(UiMsg::RefreshDone {
@@ -78,7 +78,7 @@ pub fn worker_thread(
                             result: "Sync failed".into(),
                             message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
                         })?;
-                        modal_tx.send(ModalMsg::Error {
+                        modal_tx.send(OpenModalMsg::Error {
                             label: "Error".into(),
                             message: e.to_string(),
                         })?;
@@ -107,7 +107,7 @@ pub fn worker_thread(
                             result: "Sync failed".into(),
                             message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
                         })?;
-                        modal_tx.send(ModalMsg::Error {
+                        modal_tx.send(OpenModalMsg::Error {
                             label: "Error".into(),
                             message: e.to_string(),
                         })?;
@@ -117,6 +117,18 @@ pub fn worker_thread(
                     qty_sync_states: state_db.qty_auto(),
                     titles: title_db.titles_sorted_vec(),
                 })?;
+            }
+            Ok(TaskMsg::LinkHost) => {
+                if let Err(e) = link::host(&ui_tx, &modal_tx) {
+                    log::error!("errored during user key share as host: {e}");
+                    ui_tx.send(UiMsg::LinkHostDone { success: false })?;
+                }
+            }
+            Ok(TaskMsg::LinkClient) => {
+                if let Err(e) = link::client(&ui_tx, &modal_tx) {
+                    log::error!("errored during user key share as client: {e}");
+                    ui_tx.send(UiMsg::LinkClientDone { success: false })?;
+                }
             }
             Err(e) => {
                 log::info!("worker thread exiting, this is probably normal: {e}");

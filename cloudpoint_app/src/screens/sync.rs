@@ -103,7 +103,7 @@ impl BaseScreen for SyncScreen {
         } else if keys_down.contains(KeyPad::L) {
             return ScreenCommand::SwitchTo(ScreenId::Titles);
         } else if keys_down.contains(KeyPad::R) {
-            return ScreenCommand::SwitchTo(ScreenId::Help);
+            return ScreenCommand::SwitchTo(ScreenId::Link);
         }
 
         ScreenCommand::Noop

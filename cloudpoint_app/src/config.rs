@@ -1,3 +1,5 @@
+use anyhow::Result;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -47,14 +49,30 @@ pub static USER_KEY: LazyLock<Uuid> = LazyLock::new(|| {
     } else {
         log::info!("creating new user.key");
 
-        let userkey = Uuid::new_v4();
-        let mut buf = Uuid::encode_buffer();
-        fs::write(&path, userkey.as_hyphenated().encode_lower(&mut buf))
-            .expect("userkey should be writable");
+        let user_key = Uuid::new_v4();
+        persist_user_key(user_key).expect("userkey should be writable");
 
-        userkey
+        user_key
     }
 });
+
+pub fn persist_user_key(user_key: Uuid) -> Result<()> {
+    let path = AppPath::Base.join("user.key");
+
+    let mut buf = Uuid::encode_buffer();
+    fs::write(&path, user_key.as_hyphenated().encode_lower(&mut buf))?;
+
+    Ok(())
+}
+
+pub fn backup_user_key() -> Result<()> {
+    let path = AppPath::Backup.join(&format!("user.key.{}", Utc::now().timestamp_millis()));
+
+    let mut buf = Uuid::encode_buffer();
+    fs::write(&path, USER_KEY.as_hyphenated().encode_lower(&mut buf))?;
+
+    Ok(())
+}
 
 #[derive(Debug)]
 pub enum AppPath {

@@ -1,8 +1,9 @@
 use crate::{
-    app::{ModalMsg, TaskMsg, UiMsg, worker_thread},
+    app::{OpenModalMsg, TaskMsg, UiMsg, worker_thread},
     config::AppPath,
 };
 use anyhow::{Context, Result};
+use ctru::services::{am::Am, gfx::Gfx, romfs::RomFS, soc::Soc};
 use std::{
     fs,
     sync::mpsc::{Receiver, Sender},
@@ -23,10 +24,16 @@ pub fn sdmc() -> Result<()> {
     Ok(())
 }
 
+pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx)> {
+    log::debug!("initialising ambient ctr services");
+
+    Ok((Am::new()?, RomFS::new()?, Soc::new()?, Gfx::new()?))
+}
+
 pub fn start_worker(
     task_rx: Receiver<TaskMsg>,
     ui_tx: Sender<UiMsg>,
-    modal_tx: Sender<ModalMsg>,
+    modal_tx: Sender<OpenModalMsg>,
 ) -> Result<JoinHandle<()>> {
     log::debug!("starting worker thread");
 
