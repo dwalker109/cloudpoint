@@ -17,7 +17,7 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
             ctx.rect(178.0 - 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
             ctx.rect(178.0 + 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
         }
-        ScreenId::Help => {
+        ScreenId::Link => {
             ctx.rect(178.0 - 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
             ctx.rect(178.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
         }

@@ -1,4 +1,4 @@
-use crate::{db::TitleDetails, sync::ConflictWinner};
+use crate::{db::TitleDetails, link::SharePermission, sync::ConflictWinner};
 use chrono::{DateTime, Utc};
 use std::sync::{mpsc::Sender, oneshot};
 
@@ -7,9 +7,11 @@ pub enum TaskMsg {
     SyncTargeted(u64),
     Toggle(u64),
     Refresh,
+    LinkHost,
+    LinkClient,
 }
 
-pub enum ModalMsg {
+pub enum OpenModalMsg {
     ResolveConflict {
         title_label: String,
         title_local_time: Option<DateTime<Utc>>,
@@ -20,6 +22,13 @@ pub enum ModalMsg {
     Error {
         label: String,
         message: String,
+    },
+    LinkHost {
+        quit_tx: Sender<()>,
+    },
+    LinkClient {
+        fc: u64,
+        quit_tx: Sender<()>,
     },
 }
 
@@ -40,6 +49,16 @@ pub enum UiMsg {
     RefreshDone {
         qty_sync_states: usize,
         titles: Vec<TitleDetails>,
+    },
+    LinkHostConfirm {
+        fc: u64,
+        reply_tx: Sender<SharePermission>,
+    },
+    LinkHostDone {
+        success: bool,
+    },
+    LinkClientDone {
+        success: bool,
     },
 }
 

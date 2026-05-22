@@ -1,14 +1,15 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ErrorModalScreen, HelpScreen, ModalScreen,
-        RefreshModalScreen, ScreenCommand, ScreenId, SyncScreen, TitlesScreen,
+        BaseScreen, ConflictModalScreen, ErrorModalScreen, LinkClientModalScreen,
+        LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
+        SyncScreen, TitlesScreen,
     },
-    services::CtrServices,
     setup,
 };
 use anyhow::Result;
-use ctru::services::hid::KeyPad;
+use ctru::prelude::*;
+use ctru::services::apt::Chainloader;
 pub use msg::*;
 use std::{
     collections::HashMap,
@@ -25,14 +26,17 @@ pub struct App {
     modal_stack: Vec<Box<dyn ModalScreen>>,
     _task_tx: Sender<TaskMsg>,
     ui_rx: Receiver<UiMsg>,
-    alert_rx: Receiver<ModalMsg>,
+    modal_rx: Receiver<OpenModalMsg>,
 }
 
 impl App {
-    pub fn run(mut services: CtrServices) -> Result<()> {
+    pub fn run() -> Result<()> {
+        let apt = Apt::new()?;
+        let mut hid = Hid::new()?;
+
         let (task_tx, task_rx) = channel::<TaskMsg>();
         let (ui_tx, ui_rx) = channel::<UiMsg>();
-        let (modal_tx, modal_rx) = channel::<ModalMsg>();
+        let (modal_tx, modal_rx) = channel::<OpenModalMsg>();
 
         let handle = setup::start_worker(task_rx, ui_tx, modal_tx)?;
 
@@ -47,15 +51,15 @@ impl App {
                     Box::new(TitlesScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
                 (
-                    ScreenId::Help,
-                    Box::new(HelpScreen::new()) as Box<dyn BaseScreen>,
+                    ScreenId::Link,
+                    Box::new(LinkScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
             ]),
             active_screen: ScreenId::Sync,
             modal_stack: Vec::with_capacity(4),
             _task_tx: task_tx,
             ui_rx,
-            alert_rx: modal_rx,
+            modal_rx,
         };
 
         let mut render = Render::new();
@@ -63,10 +67,10 @@ impl App {
 
         log::info!("entering main_loop");
 
-        while services.apt.main_loop() {
-            services.hid.scan_input();
-            let keys_down = services.hid.keys_down();
-            let keys_held = services.hid.keys_held();
+        'main: while apt.main_loop() {
+            hid.scan_input();
+            let keys_down = hid.keys_down();
+            let keys_held = hid.keys_held();
 
             if keys_down.contains(KeyPad::START) {
                 break;
@@ -100,13 +104,17 @@ impl App {
                     ScreenCommand::CloseModal => {
                         app.modal_stack.pop();
                     }
+                    ScreenCommand::RestartApp => {
+                        Chainloader::new(&apt).set_to_self();
+                        break 'main;
+                    }
                     _ => {}
                 }
             }
 
-            if let Ok(msg) = app.alert_rx.try_recv() {
+            if let Ok(msg) = app.modal_rx.try_recv() {
                 match msg {
-                    ModalMsg::ResolveConflict {
+                    OpenModalMsg::ResolveConflict {
                         title_label,
                         title_local_time,
                         title_remote_time,
@@ -119,13 +127,19 @@ impl App {
                             reply_tx,
                         )));
                     }
-                    ModalMsg::Refresh => {
+                    OpenModalMsg::Refresh => {
                         app.modal_stack.push(Box::new(RefreshModalScreen::new()));
                     }
-                    ModalMsg::Error { label, message } => {
+                    OpenModalMsg::Error { label, message } => {
                         app.modal_stack
                             .push(Box::new(ErrorModalScreen::new(label, message)));
                     }
+                    OpenModalMsg::LinkHost { quit_tx } => app
+                        .modal_stack
+                        .push(Box::new(LinkHostModalScreen::new(quit_tx))),
+                    OpenModalMsg::LinkClient { fc, quit_tx } => app
+                        .modal_stack
+                        .push(Box::new(LinkClientModalScreen::new(fc, quit_tx))),
                 }
             }
 

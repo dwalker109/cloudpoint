@@ -1,5 +1,5 @@
 use crate::{
-    app::{ModalMsg, SyncProgress, UiMsg},
+    app::{OpenModalMsg, SyncProgress, UiMsg},
     config::{AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
@@ -38,7 +38,7 @@ pub enum ConflictWinner {
 pub fn run<'a>(
     states: impl Iterator<Item = &'a mut SyncState>,
     ui_tx: Sender<UiMsg>,
-    alert_tx: Sender<ModalMsg>,
+    modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     let _keep_awake = KeepAwake::new();
@@ -48,7 +48,7 @@ pub fn run<'a>(
     let total = states.len();
 
     for (i, sync_state) in states.into_iter().enumerate() {
-        run_one(sync_state, &mut sync_progress, &alert_tx, &client)?;
+        run_one(sync_state, &mut sync_progress, &modal_tx, &client)?;
         sync_progress.progress((i + 1) * 100 / total);
     }
 
@@ -58,7 +58,7 @@ pub fn run<'a>(
 fn run_one(
     sync_state: &mut SyncState,
     sync_progress: &mut SyncProgress,
-    alert_tx: &Sender<ModalMsg>,
+    alert_tx: &Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
     log::info!("Starting sync of {}", sync_state.sync_item);
@@ -127,7 +127,7 @@ fn run_one(
             let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
 
             alert_tx
-                .send(ModalMsg::ResolveConflict {
+                .send(OpenModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
                     title_local_time: sync_state.synced_at,
                     title_remote_time: remote_ver.map(|v| v.mtime().clone()),
