@@ -2,6 +2,7 @@ use super::*;
 
 pub struct SyncModalScreen {
     task_running: bool,
+    progress: usize,
     upper_1: String,
     upper_2: String,
 }
@@ -10,6 +11,7 @@ impl SyncModalScreen {
     pub fn new() -> Self {
         Self {
             task_running: true,
+            progress: 0,
             upper_1: String::new(),
             upper_2: String::new(),
         }
@@ -25,21 +27,40 @@ impl Screen for SyncModalScreen {
 
     fn draw_lower(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
-        let text = if self.task_running {
-            "Please do not touch \u{E078}"
+        if self.task_running {
+            ctx.rect(40.0, 110.0, 240.0, 20.0, ACCENT_TRANS);
+            ctx.rect(
+                40.0,
+                110.0,
+                self.progress as f32 * 240.0 / 100.0,
+                20.0,
+                ACCENT,
+            );
+            ctx.text_centered(
+                0.0,
+                190.0,
+                BOT_W,
+                0.6,
+                ACCENT,
+                "Please do not touch \u{E078}",
+            );
         } else {
-            "\u{E000} Continue"
-        };
-        ctx.text_centered(0.0, 110.0, BOT_W, 0.6, ACCENT, &text);
+            ctx.text_centered(0.0, 110.0, BOT_W, 0.6, ACCENT, "\u{E000} Continue");
+        }
     }
 }
 
 impl ModalScreen for SyncModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::SyncProgress { label, message, .. } => {
+            UiMsg::SyncProgress {
+                label,
+                message,
+                progress,
+            } => {
                 self.upper_1 = label.clone();
                 self.upper_2 = message.clone();
+                self.progress = *progress;
             }
             UiMsg::SyncDone { result, message } => {
                 self.task_running = false;
