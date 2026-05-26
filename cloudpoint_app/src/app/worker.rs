@@ -121,13 +121,17 @@ pub fn worker_thread(
             Ok(TaskMsg::LinkHost) => {
                 if let Err(e) = link::host(&ui_tx, &modal_tx) {
                     log::error!("errored during user key share as host: {e}");
-                    ui_tx.send(UiMsg::LinkHostDone { success: false })?;
+                    ui_tx.send(UiMsg::LinkUpdate {
+                        state: link::LinkState::Failed,
+                    })?;
                 }
             }
             Ok(TaskMsg::LinkClient) => {
                 if let Err(e) = link::client(&ui_tx, &modal_tx) {
                     log::error!("errored during user key share as client: {e}");
-                    ui_tx.send(UiMsg::LinkClientDone { success: false })?;
+                    ui_tx.send(UiMsg::LinkUpdate {
+                        state: link::LinkState::Failed,
+                    })?;
                 }
             }
             Err(e) => {
