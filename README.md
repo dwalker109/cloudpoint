@@ -25,17 +25,17 @@ Please report and technical issues over there, including bugs, crashes and incom
 ### If you have one console
 
 1. Run Cloudpoint on your first console (console 1) - it will scan for saves and enable them for auto sync.
-1. Press (A) to sync and wait for the progress bar to complete. 
+1. Press **A** to sync and wait for the progress bar to complete. 
 1. You are synced! Take your user key to a new console or run Cloudpoint again after formatting 
    your system to restore saves and extdata.
 
 ### If you have additional consoles
 
-1. On console 1, press (R) to reach the *Link* screen and press (X) to share your user key.
+1. On console 1, press **R** to reach the *Link* screen and press **X** to share your user key.
 1. Run Cloudpoint on another console (console 2) - it will scan for saves and enable them for auto sync. 
-1. Press (R) to reach the *Link* screen and press (Y) to receive your key from the first console.
+1. Press **R** to reach the *Link* screen and press **Y** to receive your key from the first console.
    Follow the onscreen prompts on both consoles; Cloudpoint will restart on completion.
-1. Once Cloudpoint reloads, press (A) to sync and expect to be asked to resolve conflicts for any game
+1. Once Cloudpoint reloads, press **A** to sync and expect to be asked to resolve conflicts for any game
   You have installed on both consoles. You will usually see this screen *the first time* you sync a
   game on a given console, or if you progress in a game on *multiple consoles without syncing*.
 1. You are synced! You are now free to use a N3DSXL at home and a N3DS on the go; no more compromise!
@@ -48,6 +48,9 @@ Please report and technical issues over there, including bugs, crashes and incom
   you lose your console or memory card, there is no other way to recover your saves).
 - Auto sync when you pick up your console for a play session, auto sync again when you finish. This
   will avoid any need to resolve conflicts.
+- Saves and/or extdata for a game can be disabled from the Titles screen (press **L**). Disabling auto
+  sync for titles you aren't currently playing will speed auto sync up a great deal. you can still sync
+  and title manually by highlighting it and pressing **A**.
 
 ## FAQ
 
