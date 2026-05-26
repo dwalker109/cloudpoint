@@ -6,7 +6,7 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
 
     ctx.icon(ICON_LIST, 178.0 - 64.0, 0.0, 1.0);
     ctx.icon(ICON_CLOUD, 178.0, 0.0, 1.0);
-    ctx.icon(ICON_INFO, 178.0 + 64.0, 0.0, 1.0);
+    ctx.icon(ICON_LINK, 178.0 + 64.0, 0.0, 1.0);
 
     match cur_screen {
         ScreenId::Titles => {
