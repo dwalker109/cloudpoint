@@ -11,7 +11,7 @@ use std::{
 };
 
 pub fn sdmc() -> Result<()> {
-    let paths = [AppPath::Base, AppPath::Db, AppPath::Log];
+    let paths = [AppPath::Base, AppPath::Db, AppPath::Log, AppPath::Backup];
 
     log::debug!("ensuring paths exist: {:?}", &paths);
 
