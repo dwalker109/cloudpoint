@@ -15,20 +15,20 @@ to from more modern consoles.
 
 - Run Cloudpoint on your first console - it will scan for saves and enable them for auto sync.
 - Press (A) to sync and wait for the progress bar to complete.
-- Make a backup of your *user.key* from `/3ds/Cloudpoint/user.key` (you will need this to set up your
-  other consoles).
-- On any other consoles you want to sync, copy your *user.key* into `/3ds/Cloudpoint` (create the
-  directory if it doesn't exist, overwrite the file if it already exists).
-- Run Cloudpoint on your second (or third, or fourth) console - it will scan for saves and enable
-  them for auto sync.
-- Press (A) to sync and expect to be asked to resolve conflicts for any game you have installed on both.
-  You will usually see this screen *the first time* you sync a game on a given console, or if you
-  progress in a game on *multiple consoles without syncing*.
+- Press (R) to reach the *Link* screen and press (X) to send your key to another console
+- Run Cloudpoint on your second console - it will scan for saves and enable them for auto sync.
+- Press (R) to reach the *Link* screen and press (Y) to receive your key from the first console.
+  Cloudpoint will restart on completion.
+- Once it reloads, press (A) to sync and expect to be asked to resolve conflicts for any game
+  You have installed on both. You will usually see this screen *the first time* you sync a
+  game on a given console, or if you progress in a game on *multiple consoles without syncing*.
 
 ## Best Practice
 
-- **Keep backups yourself**. Do this from time to time. Bugs happen and I don't want you to lose your
-  1000 hour Pokémon saves.
+- **Keep save backups yourself**. Do this from time to time. Bugs happen and I don't want you to lose
+  your 1000 hour Pokémon saves.
+- Make a backup of your *user.key* from `/3ds/Cloudpoint/user.key` (you will need this in the event
+  you lose your console or memory card, there is no other way to recover your saves).
 - Auto sync when you pick up your console for a play session, auto sync again when you finish. This
   will avoid any need to resolve conflicts.
 
@@ -47,5 +47,4 @@ the UI. We *do* know when you last synced a save, so we use that in the UI inste
 
 ## Roadmap
 
-- Use QR codes to share your *user.key* across consoles.
 - Time travel; move between server save versions at your leisure.
