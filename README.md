@@ -8,13 +8,13 @@ to from more modern consoles.
 
 ## Installing
 
-- Cloudpoint is available on Universal Updater, which is the best way to install it and keep it up to date.
+- Cloudpoint will soon be available on Universal Updater, which is the best way to install it and keep it up to date.
 - Alternatively, download the [latest release](https://github.com/dwalker109/cloudpoint/releases/latest)
   manually and install with FBI.
 
 ## Quickstart
 
-- Run Cloudpoint on your first console - it will scan for saves and enable them for auto sync.
+1. Run Cloudpoint on your first console - it will scan for saves and enable them for auto sync.
 - Press (A) to sync and wait for the progress bar to complete.
 - Press (R) to reach the *Link* screen and press (X) to send your key to another console
 - Run Cloudpoint on your second console - it will scan for saves and enable them for auto sync.
