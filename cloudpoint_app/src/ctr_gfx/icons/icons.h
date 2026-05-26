@@ -3,5 +3,5 @@
 
 #define icons_cloud_idx 0
 #define icons_help_qr_idx 1
-#define icons_info_idx 2
+#define icons_link_idx 2
 #define icons_list_idx 3
