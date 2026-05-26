@@ -1,4 +1,8 @@
-use crate::{db::TitleDetails, link::SharePermission, sync::ConflictWinner};
+use crate::{
+    db::TitleDetails,
+    link::{LinkState, SharePermission},
+    sync::ConflictWinner,
+};
 use chrono::{DateTime, Utc};
 use std::sync::{mpsc::Sender, oneshot};
 
@@ -51,14 +55,17 @@ pub enum UiMsg {
         titles: Vec<TitleDetails>,
     },
     LinkHostConfirm {
-        fc: u64,
+        friend_code: String,
         reply_tx: Sender<SharePermission>,
+        state: LinkState,
     },
-    LinkHostDone {
-        success: bool,
+    LinkClientConfirm {
+        new_user_key: String,
+        reply_tx: Sender<SharePermission>,
+        state: LinkState,
     },
-    LinkClientDone {
-        success: bool,
+    LinkUpdate {
+        state: LinkState,
     },
 }
 
