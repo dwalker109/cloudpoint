@@ -30,6 +30,8 @@ impl Screen for LinkClientModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
 
+        ctx.text_centered(0.0, 40.0, TOP_W, 1.2, ACCENT, "\u{E075} \u{E01A}");
+
         let (l1, l2, l3) = match self.state {
             LinkState::Succeeded => (
                 "User key received successfully - Cloudpoint will restart.",
@@ -54,9 +56,9 @@ impl Screen for LinkClientModalScreen {
             LinkState::WaitingHost(..) => unreachable!(),
         };
 
-        ctx.text_centered(0.0, 80.0, TOP_W, 0.5, BLACK, &l1);
-        ctx.text_centered(0.0, 100.0, TOP_W, 0.5, BLACK, &l2);
-        ctx.text_centered(0.0, 140.0, TOP_W, 1.2, ACCENT, &l3);
+        ctx.text_centered(0.0, 100.0, TOP_W, 0.5, BLACK, &l1);
+        ctx.text_centered(0.0, 120.0, TOP_W, 0.5, BLACK, &l2);
+        ctx.text_centered(0.0, 160.0, TOP_W, 1.2, ACCENT, &l3);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
