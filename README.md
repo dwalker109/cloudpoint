@@ -9,7 +9,8 @@ to from more modern consoles.
 ## Installing
 
 - Cloudpoint is available on Universal Updater, which is the best way to install it and keep it up to date.
-- Alternatively, download the latest release manually and install with FBI.
+- Alternatively, download the [latest release](https://github.com/dwalker109/cloudpoint/releases/latest)
+  manually and install with FBI.
 
 ## Quickstart
 
