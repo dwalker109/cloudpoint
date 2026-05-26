@@ -161,9 +161,17 @@ impl App {
         // worker at a potentially bad point (like halfway through a file write).
         log::debug!("about to drop app and await worker exit");
         drop(app);
-        handle
-            .join()
-            .expect("worker thread should be joinable after shutdown");
+        match handle.join() {
+            Ok(Ok(_)) => {
+                log::debug!("app exited cleanly, likely no work in flight");
+            }
+            Ok(Err(e)) => {
+                log::warn!("app exited with a worker error (this is probably fine): {e}");
+            }
+            Err(_) => {
+                log::warn!("app exited and could not join worker thread, this is not expected");
+            }
+        }
 
         Ok(())
     }
