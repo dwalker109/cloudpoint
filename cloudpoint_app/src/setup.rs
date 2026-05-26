@@ -34,14 +34,12 @@ pub fn start_worker(
     task_rx: Receiver<TaskMsg>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
-) -> Result<JoinHandle<()>> {
+) -> Result<JoinHandle<Result<()>>> {
     log::debug!("starting worker thread");
 
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
-        .spawn(move || {
-            worker_thread(task_rx, ui_tx, modal_tx).expect("worker thread should exit cleanly")
-        })?;
+        .spawn(move || worker_thread(task_rx, ui_tx, modal_tx))?;
 
     Ok(handle)
 }
