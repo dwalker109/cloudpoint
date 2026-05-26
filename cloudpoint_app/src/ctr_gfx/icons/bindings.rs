@@ -4,5 +4,5 @@
 
 pub const ICON_CLOUD: u32 = 0;
 pub const ICON_HELP_QR: u32 = 1;
-pub const ICON_INFO: u32 = 2;
+pub const ICON_LINK: u32 = 2;
 pub const ICON_LIST: u32 = 3;
