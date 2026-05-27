@@ -162,15 +162,8 @@ impl App {
         log::debug!("about to drop app and await worker exit");
         drop(app);
         match handle.join() {
-            Ok(Ok(_)) => {
-                log::debug!("app exited cleanly, likely no work in flight");
-            }
-            Ok(Err(e)) => {
-                log::warn!("app exited with a worker error (this is probably fine): {e}");
-            }
-            Err(_) => {
-                log::warn!("app exited and could not join worker thread, this is not expected");
-            }
+            Ok(_) => log::debug!("app exited with clean worker join, likely no work in flight"),
+            Err(_) => log::warn!("app exited and could not join worker, this is not expected"),
         }
 
         Ok(())

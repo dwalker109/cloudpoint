@@ -39,7 +39,7 @@ const CTRL_FIN_ERR: u8 = 0x05;
 
 pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()> {
     let (quit_tx, quit_rx) = mpsc::channel::<()>();
-    modal_tx.send(OpenModalMsg::LinkHost { quit_tx })?;
+    modal_tx.send(OpenModalMsg::LinkHost { quit_tx }).ok();
 
     let mut uds = Uds::new(None)?;
     uds.create_network(COMM_ID, None, Some(2), PASSPHRASE, CHANNEL)?;
@@ -65,15 +65,17 @@ pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()
                 uds.allow_new_clients(false)?;
                 let fc = u64::from_le_bytes(buf[1..9].try_into()?);
                 state = LinkState::WaitingHost((client_node, fc));
-                ui_tx.send(UiMsg::LinkHostConfirm {
-                    state,
-                    friend_code: format_friend_code_seed(fc),
-                    reply_tx: reply_tx.clone(),
-                })?;
+                ui_tx
+                    .send(UiMsg::LinkHostConfirm {
+                        state,
+                        friend_code: format_friend_code_seed(fc),
+                        reply_tx: reply_tx.clone(),
+                    })
+                    .ok();
             }
             Ok(Some((buf, ..))) if buf[0] == CTRL_FIN_OK => {
                 state = LinkState::Succeeded;
-                ui_tx.send(UiMsg::LinkUpdate { state })?;
+                ui_tx.send(UiMsg::LinkUpdate { state }).ok();
                 break;
             }
             Ok(Some((buf, ..))) if buf[0] == CTRL_FIN_ERR => {
@@ -98,7 +100,7 @@ pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()
                     pkt[9..25].copy_from_slice(USER_KEY.as_bytes());
                     uds.send_packet(&pkt, client_node, 1, SendFlags::Default)?;
                     state = LinkState::WaitingClient((NodeID::None, *USER_KEY));
-                    ui_tx.send(UiMsg::LinkUpdate { state })?;
+                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
                 }
                 SharePermission::Deny => {
                     uds.eject_client(client_node)?;
@@ -114,7 +116,7 @@ pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()
 pub fn client(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()> {
     let (quit_tx, quit_rx) = mpsc::channel::<()>();
     let fc = get_friend_code_seed()?;
-    modal_tx.send(OpenModalMsg::LinkClient { fc, quit_tx })?;
+    modal_tx.send(OpenModalMsg::LinkClient { fc, quit_tx }).ok();
 
     let mut uds = Uds::new(None)?;
 
@@ -162,11 +164,13 @@ pub fn client(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<
 
                 let new_user_key = Uuid::from_slice(&buf[9..25])?;
                 state = LinkState::WaitingClient((host_node, new_user_key));
-                ui_tx.send(UiMsg::LinkClientConfirm {
-                    state,
-                    new_user_key: new_user_key.as_simple().to_string(),
-                    reply_tx: reply_tx.clone(),
-                })?;
+                ui_tx
+                    .send(UiMsg::LinkClientConfirm {
+                        state,
+                        new_user_key: new_user_key.as_simple().to_string(),
+                        reply_tx: reply_tx.clone(),
+                    })
+                    .ok();
             }
             Ok(Some((buf, ..))) if buf[0] == CTRL_FIN_ERR => {
                 bail!("other side hung up");
@@ -187,13 +191,13 @@ pub fn client(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<
                     backup_user_key()?;
                     persist_user_key(new_user_key)?;
                     state = LinkState::Succeeded;
-                    ui_tx.send(UiMsg::LinkUpdate { state })?;
+                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
                     uds.send_packet(&[CTRL_FIN_OK], client_node, CHANNEL, SendFlags::Default)?;
                     break;
                 }
                 SharePermission::Deny => {
                     state = LinkState::Failed;
-                    ui_tx.send(UiMsg::LinkUpdate { state })?;
+                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
                     uds.send_packet(&[CTRL_FIN_ERR], client_node, CHANNEL, SendFlags::Default)?;
                     break;
                 }
