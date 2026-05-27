@@ -25,6 +25,7 @@ pub struct App {
     active_screen: ScreenId,
     modal_stack: Vec<Box<dyn ModalScreen>>,
     _task_tx: Sender<TaskMsg>,
+    _shutdown_tx: Sender<()>,
     ui_rx: Receiver<UiMsg>,
     modal_rx: Receiver<OpenModalMsg>,
 }
@@ -35,10 +36,11 @@ impl App {
         let mut hid = Hid::new()?;
 
         let (task_tx, task_rx) = channel::<TaskMsg>();
+        let (shutdown_tx, shutdown_rx) = channel::<()>();
         let (ui_tx, ui_rx) = channel::<UiMsg>();
         let (modal_tx, modal_rx) = channel::<OpenModalMsg>();
 
-        let handle = setup::start_worker(task_rx, ui_tx, modal_tx)?;
+        let handle = setup::start_worker(task_rx, shutdown_rx, ui_tx, modal_tx)?;
 
         let mut app = App {
             screens: HashMap::from([
@@ -58,6 +60,7 @@ impl App {
             active_screen: ScreenId::Sync,
             modal_stack: Vec::with_capacity(4),
             _task_tx: task_tx,
+            _shutdown_tx: shutdown_tx,
             ui_rx,
             modal_rx,
         };

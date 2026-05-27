@@ -13,6 +13,7 @@ use std::{
 
 pub fn worker_thread(
     task_rx: Receiver<TaskMsg>,
+    shutdown_rx: Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
@@ -69,6 +70,7 @@ pub fn worker_thread(
             Ok(TaskMsg::SyncAuto) => {
                 match sync::run(
                     state_db.states_mut().filter(|s| s.auto_enabled),
+                    &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
@@ -104,6 +106,7 @@ pub fn worker_thread(
                     state_db
                         .states_mut()
                         .filter(|s| s.via_title_ids.contains(&title_id)),
+                    &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
