@@ -1,3 +1,6 @@
 :80 {
+    request_body {
+	    max_size 288KB
+    }
     reverse_proxy dufs:5000
 }
