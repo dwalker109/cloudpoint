@@ -8,6 +8,8 @@ use std::{
 };
 use uuid::Uuid;
 
+use crate::ctr_title::{SD_APP_TITLES, smdh};
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
     pub base_url: String,
@@ -73,6 +75,20 @@ pub fn backup_user_key() -> Result<()> {
 
     Ok(())
 }
+
+pub static APP_VER: LazyLock<String> = LazyLock::new(|| {
+    let version = SD_APP_TITLES
+        .iter()
+        .find(|&(title_id, _)| *title_id == 0x000400000FF00100)
+        .map(|(_, title)| title.version)
+        .unwrap_or_default();
+
+    let major = version >> 10;
+    let minor = (version >> 4) & 0x3F;
+    let patch = version & 0xF;
+
+    format!("{major}.{minor}.{patch}")
+});
 
 #[derive(Debug)]
 pub enum AppPath {
