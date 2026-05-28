@@ -1,6 +1,6 @@
 # Cloudpoint
 
-> Bringing modern cloud save to 3DS!
+> Bringing modern cloud save to 3DS.
 
 Cloudpoint allows you to sync all of your saves (and extdata) between all of your 3DS & 2DS devices, 
 via a central server. Transfer progress between consoles effortlessly, the way you're probably used 
@@ -11,7 +11,8 @@ to from more modern systems. Or PS Vita.
 
 ## Installing
 
-- Cloudpoint will soon be available on Universal Updater, which is the best way to install it and keep it up to date.
+- Cloudpoint is [available on Universal Updater](https://db.universal-team.net/3ds/cloudpoint),
+  which is the best way to install it and keep it up to date.
 - Or, download the [latest release](https://github.com/dwalker109/cloudpoint/releases/latest) manually.
 
 ## Warranty, Support & License
@@ -23,6 +24,11 @@ Please join the [Discord](https://discord.gg/DTujASJyg) and help me build a comm
 Please report and technical issues over there, including bugs, crashes and incompatibilities with specific games. 
 
 MIT licensed.
+
+## Fair Use
+
+There are no stated limits on the size and freqency of your save activity. 3DS saves are tiny and I'm not expecting
+there to be issues. However, I reserve the right to deny access to any obviously malicious actors without warning.
 
 ## Quickstart
 
