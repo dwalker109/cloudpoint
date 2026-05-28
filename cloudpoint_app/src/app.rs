@@ -3,7 +3,7 @@ use crate::{
     screens::{
         BaseScreen, ConflictModalScreen, ErrorModalScreen, LinkClientModalScreen,
         LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
-        SyncScreen, TitlesScreen,
+        ShutdownModalScreen, SyncScreen, TitlesScreen,
     },
     setup,
 };
@@ -76,6 +76,12 @@ impl App {
             let keys_held = hid.keys_held();
 
             if keys_down.contains(KeyPad::START) {
+                app.modal_stack.push(Box::new(ShutdownModalScreen::new()));
+                render.frame(
+                    app.screens.get_mut(&app.active_screen).unwrap().as_ref(),
+                    app.modal_stack.last().map(|m| m.as_ref()),
+                );
+
                 break;
             }
 
@@ -146,15 +152,13 @@ impl App {
                 }
             }
 
-            let active_screen = app.screens.get_mut(&app.active_screen).unwrap();
-
             render.frame(
-                active_screen.as_ref(),
+                app.screens.get_mut(&app.active_screen).unwrap().as_ref(),
                 app.modal_stack.last().map(|m| m.as_ref()),
             );
         }
 
-        log::info!("exited main_loop");
+        log::info!("exited main_loop, shutting down");
 
         // Dropping the app is important since it:
         // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
@@ -165,7 +169,7 @@ impl App {
         log::debug!("about to drop app and await worker exit");
         drop(app);
         match handle.join() {
-            Ok(_) => log::debug!("app exited with clean worker join, likely no work in flight"),
+            Ok(_) => log::debug!("app exited with clean worker join"),
             Err(_) => log::warn!("app exited and could not join worker, this is not expected"),
         }
 
