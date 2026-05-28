@@ -32,6 +32,7 @@ pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx)> {
 
 pub fn start_worker(
     task_rx: Receiver<TaskMsg>,
+    shutdown_rx: Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<JoinHandle<Result<()>>> {
@@ -39,7 +40,7 @@ pub fn start_worker(
 
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
-        .spawn(move || worker_thread(task_rx, ui_tx, modal_tx))?;
+        .spawn(move || worker_thread(task_rx, shutdown_rx, ui_tx, modal_tx))?;
 
     Ok(handle)
 }

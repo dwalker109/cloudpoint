@@ -26,7 +26,10 @@ use std::{
     io::{self, BufWriter},
     path::PathBuf,
     rc::Rc,
-    sync::{mpsc::Sender, oneshot},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        oneshot,
+    },
 };
 
 pub enum ConflictWinner {
@@ -37,6 +40,7 @@ pub enum ConflictWinner {
 
 pub fn run<'a>(
     states: impl Iterator<Item = &'a mut SyncState>,
+    shutdown_rx: &Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
@@ -48,6 +52,11 @@ pub fn run<'a>(
     let total = states.len();
 
     for (i, sync_state) in states.into_iter().enumerate() {
+        if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
+            log::info!("aborting mid sync due to app shutdown");
+            return Ok(());
+        }
+
         run_one(sync_state, &mut sync_progress, &modal_tx, &client)?;
         sync_progress.progress((i + 1) * 100 / total);
     }
