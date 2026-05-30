@@ -25,21 +25,19 @@ impl Screen for SyncScreen {
 
         ctx.text_centered(0.0, 100.0, TOP_W, 1.0, ACCENT, "Ready");
         ctx.text_centered(0.0, 140.0, TOP_W, 0.7, BLACK, &self.status_text);
-        ctx.text_centered(
-            0.0,
-            TOP_H - 35.0,
-            TOP_W,
+        ctx.text(
+            10.0,
+            TOP_H - 20.0,
             0.4,
             GREY_TRANS,
             &format!("Ver {}", *APP_VER),
         );
-        ctx.text_centered(
-            0.0,
+        ctx.text(
+            315.0,
             TOP_H - 20.0,
-            TOP_W,
             0.4,
             GREY_TRANS,
-            &format!("User {}", *USER_KEY.as_hyphenated()),
+            &format!("User {}", &USER_KEY.to_string()[..8]),
         );
     }
 
