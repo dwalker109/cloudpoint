@@ -256,6 +256,7 @@ dependencies = [
  "postcard",
  "serde",
  "serde_json",
+ "twox-hash",
  "uuid",
 ]
 

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::AppPath,
+    config::{AppPath, DEVICE_KEY, REALTIME_DEVICE_KEY, persist_device_key},
     db::{StateDb, TitleDb},
     link, sync,
 };
@@ -18,8 +18,9 @@ pub fn worker_thread(
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
     let (mut state_db, mut title_db) = {
-        if let (Ok(state_db), Ok(title_db)) =
-            (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
+        if *REALTIME_DEVICE_KEY == *DEVICE_KEY
+            && let (Ok(state_db), Ok(title_db)) =
+                (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
         {
             log::debug!("state db and title db loaded from disk on startup");
             (state_db, title_db)
@@ -28,8 +29,9 @@ pub fn worker_thread(
             let state_db = StateDb::new(AppPath::Db, &ui_tx).expect("state db should be creatable");
             let title_db =
                 TitleDb::new(AppPath::Db, &state_db, &ui_tx).expect("title db should be creatable");
+            persist_device_key(*REALTIME_DEVICE_KEY).expect("device.key should be creatable");
 
-            log::debug!("state db and title db recreated on startup");
+            log::debug!("state db, title db, device.key recreated on startup");
             (state_db, title_db)
         }
     };
