@@ -12,7 +12,7 @@ use ffi::{
     ctr_read_title_smdh, ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
 };
 use std::ffi::{CString, c_void};
-use std::io::Error as IoError;
+use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
 mod ffi;
 
@@ -31,7 +31,13 @@ impl CtrNand {
     pub fn movable_sed(&self) -> Result<Vec<u8>, IoError> {
         let path = CtrFsPath::new("/private/movable.sed")?;
         let file_handle = ctr_open_file(self.nand_handle, path.fs_path(), FS_OPEN_READ)?;
-        let data = ctr_read_file(file_handle, 0, 288)?;
+        let size = ctr_get_file_size(file_handle)?;
+        let mut file = CtrFile {
+            file_handle,
+            size,
+            pos: 0,
+        };
+        let data = file.read_to_vec(0, 288)?;
 
         Ok(data)
     }
@@ -84,7 +90,7 @@ pub struct CtrArchive {
 
 impl CtrArchive {
     pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
-        log::debug!("fetching smdh for {:?}", sync_item);
+        log::debug!("fetching smdh for {}", sync_item);
 
         match sync_item {
             SyncItem::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
@@ -93,7 +99,7 @@ impl CtrArchive {
     }
 
     pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
-        log::debug!("opening archive for {:?}", sync_item);
+        log::debug!("opening archive for {}", sync_item);
 
         let path = CtrArchivePath::new(sync_item)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
@@ -115,8 +121,13 @@ impl CtrArchive {
             self.sync_item
         );
 
+        let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
+        let size = ctr_get_file_size(file_handle)?;
+
         Ok(CtrFile {
-            file_handle: ctr_open_file(self.archive_handle, path.fs_path(), flags)?,
+            file_handle,
+            size,
+            pos: 0,
         })
     }
 
@@ -196,18 +207,23 @@ impl CtrFsPath {
 
 pub struct CtrFile {
     file_handle: Handle,
+    pos: u64,
+    size: u64,
 }
 
 impl CtrFile {
-    pub fn read(&self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
+    pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
         log::debug!(
-            "reading from handle {} at offset {} with length {}",
+            "reading to owned vec from handle {} at offset {} with length {}",
             self.file_handle,
             offset,
             length
         );
 
-        ctr_read_file(self.file_handle, offset, length)
+        let mut buf = vec![0u8; length as usize];
+        self.read_exact(&mut buf)?;
+
+        Ok(buf)
     }
 
     pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
@@ -235,6 +251,52 @@ impl CtrFile {
         );
 
         ctr_set_file_size(self.file_handle, size)
+    }
+}
+
+impl Read for CtrFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        log::debug!(
+            "reading to provided buffer (of len {}) from handle {} at offset {}",
+            buf.len(),
+            self.file_handle,
+            self.pos,
+        );
+
+        let bytes_to_eof = match self.size.checked_sub(self.pos) {
+            Some(0) | None => {
+                return Ok(0);
+            }
+            Some(n) => n,
+        };
+
+        let bytes_to_read = (buf.len() as u64).min(bytes_to_eof) as usize;
+
+        let n = ctr_read_file(self.file_handle, self.pos, &mut buf[..bytes_to_read])?;
+        self.pos += n;
+
+        Ok(n as usize)
+    }
+}
+
+impl Seek for CtrFile {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let new_pos = match pos {
+            SeekFrom::Start(n) => n as i64,
+            SeekFrom::End(n) => self.size as i64 + n,
+            SeekFrom::Current(n) => self.pos as i64 + n,
+        };
+
+        if new_pos < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot seek to before start",
+            ));
+        }
+
+        self.pos = new_pos as u64;
+
+        Ok(self.pos)
     }
 }
 

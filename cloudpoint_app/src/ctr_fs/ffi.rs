@@ -63,11 +63,11 @@ pub(super) fn ctr_read_title_smdh(title_id: u64) -> Result<Vec<u8>, IoError> {
         ));
     }
 
-    let smdh = ctr_read_file(file_handle, 0, 0x36c0)?;
-
+    let mut buf = vec![0; 0x36c0];
+    ctr_read_file(file_handle, 0, &mut buf)?;
     ctr_close_file(file_handle)?;
 
-    Ok(smdh)
+    Ok(buf)
 }
 
 pub(super) fn ctr_read_ext_smdh(save_id: u64) -> Result<Vec<u8>, IoError> {
@@ -256,9 +256,9 @@ pub(super) fn ctr_open_file(
 pub(super) fn ctr_read_file(
     file_handle: Handle,
     offset: u64,
-    length: u64,
-) -> Result<Vec<u8>, IoError> {
-    let mut buffer = vec![0u8; length as usize];
+    buf: &mut [u8],
+) -> Result<u64, IoError> {
+    let length = buf.len() as u64;
     let mut bytes_read: u32 = 0;
 
     let res = unsafe {
@@ -266,7 +266,7 @@ pub(super) fn ctr_read_file(
             file_handle,
             &mut bytes_read,
             offset,
-            buffer.as_mut_ptr() as *mut _,
+            buf.as_mut_ptr() as *mut _,
             length as u32,
         )
     };
@@ -274,7 +274,7 @@ pub(super) fn ctr_read_file(
     // This call sometimes signals failure even though all bytes were read, so use this
     // to determine if this call succeeded rather than checking the res code
     if bytes_read == length as u32 {
-        Ok(buffer)
+        Ok(length)
     } else {
         Err(IoError::new(
             IoErrorKind::Other,

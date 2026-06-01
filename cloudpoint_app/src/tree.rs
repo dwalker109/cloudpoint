@@ -4,7 +4,7 @@ use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
 use cloudpoint_lib::sync::SyncItem;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
-use std::io::{self, Cursor};
+use std::io;
 use std::rc::Rc;
 use std::{
     collections::HashMap,
@@ -50,10 +50,9 @@ impl Leaf for CtrArchiveLeaf {
     fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
         let path = CtrFsPath::new(&self.path)?;
         let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-        let file_size = file.size()?;
-        let data = file.read(0, file_size)?;
+        let reader = io::BufReader::with_capacity(256 * 1024, file);
 
-        Ok(Cursor::new(data))
+        Ok(reader)
     }
 
     fn len(&self) -> Result<u64, TreeError> {
@@ -86,8 +85,8 @@ impl Leaf for CtrArchiveLeaf {
                         SyncItem::Extdata(_) => {
                             log::debug!("setting length for {} via recreate", &self.path);
 
-                            let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-                            let mut buffer = file.read(0, curr_size)?;
+                            let mut file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
+                            let mut buffer = file.read_to_vec(0, curr_size)?;
                             buffer.resize(length as usize, 0x00);
                             drop(file);
 
