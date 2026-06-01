@@ -15,6 +15,7 @@ postcard = { workspace = true }
 log = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 flate2 = { workspace = true }
+lru = { workspace = true }
 
 [dev-dependencies]
 httpmock = { workspace = true }

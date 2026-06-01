@@ -5,17 +5,33 @@ use flate2::{
     Compression,
     read::{GzDecoder, GzEncoder},
 };
+use lru::LruCache;
 use std::{
+    collections::HashSet,
     io::{self, Cursor, Read},
+    num::NonZeroUsize,
     rc::Rc,
+    sync::RwLock,
 };
 use uuid::Uuid;
 
-pub struct HttpStore(Rc<CurlHttpClient>, String, Uuid);
+pub struct HttpStore {
+    http_client: Rc<CurlHttpClient>,
+    base_url: String,
+    user_key: Uuid,
+    upload_dedupe: HashSet<u128>,
+    download_dedupe: RwLock<LruCache<u128, Vec<u8>>>,
+}
 
 impl HttpStore {
     pub fn new(client: Rc<CurlHttpClient>, base_url: String, user_key: Uuid) -> Self {
-        Self(client, base_url, user_key)
+        Self {
+            http_client: client,
+            base_url,
+            user_key,
+            upload_dedupe: HashSet::new(),
+            download_dedupe: RwLock::new(LruCache::new(NonZeroUsize::new(32).unwrap())),
+        }
     }
 
     fn fq_hash_url(&self, hash: u128) -> String {
@@ -23,39 +39,72 @@ impl HttpStore {
 
         format!(
             "{}/sync/{}/chunks/{:02x}/{:032x}",
-            self.1, self.2, msb, hash
+            self.base_url, self.user_key, msb, hash
         )
     }
 }
 
 impl StoreRead for HttpStore {
     fn get_chunk(&self, hash: u128) -> Result<impl Read, StoreError> {
-        log::debug!("getting store chunk for hash {hash}");
+        log::debug!("getting store chunk for hash {hash:032x}");
 
-        let res = self.0.get(&self.fq_hash_url(hash), &[]).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                anyhow!("failed to get chunk {:?}, {}", hash, err),
-            )
-        })?;
+        let mut lru = self
+            .download_dedupe
+            .write()
+            .expect("should be able to lock store lru");
+
+        if let Some(body) = lru.get(&hash) {
+            log::debug!("retrieved chunk {hash:032x} from lru cache");
+
+            return Ok(GzDecoder::new(Cursor::new(body.clone())));
+        }
+
+        let res = self
+            .http_client
+            .get(&self.fq_hash_url(hash), &[])
+            .map_err(|err| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    anyhow!("failed to get chunk {hash:032x}, {err}"),
+                )
+            })?;
+
+        log::debug!("adding chunk {hash:032x} to lru cache");
+        lru.put(hash, res.body.clone());
 
         Ok(GzDecoder::new(Cursor::new(res.body)))
     }
 }
 
 impl StoreWrite for HttpStore {
+    fn put_chunks<T: chunktree::tree::Leaf>(
+        &mut self,
+        leaf_chunks: &chunktree::tree::LeafChunks,
+        source: &T,
+    ) -> Result<(), StoreError> {
+        for &(hash, offset, length) in leaf_chunks.chunks() {
+            if self.upload_dedupe.insert(hash) {
+                self.put_chunk(hash, &mut source.read_chunk(offset, length)?)?;
+            } else {
+                log::debug!("skipped upload of chunk {hash:032x}, duplicated within session");
+            }
+        }
+
+        Ok(())
+    }
+
     fn put_chunk(&mut self, hash: u128, data: &mut (impl Read + ?Sized)) -> Result<(), StoreError> {
-        log::debug!("putting store chunk for hash {hash}");
+        log::debug!("putting store chunk for hash {hash:032x}");
 
         let url = self.fq_hash_url(hash);
 
         let should_upload = self
-            .0
+            .http_client
             .head(&url, &[])
             .map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::Other,
-                    anyhow!("failed to check existence of chunk {:?}, {}", hash, err),
+                    anyhow!("failed to check existence of chunk {hash:032x}, {err}"),
                 )
             })?
             .status
@@ -64,16 +113,16 @@ impl StoreWrite for HttpStore {
         log::debug!("does store chunk already exist? {should_upload}");
 
         if should_upload {
-            log::debug!("completing upload for hash {hash}");
+            log::debug!("completing upload for hash {hash:032x}");
 
             let mut body = Vec::new();
             let mut gzip_encoder = GzEncoder::new(data, Compression::best());
             gzip_encoder.read_to_end(&mut body)?;
 
-            self.0.put(&url, &body, &[]).map_err(|err| {
+            self.http_client.put(&url, &body, &[]).map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::Other,
-                    anyhow!("failed to put chunk {:?}, {}", hash, err),
+                    anyhow!("failed to put chunk {hash:032x}, {err}"),
                 )
             })?;
         }

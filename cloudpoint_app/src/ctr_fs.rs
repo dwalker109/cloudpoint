@@ -115,11 +115,7 @@ impl CtrArchive {
     }
 
     pub fn open_file(&self, path: &CtrFsPath, flags: u8) -> Result<CtrFile, IoError> {
-        log::debug!(
-            "opening file {:?} in archive for {:?}",
-            path,
-            self.sync_item
-        );
+        log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
 
         let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
         let size = ctr_get_file_size(file_handle)?;
@@ -132,28 +128,20 @@ impl CtrArchive {
     }
 
     pub fn create_file(&self, path: &CtrFsPath, size: u64) -> Result<(), IoError> {
-        log::debug!(
-            "creating file {:?} in archive for {:?}",
-            path,
-            self.sync_item
-        );
+        log::debug!("creating file {:?} in archive for {}", path, self.sync_item);
 
         ctr_create_file(self.archive_handle, path.fs_path(), size)
     }
 
     pub fn delete_file(&self, path: &CtrFsPath) -> Result<(), IoError> {
-        log::debug!(
-            "deleting file {:?} in archive for {:?}",
-            path,
-            self.sync_item
-        );
+        log::debug!("deleting file {:?} in archive for {}", path, self.sync_item);
 
         ctr_delete_file(self.archive_handle, path.fs_path())
     }
 
     pub fn open_directory(&self, path: &CtrFsPath) -> Result<CtrDirectory, IoError> {
         log::debug!(
-            "opening directory {:?} in archive for {:?}",
+            "opening directory {:?} in archive for {}",
             path,
             self.sync_item
         );
@@ -165,7 +153,7 @@ impl CtrArchive {
 
     pub fn create_directory(&self, path: &CtrFsPath) -> Result<(), IoError> {
         log::debug!(
-            "creating directory {:?} in archive for {:?}",
+            "creating directory {:?} in archive for {}",
             path,
             self.sync_item
         );
@@ -174,7 +162,7 @@ impl CtrArchive {
     }
 
     pub fn finalise(&self) -> Result<(), IoError> {
-        log::debug!("finalising save write in archive for {:?}", self.sync_item);
+        log::debug!("finalising save write in archive for {}", self.sync_item);
 
         if let SyncItem::Savedata(title_id) = self.sync_item {
             ctr_commit_archive(self.archive_handle)?;
@@ -187,7 +175,7 @@ impl CtrArchive {
 
 impl Drop for CtrArchive {
     fn drop(&mut self) {
-        log::debug!("dropping archive for {:?}", self.sync_item);
+        log::debug!("dropping archive for {}", self.sync_item);
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
