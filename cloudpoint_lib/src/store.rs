@@ -106,7 +106,7 @@ mod tests {
             then.status(200);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
@@ -131,7 +131,7 @@ mod tests {
             });
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
 
         let mut buf = Vec::new();
@@ -156,7 +156,7 @@ mod tests {
             when.method("PUT");
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
