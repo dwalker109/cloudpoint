@@ -173,7 +173,7 @@ mod tests {
             );
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
@@ -192,7 +192,7 @@ mod tests {
             then.status(200).body(r#"{ "paths": [] }"#);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirList::try_get(
             &client,
             &srv.base_url(),
@@ -226,7 +226,7 @@ mod tests {
             );
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -249,7 +249,7 @@ mod tests {
                 .body(postcard::to_allocvec(b"not gzip").unwrap());
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -269,7 +269,7 @@ mod tests {
             then.status(404);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirEntry::get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -300,7 +300,7 @@ mod tests {
             then.status(201);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let res = VersionDirEntry::put_version(
             &client,
             &srv.base_url(),

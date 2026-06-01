@@ -35,7 +35,7 @@ fn check(code: CURLcode) -> Result<()> {
 }
 
 impl CurlHttpClient {
-    pub fn new() -> Result<Self> {
+    pub fn new(app_ver: &str) -> Result<Self> {
         let handle = unsafe { curl_easy_init() };
         if handle.is_null() {
             bail!("libcurl error: curl_easy_init failed")
@@ -45,15 +45,21 @@ impl CurlHttpClient {
         unsafe {
             let cainfo_c = CString::new("romfs:/cacert.pem")?;
             curl_easy_setopt(handle, CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void); // curl copies value so ptr can drop after fn
+
+            let ua_c = CString::new(format!("Cloudpoint/{app_ver} (Nintendo 3DS)"))?;
+            curl_easy_setopt(handle, CURLOPT_USERAGENT, ua_c.as_ptr() as *const c_void);
+
             curl_easy_setopt(handle, CURLOPT_TIMEOUT, 30_i64);
             curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 10_i64);
             curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1_i64);
             curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 5_i64);
+
             curl_easy_setopt(
                 handle,
                 CURLOPT_WRITEFUNCTION,
                 callbacks::write_cb as *const c_void,
             );
+
             curl_easy_setopt(
                 handle,
                 CURLOPT_HEADERFUNCTION,
@@ -302,7 +308,7 @@ mod tests {
             then.status(200).body(&[123]);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let response = client.get(&srv.url("/test"), &[]).unwrap();
         assert_eq!(response.status, 200);
         assert_eq!(response.body, &[123]);
@@ -316,7 +322,7 @@ mod tests {
             then.status(200);
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let response = client.head(&srv.url("/test"), &[]).unwrap();
         assert_eq!(response.status, 200);
     }
@@ -333,7 +339,7 @@ mod tests {
             });
         });
 
-        let client = CurlHttpClient::new().unwrap();
+        let client = CurlHttpClient::new("0.0.0").unwrap();
         let response = client.put(&srv.url("/test"), b"foobar", &[]).unwrap();
         assert_eq!(response.status, 204);
     }

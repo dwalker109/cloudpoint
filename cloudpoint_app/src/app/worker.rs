@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::{AppPath, DEVICE_KEY, REALTIME_DEVICE_KEY, persist_device_key},
+    config::{APP_VER, AppPath, DEVICE_KEY, REALTIME_DEVICE_KEY, persist_device_key},
     db::{StateDb, TitleDb},
     link, sync,
 };
@@ -43,7 +43,7 @@ pub fn worker_thread(
         })
         .ok();
 
-    let client = Rc::new(CurlHttpClient::new().expect("curl client should be available"));
+    let client = Rc::new(CurlHttpClient::new(&APP_VER).expect("curl client should be available"));
 
     loop {
         match task_rx.recv() {
