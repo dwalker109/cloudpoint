@@ -90,9 +90,9 @@ impl SyncState {
         remote_fingerprint: Option<u128>,
     ) -> SyncAction {
         log::debug!(
-            "deriving sync action for l={:?} r={:?}",
-            local_fingerprint,
-            remote_fingerprint
+            "deriving sync action for l={:032x} r={:032x}",
+            local_fingerprint.as_ref().unwrap_or(&0),
+            remote_fingerprint.as_ref().unwrap_or(&0)
         );
 
         let result = match (local_fingerprint, remote_fingerprint) {
