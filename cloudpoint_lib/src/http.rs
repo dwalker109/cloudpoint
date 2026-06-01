@@ -12,8 +12,6 @@ use libc::c_void;
 use std::ffi::CString;
 use std::ptr;
 
-const CAINFO: &str = "romfs:/cacert.pem";
-
 #[derive(Debug)]
 pub struct Response {
     pub status: u32,
@@ -38,7 +36,6 @@ fn check(code: CURLcode) -> Result<()> {
 
 impl CurlHttpClient {
     pub fn new() -> Result<Self> {
-        let cainfo_c = CString::new(CAINFO)?;
         let handle = unsafe { curl_easy_init() };
         if handle.is_null() {
             bail!("libcurl error: curl_easy_init failed")
@@ -46,7 +43,8 @@ impl CurlHttpClient {
 
         // Options that never change across requests.
         unsafe {
-            curl_easy_setopt(handle, CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void);
+            let cainfo_c = CString::new("romfs:/cacert.pem")?;
+            curl_easy_setopt(handle, CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void); // curl copies value so ptr can drop after fn
             curl_easy_setopt(handle, CURLOPT_TIMEOUT, 30_i64);
             curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 10_i64);
             curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1_i64);
@@ -90,9 +88,11 @@ impl CurlHttpClient {
         self.set_long(CURLOPT_NOBODY, 0)?;
         self.set_long(CURLOPT_UPLOAD, 0)?;
         self.set_long(CURLOPT_POST, 0)?;
+        self.set_ptr(CURLOPT_URL, ptr::null())?;
         self.set_ptr(CURLOPT_CUSTOMREQUEST, ptr::null())?;
         self.set_ptr(CURLOPT_READFUNCTION, ptr::null())?;
         self.set_ptr(CURLOPT_READDATA, ptr::null())?;
+        self.set_ptr(CURLOPT_HTTPHEADER, ptr::null())?;
         self.set_off_t(CURLOPT_INFILESIZE_LARGE, -1)?;
         Ok(())
     }
