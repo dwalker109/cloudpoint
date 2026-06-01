@@ -45,6 +45,8 @@ pub fn run<'a>(
     modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
 ) -> Result<()> {
+    log::info!("starting sync");
+
     let _keep_awake = KeepAwake::new();
     let mut sync_progress = SyncProgress::new(ui_tx);
 
@@ -57,9 +59,16 @@ pub fn run<'a>(
             return Ok(());
         }
 
-        run_one(sync_state, &mut sync_progress, &modal_tx, &client)?;
-        sync_progress.progress((i + 1) * 100 / total);
+        match run_one(sync_state, &mut sync_progress, &modal_tx, &client) {
+            Ok(_) => sync_progress.progress((i + 1) * 100 / total),
+            Err(e) => {
+                log::error!("failed mid sync: {e}");
+                return Err(e);
+            }
+        };
     }
+
+    log::info!("completed sync");
 
     Ok(())
 }
