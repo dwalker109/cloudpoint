@@ -1,6 +1,6 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
-    ctr_title::{self, SD_APP_TITLES, get_installed_at_for_title},
+    ctr_title::{self, SD_APP_TITLES},
 };
 use crate::{
     ctr_title::{
@@ -29,7 +29,7 @@ pub struct TitleDb(PathBuf, HashMap<u64, TitleDetails>);
 
 impl TitleDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
-        log::debug!("loading runtime title db from disk");
+        log::debug!("loading title db from disk");
 
         let db_path = root_path.as_ref().join("title.db");
 
@@ -48,26 +48,32 @@ impl TitleDb {
         state_db: &StateDb,
         ui_tx: &Sender<UiMsg>,
     ) -> Result<Self> {
-        log::debug!("building runtime title db");
+        log::debug!("building title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-        title_db.refresh_db(state_db, ui_tx)?;
+        title_db.add_all(state_db, ui_tx)?;
 
         Ok(title_db)
     }
 
-    pub fn refresh_db(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::debug!("refreshing runtime title db");
-
-        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
+    pub fn prune_orphaned(&mut self) -> Result<()> {
+        log::debug!("pruning orphaned title db records");
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
         self.1.retain(|k, _| current_title_ids.contains(k));
 
+        Ok(())
+    }
+
+    pub fn add_all(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
+        log::debug!("adding missing title db records");
+
+        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
         let total = SD_APP_TITLES.len();
+
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
-            self.add_title(*title_id, state_db)?;
-            self.add_links_for_title(*title_id, state_db)?;
+            self.add_or_replace_title(*title_id, state_db)?;
+            self.refresh_shared_extdata_linked_titles(*title_id, state_db)?;
 
             refresh_progress
                 .message("Refreshing titles")
@@ -78,7 +84,7 @@ impl TitleDb {
         Ok(())
     }
 
-    fn add_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+    fn add_or_replace_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
         log::debug!("processing {title_id:016X}");
 
         let Some(title) = SD_APP_TITLES.get(&title_id) else {
@@ -103,8 +109,14 @@ impl TitleDb {
         Ok(())
     }
 
-    pub fn add_links_for_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
-        log::info!("refreshing all links for title {title_id:016X}");
+    pub fn refresh_shared_extdata_linked_titles(
+        &mut self,
+        title_id: u64,
+        state_db: &StateDb,
+    ) -> Result<()> {
+        log::info!(
+            "refreshing sync status for all titles which share extdata with {title_id:016X}"
+        );
 
         let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
 
@@ -115,14 +127,6 @@ impl TitleDb {
         {
             title.refresh_sync_status(state_db);
         }
-
-        Ok(())
-    }
-
-    pub fn save(&mut self) -> Result<()> {
-        log::debug!("saving title db to disk");
-
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
     }
@@ -141,6 +145,14 @@ impl TitleDb {
             .sorted_by_key(|t| t.title_short.to_lowercase())
             .cloned()
             .collect()
+    }
+
+    fn save(&mut self) -> Result<()> {
+        log::debug!("saving title db to disk");
+
+        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+
+        Ok(())
     }
 }
 

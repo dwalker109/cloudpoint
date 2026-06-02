@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     config::{APP_VER, AppPath},
-    db::{InstallDb, StateDb, TitleDb},
+    db::{InstallHistoryDb, StateDb, TitleDb},
     link, sync,
 };
 use anyhow::Result;
@@ -17,33 +17,23 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    let (mut state_db, mut title_db) = {
-        if let (Ok(state_db), Ok(title_db)) =
-            (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
-        {
-            log::debug!("state db and title db loaded from disk on startup");
-            (state_db, title_db)
-        } else {
-            modal_tx.send(OpenModalMsg::Refresh).ok();
-            let state_db = StateDb::new(AppPath::Db, &ui_tx).expect("state db should be creatable");
-            let title_db =
-                TitleDb::new(AppPath::Db, &state_db, &ui_tx).expect("title db should be creatable");
+    let mut state_db = StateDb::open(AppPath::Db)
+        .or_else(|_| StateDb::new(AppPath::Db, &ui_tx))
+        .expect("state db must be available");
 
-            log::debug!("state db, title db recreated on startup");
-            (state_db, title_db)
-        }
-    };
+    let mut title_db = TitleDb::open(AppPath::Db)
+        .or_else(|_| TitleDb::new(AppPath::Db, &state_db, &ui_tx))
+        .expect("title db must be available");
 
-    let mut install_db = match InstallDb::open(AppPath::Db) {
-        Ok(install_db) => {
-            log::debug!("install db loaded from disk on startup");
-            install_db
-        }
-        Err(_) => {
-            log::debug!("install db recreated on startup");
-            InstallDb::new(AppPath::Db)
-        }
-    };
+    let mut install_history_db = InstallHistoryDb::open(AppPath::Db)
+        .or_else(|_| InstallHistoryDb::new(AppPath::Db))
+        .expect("install history db must be available");
+
+    let client = Rc::new(CurlHttpClient::new(&APP_VER).expect("curl client must be available"));
+
+    state_db.prune_orphaned()?;
+    title_db.prune_orphaned()?;
+    // install_db is *not* pruned, we want that to survive title and OS reinstalls
 
     ui_tx
         .send(UiMsg::RefreshDone {
@@ -52,14 +42,12 @@ pub fn worker_thread(
         })
         .ok();
 
-    let client = Rc::new(CurlHttpClient::new(&APP_VER).expect("curl client should be available"));
-
     loop {
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                state_db.refresh_db(true, &ui_tx)?;
-                title_db.refresh_db(&state_db, &ui_tx)?;
+                state_db.add_missing(true, &ui_tx)?;
+                title_db.add_all(&state_db, &ui_tx)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -68,9 +56,9 @@ pub fn worker_thread(
                     .ok();
             }
             Ok(TaskMsg::Toggle(title_id)) => {
-                state_db.refresh_title(title_id, false)?;
-                state_db.toggle_title(title_id)?;
-                title_db.add_links_for_title(title_id, &state_db)?;
+                state_db.process_sync_items_for_title(title_id, false)?;
+                state_db.toggle_auto_sync_for_title(title_id)?;
+                title_db.refresh_shared_extdata_linked_titles(title_id, &state_db)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -85,7 +73,7 @@ pub fn worker_thread(
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
-                    &mut install_db,
+                    &mut install_history_db,
                 ) {
                     Ok(_) => {
                         ui_tx
@@ -112,8 +100,8 @@ pub fn worker_thread(
                 };
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
-                state_db.refresh_title(title_id, false)?;
-                title_db.add_links_for_title(title_id, &state_db)?;
+                state_db.process_sync_items_for_title(title_id, false)?;
+                title_db.refresh_shared_extdata_linked_titles(title_id, &state_db)?;
                 match sync::run(
                     state_db
                         .states_mut()
@@ -122,7 +110,7 @@ pub fn worker_thread(
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
-                    &mut install_db,
+                    &mut install_history_db,
                 ) {
                     Ok(_) => {
                         ui_tx

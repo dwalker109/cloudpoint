@@ -4,7 +4,7 @@ use crate::{
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
-    db::{InstallDb, InstallStatus},
+    db::{InstallHistoryDb, InstallStatus},
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::{Result, bail};
@@ -45,7 +45,7 @@ pub fn run<'a>(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
-    install_db: &mut InstallDb,
+    install_history_db: &mut InstallHistoryDb,
 ) -> Result<()> {
     log::info!("starting sync");
 
@@ -66,7 +66,7 @@ pub fn run<'a>(
             &mut sync_progress,
             &modal_tx,
             &client,
-            install_db,
+            install_history_db,
         ) {
             Ok(_) => sync_progress.progress((i + 1) * 100 / total),
             Err(e) => {
@@ -86,7 +86,7 @@ fn run_one(
     sync_progress: &mut SyncProgress,
     modal_tx: &Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
-    install_db: &mut InstallDb,
+    install_history_db: &mut InstallHistoryDb,
 ) -> Result<()> {
     log::info!("Starting sync of {}", sync_state.sync_item);
 
@@ -105,12 +105,12 @@ fn run_one(
     };
 
     for title_id in &sync_state.via_title_ids {
-        match install_db.check_install(*title_id) {
+        match install_history_db.check(*title_id) {
             InstallStatus::Updated => {
                 log::info!("via_title_id {title_id:016X}: updated tmd mtime, reset sync meta");
                 sync_state.synced_at = None;
                 sync_state.synced_fingerprint = None;
-                install_db.touch(*title_id);
+                install_history_db.touch(*title_id);
             }
             InstallStatus::Unchanged => {
                 log::debug!("via_title_id {title_id:016X}: unchanged tmd mtime, leave sync meta");
@@ -123,7 +123,13 @@ fn run_one(
         }
     }
 
-    sync_state.safe_adopt(*USER_KEY);
+    if sync_state.via_user_key != *USER_KEY {
+        log::info!("user.key has changed, adopting (new sync dialog is normal)");
+
+        sync_state.synced_at = None;
+        sync_state.synced_fingerprint = None;
+        sync_state.via_user_key = *USER_KEY;
+    }
 
     let title_label = format!(
         "{} ({})",

@@ -21,7 +21,7 @@ pub struct StateDb(#[serde[skip]] PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
-        log::debug!("loading all savedata and extdata from disk");
+        log::debug!("loading state db from disk");
 
         let db_path = root_path.as_ref().join("state.db");
 
@@ -36,38 +36,18 @@ impl StateDb {
     }
 
     pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
-        log::debug!("building all savedata and extdata");
+        log::debug!("building new state db");
 
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.refresh_db(true, ui_tx)?;
+        state_db.add_missing(true, ui_tx)?;
 
         Ok(state_db)
     }
 
-    pub fn save(&mut self) -> Result<()> {
-        log::debug!("saving state db to disk");
-
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
-
-        Ok(())
-    }
-
-    pub fn refresh_db(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::debug!("refreshing all savedata and extdata");
-
-        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
-
-        let total = SD_APP_TITLES.len();
-
-        for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
-            self.refresh_title(title_id, auto_enabled)?;
-            refresh_progress
-                .message("Refreshing sync items")
-                .progress((i + 1) * 100 / total)
-                .send();
-        }
+    pub fn prune_orphaned(&mut self) -> Result<()> {
+        log::debug!("pruning orphaned state db records");
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
 
@@ -84,7 +64,29 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn refresh_title(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
+    pub fn add_missing(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
+        log::debug!("adding missing state db records");
+
+        let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
+        let total = SD_APP_TITLES.len();
+
+        for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
+            self.process_sync_items_for_title(title_id, auto_enabled)?;
+
+            refresh_progress
+                .message("Refreshing sync items")
+                .progress((i + 1) * 100 / total)
+                .send();
+        }
+
+        Ok(())
+    }
+
+    pub fn process_sync_items_for_title(
+        &mut self,
+        title_id: u64,
+        auto_enabled: bool,
+    ) -> Result<()> {
         log::debug!("processing refresh for title {title_id:016X}");
 
         let mut process = |sync_item| -> Result<()> {
@@ -132,7 +134,7 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn toggle_title(&mut self, title_id: u64) -> Result<()> {
+    pub fn toggle_auto_sync_for_title(&mut self, title_id: u64) -> Result<()> {
         log::debug!("toggling auto sync enabled setting for title {title_id:016X}");
 
         let states = self
@@ -186,6 +188,14 @@ impl StateDb {
 
     pub fn states_mut(&mut self) -> impl Iterator<Item = &mut SyncState> {
         self.1.values_mut()
+    }
+
+    fn save(&mut self) -> Result<()> {
+        log::debug!("saving state db to disk");
+
+        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+
+        Ok(())
     }
 }
 

@@ -74,16 +74,6 @@ impl SyncState {
         }
     }
 
-    pub fn safe_adopt(&mut self, user_key: Uuid) {
-        if self.via_user_key != user_key {
-            log::info!("user.key has changed, adopting (new sync dialog is normal)");
-
-            self.synced_fingerprint = None;
-            self.synced_at = None;
-            self.via_user_key = user_key;
-        }
-    }
-
     pub fn get_action(
         &self,
         local_fingerprint: Option<u128>,
@@ -232,21 +222,6 @@ mod tests {
         let res = s.get_action(Some(2), Some(2));
 
         assert!(matches!(res, SyncAction::NoChange));
-    }
-
-    #[test]
-    fn unmatched_user_key_resets_sync_state() {
-        let via_user_key = Uuid::new_v4();
-        let mut s = SyncState {
-            synced_fingerprint: Some(u128::MAX),
-            via_user_key,
-            ..fixture()
-        };
-
-        s.safe_adopt(Uuid::new_v4());
-
-        assert!(s.synced_fingerprint.is_none());
-        assert!(s.via_user_key != via_user_key);
     }
 
     fn fixture() -> SyncState {
