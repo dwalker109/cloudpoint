@@ -1,6 +1,6 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
-    ctr_title::{self, SD_APP_TITLES},
+    ctr_title::{self, SD_APP_TITLES, get_installed_at_for_title},
 };
 use crate::{
     ctr_title::{
@@ -51,12 +51,12 @@ impl TitleDb {
         log::debug!("building runtime title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-        title_db.refresh(state_db, ui_tx)?;
+        title_db.refresh_db(state_db, ui_tx)?;
 
         Ok(title_db)
     }
 
-    pub fn refresh(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    pub fn refresh_db(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::debug!("refreshing runtime title db");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -67,7 +67,8 @@ impl TitleDb {
         let total = SD_APP_TITLES.len();
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
             self.add_title(*title_id, state_db)?;
-            self.refresh_links(*title_id, state_db)?;
+            self.add_links_for_title(*title_id, state_db)?;
+
             refresh_progress
                 .message("Refreshing titles")
                 .progress((i + 1) * 100 / total)
@@ -102,7 +103,7 @@ impl TitleDb {
         Ok(())
     }
 
-    pub fn refresh_links(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+    pub fn add_links_for_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
         log::info!("refreshing all links for title {title_id:016X}");
 
         let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
@@ -112,7 +113,7 @@ impl TitleDb {
             .values_mut()
             .filter(|t| t.extdata_sync_item == extdata_sync_item)
         {
-            title.refresh(state_db);
+            title.refresh_sync_status(state_db);
         }
 
         Ok(())
@@ -124,6 +125,10 @@ impl TitleDb {
         fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
+    }
+
+    pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
+        self.1.get_mut(&title_id)
     }
 
     pub fn total_titles(&self) -> usize {
@@ -202,7 +207,7 @@ impl TitleDetails {
         Ok(ctr_title::smdh(self.title_id)?)
     }
 
-    pub fn refresh(&mut self, state_db: &StateDb) {
+    pub fn refresh_sync_status(&mut self, state_db: &StateDb) {
         let (sss, ess) =
             Self::sync_items_status(&self.savedata_sync_item, &self.extdata_sync_item, state_db);
 

@@ -1,10 +1,7 @@
 use anyhow::Result;
 use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
 use ctru::services::fs::{ArchiveID, MediaType};
-use ctru_sys::{
-    FS_DirectoryEntry, FS_OPEN_READ, FS_Path, Handle, PATH_ASCII, PATH_BINARY, PATH_EMPTY,
-    fsMakePath,
-};
+use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
 use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
@@ -15,33 +12,6 @@ use std::ffi::{CString, c_void};
 use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
 mod ffi;
-
-pub struct CtrNand {
-    nand_handle: u64,
-}
-
-impl CtrNand {
-    pub fn open() -> Result<Self, IoError> {
-        let path = unsafe { fsMakePath(PATH_EMPTY, b"\0".as_ptr() as _) };
-        let nand_handle = ctr_open_archive(ArchiveID::NandCtrFS, path)?;
-
-        Ok(Self { nand_handle })
-    }
-
-    pub fn movable_sed(&self) -> Result<Vec<u8>, IoError> {
-        let path = CtrFsPath::new("/private/movable.sed")?;
-        let file_handle = ctr_open_file(self.nand_handle, path.fs_path(), FS_OPEN_READ)?;
-        let size = ctr_get_file_size(file_handle)?;
-        let mut file = CtrFile {
-            file_handle,
-            size,
-            pos: 0,
-        };
-        let data = file.read_to_vec(0, 288)?;
-
-        Ok(data)
-    }
-}
 
 struct CtrArchivePath {
     _sync_item: SyncItem,

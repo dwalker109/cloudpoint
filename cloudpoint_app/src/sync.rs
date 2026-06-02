@@ -4,6 +4,7 @@ use crate::{
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
+    db::{InstallDb, InstallStatus},
     tree::{self, CtrArchiveLeaf},
 };
 use anyhow::{Result, bail};
@@ -44,6 +45,7 @@ pub fn run<'a>(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
+    install_db: &mut InstallDb,
 ) -> Result<()> {
     log::info!("starting sync");
 
@@ -59,7 +61,13 @@ pub fn run<'a>(
             return Ok(());
         }
 
-        match run_one(sync_state, &mut sync_progress, &modal_tx, &client) {
+        match run_one(
+            sync_state,
+            &mut sync_progress,
+            &modal_tx,
+            &client,
+            install_db,
+        ) {
             Ok(_) => sync_progress.progress((i + 1) * 100 / total),
             Err(e) => {
                 log::error!("failed mid sync: {e}");
@@ -76,8 +84,9 @@ pub fn run<'a>(
 fn run_one(
     sync_state: &mut SyncState,
     sync_progress: &mut SyncProgress,
-    alert_tx: &Sender<OpenModalMsg>,
+    modal_tx: &Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
+    install_db: &mut InstallDb,
 ) -> Result<()> {
     log::info!("Starting sync of {}", sync_state.sync_item);
 
@@ -94,6 +103,25 @@ fn run_one(
 
         bail!("{} not found; was the title deleted?", sync_state.sync_item);
     };
+
+    for title_id in &sync_state.via_title_ids {
+        match install_db.check_install(*title_id) {
+            InstallStatus::Updated => {
+                log::info!("via_title_id {title_id:016X}: updated tmd mtime, reset sync meta");
+                sync_state.synced_at = None;
+                sync_state.synced_fingerprint = None;
+                install_db.touch(*title_id);
+            }
+            InstallStatus::Unchanged => {
+                log::debug!("via_title_id {title_id:016X}: unchanged tmd mtime, leave sync meta");
+            }
+            InstallStatus::Unknown => {
+                log::warn!(
+                    "via_title_id {title_id:016X}: unknown tmd mtime, probably shared extdata, leave sync meta"
+                );
+            }
+        }
+    }
 
     sync_state.safe_adopt(*USER_KEY);
 
@@ -144,7 +172,7 @@ fn run_one(
 
             let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
 
-            alert_tx
+            modal_tx
                 .send(OpenModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
                     title_local_time: sync_state.synced_at,

@@ -41,7 +41,7 @@ impl StateDb {
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.refresh(true, ui_tx)?;
+        state_db.refresh_db(true, ui_tx)?;
 
         Ok(state_db)
     }
@@ -54,7 +54,7 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn refresh(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    pub fn refresh_db(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::debug!("refreshing all savedata and extdata");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -62,7 +62,7 @@ impl StateDb {
         let total = SD_APP_TITLES.len();
 
         for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
-            self.refresh_for_title_id(title_id, auto_enabled)?;
+            self.refresh_title(title_id, auto_enabled)?;
             refresh_progress
                 .message("Refreshing sync items")
                 .progress((i + 1) * 100 / total)
@@ -84,7 +84,7 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn refresh_for_title_id(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
+    pub fn refresh_title(&mut self, title_id: u64, auto_enabled: bool) -> Result<()> {
         log::debug!("processing refresh for title {title_id:016X}");
 
         let mut process = |sync_item| -> Result<()> {
@@ -132,7 +132,7 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn toggle_for_title_id(&mut self, title_id: u64) -> Result<()> {
+    pub fn toggle_title(&mut self, title_id: u64) -> Result<()> {
         log::debug!("toggling auto sync enabled setting for title {title_id:016X}");
 
         let states = self
