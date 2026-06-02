@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    config::{APP_VER, AppPath, DEVICE_KEY, REALTIME_DEVICE_KEY, persist_device_key},
-    db::{StateDb, TitleDb},
+    config::{APP_VER, AppPath},
+    db::{InstallDb, StateDb, TitleDb},
     link, sync,
 };
 use anyhow::Result;
@@ -18,9 +18,8 @@ pub fn worker_thread(
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
     let (mut state_db, mut title_db) = {
-        if *REALTIME_DEVICE_KEY == *DEVICE_KEY
-            && let (Ok(state_db), Ok(title_db)) =
-                (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
+        if let (Ok(state_db), Ok(title_db)) =
+            (StateDb::open(AppPath::Db), TitleDb::open(AppPath::Db))
         {
             log::debug!("state db and title db loaded from disk on startup");
             (state_db, title_db)
@@ -29,10 +28,20 @@ pub fn worker_thread(
             let state_db = StateDb::new(AppPath::Db, &ui_tx).expect("state db should be creatable");
             let title_db =
                 TitleDb::new(AppPath::Db, &state_db, &ui_tx).expect("title db should be creatable");
-            persist_device_key(*REALTIME_DEVICE_KEY).expect("device.key should be creatable");
 
-            log::debug!("state db, title db, device.key recreated on startup");
+            log::debug!("state db, title db recreated on startup");
             (state_db, title_db)
+        }
+    };
+
+    let mut install_db = match InstallDb::open(AppPath::Db) {
+        Ok(install_db) => {
+            log::debug!("install db loaded from disk on startup");
+            install_db
+        }
+        Err(_) => {
+            log::debug!("install db recreated on startup");
+            InstallDb::new(AppPath::Db)
         }
     };
 
@@ -49,8 +58,8 @@ pub fn worker_thread(
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                state_db.refresh(true, &ui_tx)?;
-                title_db.refresh(&state_db, &ui_tx)?;
+                state_db.refresh_db(true, &ui_tx)?;
+                title_db.refresh_db(&state_db, &ui_tx)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -59,9 +68,9 @@ pub fn worker_thread(
                     .ok();
             }
             Ok(TaskMsg::Toggle(title_id)) => {
-                state_db.refresh_for_title_id(title_id, false)?;
-                state_db.toggle_for_title_id(title_id)?;
-                title_db.refresh_links(title_id, &state_db)?;
+                state_db.refresh_title(title_id, false)?;
+                state_db.toggle_title(title_id)?;
+                title_db.add_links_for_title(title_id, &state_db)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -76,6 +85,7 @@ pub fn worker_thread(
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
+                    &mut install_db,
                 ) {
                     Ok(_) => {
                         ui_tx
@@ -102,8 +112,8 @@ pub fn worker_thread(
                 };
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
-                state_db.refresh_for_title_id(title_id, false)?;
-                title_db.refresh_links(title_id, &state_db)?;
+                state_db.refresh_title(title_id, false)?;
+                title_db.add_links_for_title(title_id, &state_db)?;
                 match sync::run(
                     state_db
                         .states_mut()
@@ -112,6 +122,7 @@ pub fn worker_thread(
                     ui_tx.clone(),
                     modal_tx.clone(),
                     &client,
+                    &mut install_db,
                 ) {
                     Ok(_) => {
                         ui_tx

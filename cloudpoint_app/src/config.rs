@@ -1,4 +1,4 @@
-use crate::{ctr_fs::CtrNand, ctr_title::SD_APP_TITLES};
+use crate::ctr_title::SD_APP_TITLES;
 use anyhow::Result;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -87,47 +87,6 @@ pub static APP_VER: LazyLock<String> = LazyLock::new(|| {
     let patch = version & 0xF;
 
     format!("{major}.{minor}.{patch}")
-});
-
-pub static DEVICE_KEY: LazyLock<u128> = LazyLock::new(|| {
-    let path = AppPath::Base.join("device.key");
-
-    if fs::exists(&path).unwrap_or_default() {
-        log::info!("using existing device.key");
-
-        let raw = fs::read(&path).expect("device.key should be accessible");
-        let device_key =
-            u128::from_le_bytes(raw[0..16].try_into().expect("device.key should be a u128"));
-
-        device_key
-    } else {
-        let device_key = *REALTIME_DEVICE_KEY;
-
-        persist_device_key(device_key).expect("device.key should be writable");
-
-        device_key
-    }
-});
-
-pub fn persist_device_key(device_key: u128) -> Result<()> {
-    let path = AppPath::Base.join("device.key");
-
-    fs::write(&path, device_key.to_le_bytes())?;
-
-    Ok(())
-}
-
-pub static REALTIME_DEVICE_KEY: LazyLock<u128> = LazyLock::new(|| {
-    log::info!("fetching device.key from nand");
-
-    let movable_sed = CtrNand::open()
-        .expect("NAND should be accessible")
-        .movable_sed()
-        .expect("movable.sed should be accessible");
-
-    let device_key = twox_hash::XxHash3_128::oneshot(&movable_sed);
-
-    device_key
 });
 
 #[derive(Debug)]
