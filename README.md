@@ -61,15 +61,16 @@ there to be issues. However, I reserve the right to deny access to any obviously
 - Use the same version of a game on all your consoles. Syncing saves to different versions may lead to
   data loss, so avoid this.
 - Take extra care when reinstalling titles or formatting a console; detection of title reinstallation
-  is the thing most likely to lead to unexpected behaviour, so please ensure you have backups before
-  doing either of those things.
+  should now work well (on real hardware at least; emulator support here is patchy), but it is the 
+  thing most likely to lead to unexpected behaviour, so please ensure you have backups before doing 
+  either of those things.
 
 ## FAQ
 
 Q | A
 --- | ---
 I can't see my game in Cloudpoint - where is it? | Make sure you have run a game at least once to initialise the save, and then press (X) to refresh in Cloudpoint - it should then appear.
-What systems are supported? | All 3DS and 2DS variants. performance is pretty good on all of them.
+What systems are supported? | All 3DS and 2DS variants. performance is pretty good on all of them. Emulators do work if you install titles to the system and run the normal home menu, but please be aware that most testing happens on real hardware and some things might not behave quite the same on an emulator. Backups are, as always, recommended.
 Do I *have* to auto sync all my games? I have a lot... | No. Saves and/or extdata for a game can be disabled from the Titles screen (press **L** to view it, then press **Y** to toggle). Disabling auto sync for titles you aren't currently playing will speed auto sync up a great deal. You can still sync any title manually by highlighting it and pressing **A**.
 Can I self host Cloudpoint? | Yes, easily. See its [README.md](./cloudpoint_server/README.md) for setup steps.
 I accidentally downloaded an old save over a newer one! Help! | By default, a backup will be made of any local save before it is replaced. You can use [Checkpoint](https://github.com/BernardoGiordano/Checkpoint) to restore them manually. Either copy the backup to restore into the location Checkpoint expects (and it will then show up there) or add the backup folder to Checkpoint via its config file.
@@ -83,8 +84,6 @@ isn't something which 3DS can natively support, so you will need to manually run
 3DS doesn't provide a method for knowing when a save was last modified, so we can't show that in
 the UI. We *do* know when you last synced a save, so we use that in the UI instead.
 
-Detecting a reinstall of a title is challenging. I am working on 
-
 ## Roadmap
 
 - Time travel; move between server save versions at your leisure.
@@ -92,5 +91,5 @@ Detecting a reinstall of a title is challenging. I am working on
 
 ## Credits
 
-- [devkitPro](https://devkitpro.org/) make all of this possible
-- [Rust3DS](https://github.com/rust3ds) package it all up so I can actually use it
+- [devkitPro](https://devkitpro.org/) makes all of this possible
+- [Rust3DS](https://github.com/rust3ds) packages it all up so I can actually use it
