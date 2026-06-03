@@ -19,6 +19,7 @@ use cloudpoint_lib::{
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
+    utils::ellipsis,
     version::VersionDirEntry,
 };
 use ctru::services::ac::Ac;
@@ -131,10 +132,13 @@ fn run_one(
         sync_state.via_user_key = *USER_KEY;
     }
 
-    let title_label = format!(
-        "{} ({})",
-        smdh.title_short(SmdhLanguage::English),
-        smdh.title_publisher(SmdhLanguage::English)
+    let title_label = ellipsis(
+        &format!(
+            "{} ({})",
+            smdh.title_short(SmdhLanguage::English),
+            smdh.title_publisher(SmdhLanguage::English)
+        ),
+        40,
     );
 
     sync_progress.label(&title_label).message("Checking").send();

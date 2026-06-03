@@ -22,8 +22,8 @@ impl SyncModalScreen {
 impl Screen for SyncModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
-        ctx.text_centered(0.0, 100.0, TOP_W, 0.6, BLACK, &self.upper_1);
-        ctx.text_centered(0.0, 120.0, TOP_W, 0.6, BLACK, &self.upper_2);
+        ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, &self.upper_1);
+        ctx.text_centered(0.0, 125.0, TOP_W, 0.5, BLACK, &self.upper_2);
 
         if self.task_running {
             modal_spinner(ctx);

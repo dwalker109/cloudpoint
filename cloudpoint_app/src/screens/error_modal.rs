@@ -1,3 +1,5 @@
+use cloudpoint_lib::utils::wrap;
+
 use super::*;
 
 pub struct ErrorModalScreen {
@@ -9,7 +11,7 @@ impl ErrorModalScreen {
     pub fn new(label: String, message: String) -> Self {
         Self {
             upper_1: label,
-            upper_2: message,
+            upper_2: wrap(&message, 40),
         }
     }
 }
