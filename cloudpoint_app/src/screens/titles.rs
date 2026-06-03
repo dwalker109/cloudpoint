@@ -87,9 +87,15 @@ impl Screen for TitlesScreen {
             60.0,
             0.7,
             WHITE,
-            &format!("{:05X}", (title.title_id >> 8) as u32),
+            &format!("ID: {:08X}", title.title_id as u32),
         );
-        ctx.text(12.0, 84.0, 0.7, WHITE, &title.product_code);
+        ctx.text(
+            12.0,
+            84.0,
+            0.7,
+            WHITE,
+            &format!("Product: {}", title.product_code),
+        );
 
         ctx.text_centered(
             0.0,

@@ -9,7 +9,7 @@
 use anyhow::{Result, bail};
 use curl_sys::*;
 use libc::c_void;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::ptr;
 
 #[derive(Debug)]
@@ -30,7 +30,12 @@ fn check(code: CURLcode) -> Result<()> {
     if code == CURLE_OK {
         Ok(())
     } else {
-        bail!("libcurl error: {code}")
+        let msg = unsafe {
+            let raw_msg = curl_sys::curl_easy_strerror(code);
+            CStr::from_ptr(raw_msg).to_string_lossy()
+        };
+
+        bail!("libcurl error {code}: {msg}")
     }
 }
 
