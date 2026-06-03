@@ -1,4 +1,5 @@
 use super::*;
+use crate::screens::shared::modal_spinner;
 
 pub struct SyncModalScreen {
     task_running: bool,
@@ -23,6 +24,10 @@ impl Screen for SyncModalScreen {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
         ctx.text_centered(0.0, 100.0, TOP_W, 0.6, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 120.0, TOP_W, 0.6, BLACK, &self.upper_2);
+
+        if self.task_running {
+            modal_spinner(ctx);
+        }
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {

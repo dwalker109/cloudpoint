@@ -1,4 +1,5 @@
 use super::*;
+use crate::screens::shared::modal_spinner;
 
 pub struct RefreshModalScreen {
     message: String,
@@ -18,6 +19,7 @@ impl Screen for RefreshModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
         ctx.text_centered(0.0, 110.0, TOP_W, 0.6, BLACK, &self.message);
+        modal_spinner(ctx);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
