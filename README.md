@@ -6,6 +6,13 @@ Cloudpoint allows you to sync all of your saves (and extdata) between all of you
 via a central server. Transfer progress between consoles effortlessly, the way you're probably used 
 to from more modern systems. Or PS Vita.
 
+![GitHub License](https://img.shields.io/github/license/dwalker109/cloudpoint)
+[![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/dwalker109/cloudpoint/total)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/dwalker109/cloudpoint/latest/total)
+![GitHub Repo stars](https://img.shields.io/github/stars/dwalker109/cloudpoint)
+
+
 ![Cloudpoint sync screen](.github/sync.png)
 ![Cloudpoint titles screen](.github/titles.png)
 
