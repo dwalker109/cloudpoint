@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["cloudpoint_app", "cloudpoint_lib", "cloudpoint_server"]
+default-members = ["cloudpoint_app", "cloudpoint_lib"]
 license = "MIT"
 
 [workspace.dependencies]
