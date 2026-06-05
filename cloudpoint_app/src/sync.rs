@@ -20,7 +20,7 @@ use cloudpoint_lib::{
     store::HttpStore,
     sync::{SyncAction, SyncState},
     utils::ellipsis,
-    version::VersionDirEntry,
+    version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
 use std::{
@@ -144,15 +144,13 @@ fn run_one(
 
     sync_progress.label(&title_label).message("Checking").send();
 
-    let list = cloudpoint_lib::version::VersionDirList::try_get(
-        &client,
+    let remote_ver = RemoteVersionMeta::latest(
+        client,
         &USER_SETTINGS.base_url,
-        &USER_KEY,
+        *USER_KEY,
         sync_state.sync_item,
-    )?;
-
-    let remote_ver = list.latest();
-    let remote_fingerprint = remote_ver.and_then(|e| e.fingerprint().ok());
+    );
+    let remote_fingerprint = remote_ver.as_ref().map(|meta| meta.fingerprint()).ok();
 
     let local_meta = meta(sync_state.sync_item)?;
     let local_archive = Rc::new(CtrArchive::open(sync_state.sync_item)?);
@@ -187,7 +185,7 @@ fn run_one(
                 .send(OpenModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
                     title_local_time: sync_state.synced_at,
-                    title_remote_time: remote_ver.map(|v| v.mtime().clone()),
+                    title_remote_time: remote_ver.as_ref().map(|v| v.created_at).ok(),
                     reply_tx,
                 })
                 .ok();
@@ -266,7 +264,7 @@ fn ul(
     );
     local_ver.copy_chunks(&local_tree, &mut store)?;
 
-    VersionDirEntry::put_version(
+    put_version(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
@@ -292,7 +290,7 @@ fn dl(
 ) -> Result<()> {
     log::info!("downloading {}", s.sync_item);
 
-    let remote_ver = VersionDirEntry::get_version::<CtrArchiveLeaf, CtrMeta>(
+    let remote_ver = get_version::<CtrArchiveLeaf, CtrMeta>(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,

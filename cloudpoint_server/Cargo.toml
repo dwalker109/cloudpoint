@@ -5,4 +5,15 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8"
+tower-http = { version = "0.6.11", features = ["trace"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"] }
+anyhow = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
+twox-hash = { workspace = true }
+flate2 = { workspace = true }
+chunktree = { workspace = true }
+postcard = { workspace = true }
+cloudpoint_lib = { workspace = true }

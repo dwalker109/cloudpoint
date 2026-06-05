@@ -35,11 +35,9 @@ impl HttpStore {
     }
 
     fn fq_hash_url(&self, hash: u128) -> String {
-        let [msb, ..] = hash.to_be_bytes();
-
         format!(
-            "{}/sync/{}/chunks/{:02x}/{:032x}",
-            self.base_url, self.user_key, msb, hash
+            "{}/api/v1/chunk/{}/{:032x}",
+            self.base_url, self.user_key, hash
         )
     }
 }
@@ -108,7 +106,7 @@ impl StoreWrite for HttpStore {
                 )
             })?
             .status
-            != 200;
+            == 204;
 
         log::debug!("does store chunk already exist? {should_upload}");
 

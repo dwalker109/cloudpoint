@@ -1,13 +1,22 @@
 services:
-  dufs:
-    image: sigoden/dufs
-    volumes:
-      - ./data:/data
-      - ./dufs.yaml:/dufs.yaml
-    command: --config /dufs.yaml
+  db:
+    image: postgres
+    restart: unless-stopped
+    shm_size: 256mb
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: example
+
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    ports:
+      - 8080:8080
 
   caddy:
     image: caddy:latest
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
