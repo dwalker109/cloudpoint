@@ -1,11 +1,9 @@
-use std::{io::Read, path::PathBuf};
-
 use crate::{http::CurlHttpClient, sync::SyncItem};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
-use flate2::{Compression, read::GzDecoder, read::GzEncoder};
 use serde::{Serialize, de::DeserializeOwned};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -59,11 +57,7 @@ pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
     let res = client.get(&url, &[])?;
 
     match res.status {
-        200 => {
-            let mut buf = Vec::with_capacity(res.body.len() * 2);
-            GzDecoder::new(res.body.as_slice()).read_to_end(&mut buf)?;
-            Ok(postcard::from_bytes(&buf)?)
-        }
+        200 => Ok(postcard::from_bytes(&res.body)?),
         _ => Err(anyhow!("version file download failed, HTTP {}", res.status,)),
     }
 }
@@ -84,12 +78,8 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
         PathBuf::from(sync_item).display(),
     );
 
-    let mut body = Vec::new();
     let serialised = postcard::to_allocvec(&version)?;
-    let mut gzip_encoder = GzEncoder::new(serialised.as_slice(), Compression::best());
-    gzip_encoder.read_to_end(&mut body)?;
-
-    let res = client.put(&url, &body, &[])?;
+    let res = client.put(&url, &serialised, &[])?;
 
     match res.status {
         201 => Ok(()),
@@ -102,7 +92,7 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, io::Cursor};
+    use std::collections::BTreeSet;
 
     use super::*;
     use chunktree::tree::{MemLeaf, Tree};
@@ -199,20 +189,12 @@ mod tests {
                 "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
 
-            let mut buf = Vec::new();
-            let mut encoder = GzEncoder::new(
-                Cursor::new(
-                    postcard::to_allocvec(&DuckVersion {
-                        payload: BTreeSet::default(),
-                        meta: (),
-                    })
-                    .unwrap(),
-                ),
-                Compression::none(),
-            );
-            encoder.read_to_end(&mut buf).ok();
-
-            then.status(200).body(buf);
+            let version = postcard::to_allocvec(&DuckVersion {
+                payload: BTreeSet::default(),
+                meta: (),
+            })
+            .unwrap();
+            then.status(200).body(version);
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
@@ -235,7 +217,7 @@ mod tests {
                 "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
             then.status(200)
-                .body(postcard::to_allocvec(b"not gzip").unwrap());
+                .body(postcard::to_allocvec(b"invalid postcard bytes").unwrap());
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();

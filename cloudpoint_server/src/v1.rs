@@ -41,12 +41,12 @@ pub async fn chunk_put(
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
-    let mut buf = Vec::with_capacity(body.len() * 2);
     let mut decoder = GzDecoder::new(body.as_ref());
-    decoder.read_to_end(&mut buf)?;
+    let mut decoded = Vec::with_capacity(body.len() * 2);
+    decoder.read_to_end(&mut decoded)?;
 
     let expected_hash = xxhash3_128;
-    let derived_hash = twox_hash::XxHash3_128::oneshot(&buf);
+    let derived_hash = twox_hash::XxHash3_128::oneshot(&decoded);
 
     if expected_hash != derived_hash {
         return Err(anyhow!(
@@ -54,12 +54,15 @@ pub async fn chunk_put(
         ))?;
     }
 
-    sqlx::query("INSERT INTO chunks (user_key, xxhash3_128, body) VALUES ($1, $2, $3)")
-        .bind(&user_key)
-        .bind(xxhash3_128.to_be_bytes())
-        .bind(body.as_ref())
-        .execute(&state.db_pool)
-        .await?;
+    sqlx::query(
+        "INSERT INTO chunks (user_key, xxhash3_128, body_gz, body_len) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&user_key)
+    .bind(xxhash3_128.to_be_bytes())
+    .bind(body.as_ref())
+    .bind(decoded.len() as i64)
+    .execute(&state.db_pool)
+    .await?;
 
     Ok(StatusCode::CREATED)
 }
@@ -71,7 +74,7 @@ pub async fn chunk_get(
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
     let res = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
+        "SELECT body_gz FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
     )
     .bind(&user_key)
     .bind(xxhash3_128.to_be_bytes())
@@ -117,12 +120,8 @@ pub async fn version_put(
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
-    let mut buf = Vec::with_capacity(body.len() * 2);
-    let mut decoder = GzDecoder::new(body.as_ref());
-    decoder.read_to_end(&mut buf)?;
-
     let expected_version = xxhash3_128;
-    let derived_version = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&buf)?.fingerprint();
+    let derived_version = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body)?.fingerprint();
 
     if expected_version != derived_version {
         return Err(anyhow!(
