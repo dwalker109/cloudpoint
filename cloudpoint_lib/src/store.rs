@@ -108,10 +108,8 @@ impl StoreWrite for HttpStore {
             .status
             == 204;
 
-        log::debug!("does store chunk already exist? {should_upload}");
-
         if should_upload {
-            log::debug!("completing upload for hash {hash:032x}");
+            log::debug!("uploading for hash {hash:032x}");
 
             let mut body = Vec::new();
             let mut gzip_encoder = GzEncoder::new(data, Compression::best());
@@ -123,6 +121,8 @@ impl StoreWrite for HttpStore {
                     anyhow!("failed to put chunk {hash:032x}, {err}"),
                 )
             })?;
+        } else {
+            log::debug!("skipped upload for hash {hash:032x}, already exists")
         }
 
         Ok(())
