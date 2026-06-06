@@ -55,7 +55,7 @@ pub async fn chunk_put(
     }
 
     sqlx::query(
-        "INSERT INTO chunks (user_key, xxhash3_128, body_gz, body_len) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO chunks (user_key, xxhash3_128, body_gz, body_len) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
     )
     .bind(&user_key)
     .bind(xxhash3_128.to_be_bytes())
@@ -130,7 +130,7 @@ pub async fn version_put(
     }
 
     sqlx::query(
-        "INSERT INTO versions (user_key, sync_item, xxhash3_128, body) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO versions (user_key, sync_item, xxhash3_128, body) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
     )
     .bind(&user_key)
     .bind(&sync_item)
