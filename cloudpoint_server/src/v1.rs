@@ -34,23 +34,6 @@ pub async fn chunk_head(
     }
 }
 
-pub async fn chunk_get(
-    State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, String)>,
-) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
-
-    let body = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
-    )
-    .bind(&user_key)
-    .bind(xxhash3_128.to_be_bytes())
-    .fetch_one(&state.db_pool)
-    .await?;
-
-    Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body))
-}
-
 pub async fn chunk_put(
     State(state): State<AppState>,
     Path((user_key, cid)): Path<(Uuid, String)>,
@@ -58,7 +41,7 @@ pub async fn chunk_put(
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(body.len() * 2);
     let mut decoder = GzDecoder::new(body.as_ref());
     decoder.read_to_end(&mut buf)?;
 
@@ -81,6 +64,52 @@ pub async fn chunk_put(
     Ok(StatusCode::CREATED)
 }
 
+pub async fn chunk_get(
+    State(state): State<AppState>,
+    Path((user_key, cid)): Path<(Uuid, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
+
+    let res = sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT body FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
+    )
+    .bind(&user_key)
+    .bind(xxhash3_128.to_be_bytes())
+    .fetch_one(&state.db_pool)
+    .await;
+
+    match res {
+        Ok(body) => {
+            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
+        }
+        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub async fn version_meta_latest(
+    State(state): State<AppState>,
+    Path((user_key, sync_item)): Path<(Uuid, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = sqlx::query(
+        "SELECT xxhash3_128, created_at FROM versions WHERE user_key = $1 AND sync_item = $2 ORDER BY created_at DESC",
+    )
+        .bind(&user_key)
+        .bind(&sync_item)
+        .fetch_one(&state.db_pool)
+        .await;
+
+    match result {
+        Ok(row) => Ok(Json(RemoteVersionMeta {
+            cid: format!("{:032x}", u128::from_be_bytes(row.try_get("xxhash3_128")?)),
+            created_at: row.try_get("created_at")?,
+        })
+        .into_response()),
+        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub async fn version_put(
     State(state): State<AppState>,
     Path((user_key, sync_item, cid)): Path<(Uuid, String, String)>,
@@ -88,8 +117,12 @@ pub async fn version_put(
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
+    let mut buf = Vec::with_capacity(body.len() * 2);
+    let mut decoder = GzDecoder::new(body.as_ref());
+    decoder.read_to_end(&mut buf)?;
+
     let expected_version = xxhash3_128;
-    let derived_version = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body)?.fingerprint();
+    let derived_version = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&buf)?.fingerprint();
 
     if expected_version != derived_version {
         return Err(anyhow!(
@@ -110,38 +143,26 @@ pub async fn version_put(
     Ok(StatusCode::CREATED)
 }
 
-pub async fn version_meta_latest(
-    State(state): State<AppState>,
-    Path((user_key, sync_item)): Path<(Uuid, String)>,
-) -> Result<impl IntoResponse, AppError> {
-    let row = sqlx::query(
-        "SELECT xxhash3_128, created_at FROM versions WHERE user_key = $1 AND sync_item = $2 ORDER BY created_at DESC",
-    )
-    .bind(&user_key)
-    .bind(&sync_item)
-    .fetch_one(&state.db_pool)
-    .await?;
-
-    Ok(Json(RemoteVersionMeta {
-        cid: format!("{:032x}", u128::from_be_bytes(row.try_get("xxhash3_128")?)),
-        created_at: row.try_get("created_at")?,
-    }))
-}
-
-pub async fn version_file_get(
+pub async fn version_get(
     State(state): State<AppState>,
     Path((user_key, sync_item, cid)): Path<(Uuid, String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
-    let body = sqlx::query_scalar::<_, Vec<u8>>(
+    let res = sqlx::query_scalar::<_, Vec<u8>>(
         "SELECT body FROM versions WHERE user_key = $1 AND sync_item = $2 AND xxhash3_128 = $3",
     )
     .bind(&user_key)
     .bind(&sync_item)
     .bind(xxhash3_128.to_be_bytes())
     .fetch_one(&state.db_pool)
-    .await?;
+    .await;
 
-    Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body))
+    match res {
+        Ok(body) => {
+            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
+        }
+        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Err(e) => Err(e.into()),
+    }
 }

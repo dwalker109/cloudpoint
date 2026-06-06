@@ -148,8 +148,8 @@ fn run_one(
         &USER_SETTINGS.base_url,
         *USER_KEY,
         sync_state.sync_item,
-    );
-    let remote_fingerprint = remote_ver.as_ref().map(|meta| meta.fingerprint()).ok();
+    )?;
+    let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
 
     let local_meta = meta(sync_state.sync_item)?;
     let local_archive = Rc::new(CtrArchive::open(sync_state.sync_item)?);
@@ -184,7 +184,7 @@ fn run_one(
                 .send(OpenModalMsg::ResolveConflict {
                     title_label: title_label.clone(),
                     title_local_time: sync_state.synced_at,
-                    title_remote_time: remote_ver.as_ref().map(|v| v.created_at).ok(),
+                    title_remote_time: remote_ver.as_ref().map(|v| v.created_at),
                     reply_tx,
                 })
                 .ok();
