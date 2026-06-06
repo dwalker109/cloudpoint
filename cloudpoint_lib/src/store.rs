@@ -146,7 +146,7 @@ mod tests {
         let srv = MockServer::start();
         let head_mock = srv.mock(|when, then| {
             when.method("HEAD");
-            then.status(404);
+            then.status(204);
         });
         let put_mock = srv.mock(|when, then| {
             when.method("PUT");
@@ -157,7 +157,8 @@ mod tests {
         let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
-        let data = b"test data";
+        let data =
+            b"test data, we will not gzip it for test brevity since we won't bother unzipping it";
         store.put_chunk(hash, &mut Cursor::new(data)).unwrap();
 
         head_mock.assert();
@@ -170,8 +171,8 @@ mod tests {
         let get_mock = srv.mock(|when, then| {
             when.method("GET");
             then.status(200).body({
+                let mut buf = Vec::new();
                 let mut encoder = GzEncoder::new(Cursor::new(b"test data"), Compression::none());
-                let mut buf = vec![];
                 encoder.read_to_end(&mut buf).ok();
 
                 buf

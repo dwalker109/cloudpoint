@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/chunk/{u}/{cid}", get(v1::chunk_get))
         .route("/chunk/{u}/{cid}", put(v1::chunk_put))
         .route("/ver/{u}/{si}/{cid}", put(v1::version_put))
-        .route("/ver/{u}/{si}/{cid}", get(v1::version_file_get))
+        .route("/ver/{u}/{si}/{cid}", get(v1::version_get))
         .route("/ver/{u}/{si}/latest", get(v1::version_meta_latest));
 
     let app = Router::new()

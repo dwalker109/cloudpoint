@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::{io::Read, path::PathBuf};
 
 use crate::{http::CurlHttpClient, sync::SyncItem};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use chunktree::{tree::Leaf, version::Version};
+use flate2::{Compression, read::GzDecoder, read::GzEncoder};
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -14,20 +15,16 @@ pub struct RemoteVersionMeta {
 }
 
 impl RemoteVersionMeta {
-    pub fn fingerprint(&self) -> u128 {
-        u128::from_str_radix(&self.cid, 16).unwrap()
-    }
-
-    pub fn mtime(&self) -> &DateTime<Utc> {
-        &self.created_at
+    pub fn fingerprint(&self) -> Result<u128> {
+        Ok(u128::from_str_radix(&self.cid, 16)?)
     }
 
     pub fn latest(
         client: &CurlHttpClient,
         base_url: &str,
-        user_key: Uuid,
+        user_key: &Uuid,
         sync_item: SyncItem,
-    ) -> Result<Self> {
+    ) -> Result<Option<Self>> {
         log::debug!("getting version dir listing for user.key {user_key}, sync_item {sync_item}");
 
         let url = format!(
@@ -38,11 +35,9 @@ impl RemoteVersionMeta {
         let res = client.get(&url, &[])?;
 
         match res.status {
-            200 => Ok(serde_json::from_slice(&res.body)?),
-            _ => Err(anyhow!(
-                "version dir lookup failed fatally, HTTP {}",
-                res.status,
-            )),
+            200 => Ok(Some(serde_json::from_slice(&res.body)?)),
+            204 => Ok(None),
+            _ => Err(anyhow!("version latest lookup failed: HTTP {}", res.status,)),
         }
     }
 }
@@ -64,7 +59,11 @@ pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
     let res = client.get(&url, &[])?;
 
     match res.status {
-        200 => Ok(postcard::from_bytes(&res.body)?),
+        200 => {
+            let mut buf = Vec::with_capacity(res.body.len() * 2);
+            GzDecoder::new(res.body.as_slice()).read_to_end(&mut buf)?;
+            Ok(postcard::from_bytes(&buf)?)
+        }
         _ => Err(anyhow!("version file download failed, HTTP {}", res.status,)),
     }
 }
@@ -85,7 +84,11 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
         PathBuf::from(sync_item).display(),
     );
 
-    let body = postcard::to_allocvec(&version)?;
+    let mut body = Vec::new();
+    let serialised = postcard::to_allocvec(&version)?;
+    let mut gzip_encoder = GzEncoder::new(serialised.as_slice(), Compression::best());
+    gzip_encoder.read_to_end(&mut body)?;
+
     let res = client.put(&url, &body, &[])?;
 
     match res.status {
@@ -97,191 +100,204 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::collections::BTreeSet;
-//
-//     use super::*;
-//     use chunktree::tree::{MemLeaf, Tree};
-//     use httpmock::prelude::*;
-//     use serde::Serialize;
-//     use uuid::uuid;
-//
-//     const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
-//     const SYNC_ITEM_ID: u64 = 0x000400001234ABCD;
-//     const FINGERPRINT: u128 = 0x1234567890abcdef;
-//
-//     #[test]
-//     fn fingerprint_fails_on_malformed_name() {
-//         let e = RemoteVersionMeta {
-//             name: "foobar".into(),
-//             created_at: Default::default(),
-//         };
-//
-//         assert!(e.fingerprint().is_err());
-//     }
-//
-//     #[test]
-//     fn fingerprint_ok_on_valid_name() {
-//         let e = RemoteVersionMeta {
-//             name: "abff99cc".into(),
-//             created_at: Default::default(),
-//         };
-//
-//         assert_eq!(e.fingerprint().unwrap(), 0xabff99cc);
-//     }
-//
-//     #[test]
-//     fn can_get_dir_listing() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET").path(format!(
-//                 "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/"
-//             ));
-//             then.status(200).body(
-//                 r#"{"paths": [
-//                     {"name":"12345678","size":123,"mtime":123456789},
-//                     {"name":"abcde123","size":456,"mtime":345678912}
-//                 ]}"#,
-//             );
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = VersionDirList::try_get(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//         );
-//
-//         assert!(res.is_ok());
-//         assert_eq!(res.unwrap().paths.len(), 2);
-//     }
-//
-//     #[test]
-//     fn can_get_empty_dir_listing_for_200() {
-//         let srv = MockServer::start();
-//         srv.mock(|_, then| {
-//             then.status(200).body(r#"{ "paths": [] }"#);
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = VersionDirList::try_get(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//         );
-//
-//         assert!(res.is_ok());
-//         assert_eq!(res.unwrap().paths.len(), 0);
-//     }
-//
-//     #[test]
-//     fn can_get_version() {
-//         #[derive(Serialize)]
-//         struct DuckVersion {
-//             payload: BTreeSet<()>,
-//             meta: (),
-//         }
-//
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET").path(format!(
-//                 "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
-//             ));
-//             then.status(200).body(
-//                 postcard::to_allocvec(&DuckVersion {
-//                     payload: BTreeSet::default(),
-//                     meta: (),
-//                 })
-//                 .unwrap(),
-//             );
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = RemoteVersionMeta::get_version::<MemLeaf, ()>(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//             FINGERPRINT,
-//         );
-//
-//         assert!(res.is_ok());
-//     }
-//
-//     #[test]
-//     fn version_get_fails_on_malformed_data() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET").path(format!(
-//                 "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
-//             ));
-//             then.status(200)
-//                 .body(postcard::to_allocvec(b"not gzip").unwrap());
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = RemoteVersionMeta::get_version::<MemLeaf, ()>(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//             FINGERPRINT,
-//         );
-//
-//         assert!(res.is_err());
-//     }
-//
-//     #[test]
-//     fn version_get_fails_on_missing_data() {
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("GET");
-//             then.status(404);
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = RemoteVersionMeta::get_version::<MemLeaf, ()>(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//             FINGERPRINT,
-//         );
-//
-//         assert!(res.is_err());
-//     }
-//
-//     #[test]
-//     fn version_put_succeeds_on_new_file() {
-//         let v = Version::<MemLeaf, ()>::new(
-//             &Tree::new(Vec::default(), ()),
-//             (),
-//             chunktree::version::ChunkStrategy::FixedSize(256),
-//             chunktree::version::Concurrency::Serial,
-//         )
-//         .unwrap();
-//
-//         let srv = MockServer::start();
-//         srv.mock(|when, then| {
-//             when.method("PUT").path(format!(
-//                 "/sync/{USER_KEY}/archives/{SYNC_ITEM_ID:016X}.savedata/{fingerprint_from_version:032x}",
-//                 fingerprint_from_version = v.fingerprint()
-//             ));
-//             then.status(201);
-//         });
-//
-//         let client = CurlHttpClient::new("0.0.0").unwrap();
-//         let res = RemoteVersionMeta::put_version(
-//             &client,
-//             &srv.base_url(),
-//             &USER_KEY,
-//             SyncItem::Savedata(SYNC_ITEM_ID),
-//             &v,
-//         );
-//
-//         assert!(res.is_ok());
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeSet, io::Cursor};
+
+    use super::*;
+    use chunktree::tree::{MemLeaf, Tree};
+    use httpmock::prelude::*;
+    use serde::Serialize;
+    use uuid::uuid;
+
+    const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
+    const SYNC_ITEM_ID: u64 = 0x000400001234ABCD;
+    const FINGERPRINT: u128 = 0x1234567890abcdef;
+
+    #[test]
+    fn fingerprint_fails_on_malformed_name() {
+        let e = RemoteVersionMeta {
+            cid: "foobar".into(),
+            created_at: Default::default(),
+        };
+
+        assert!(e.fingerprint().is_err());
+    }
+
+    #[test]
+    fn fingerprint_ok_on_valid_name() {
+        let e = RemoteVersionMeta {
+            cid: format!("{:032x}", 0xabff99cc_u128),
+            created_at: Default::default(),
+        };
+
+        assert_eq!(e.fingerprint().unwrap(), 0xabff99cc);
+    }
+
+    #[test]
+    fn can_get_version_latest() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET").path(format!(
+                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/latest"
+            ));
+            then.status(200).body(
+                r#"
+                {
+                    "cid": "f68de3859be65ff4dd1b57195e466d97",
+                    "created_at": "2026-06-09T00:07:40.207850Z"
+                }
+                "#,
+            );
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = RemoteVersionMeta::latest(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+        );
+
+        assert!(res.is_ok());
+        assert_eq!(
+            res.unwrap().unwrap().cid,
+            "f68de3859be65ff4dd1b57195e466d97"
+        );
+    }
+
+    #[test]
+    fn can_get_no_content_response_for_no_version() {
+        let srv = MockServer::start();
+        srv.mock(|_, then| {
+            then.status(204);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = RemoteVersionMeta::latest(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+        );
+
+        assert!(res.is_ok());
+        assert!(res.unwrap().is_none());
+    }
+
+    #[test]
+    fn can_get_version() {
+        #[derive(Serialize)]
+        struct DuckVersion {
+            payload: BTreeSet<()>,
+            meta: (),
+        }
+
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET").path(format!(
+                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
+            ));
+
+            let mut buf = Vec::new();
+            let mut encoder = GzEncoder::new(
+                Cursor::new(
+                    postcard::to_allocvec(&DuckVersion {
+                        payload: BTreeSet::default(),
+                        meta: (),
+                    })
+                    .unwrap(),
+                ),
+                Compression::none(),
+            );
+            encoder.read_to_end(&mut buf).ok();
+
+            then.status(200).body(buf);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = get_version::<MemLeaf, ()>(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
+        );
+
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn version_get_fails_on_malformed_data() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET").path(format!(
+                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
+            ));
+            then.status(200)
+                .body(postcard::to_allocvec(b"not gzip").unwrap());
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = get_version::<MemLeaf, ()>(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
+        );
+
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn version_get_fails_on_missing_data() {
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("GET");
+            then.status(404);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = get_version::<MemLeaf, ()>(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            FINGERPRINT,
+        );
+
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn version_put_succeeds_on_new_file() {
+        let v = Version::<MemLeaf, ()>::new(
+            &Tree::new(Vec::default(), ()),
+            (),
+            chunktree::version::ChunkStrategy::FixedSize(256),
+            chunktree::version::Concurrency::Serial,
+        )
+        .unwrap();
+
+        let srv = MockServer::start();
+        srv.mock(|when, then| {
+            when.method("PUT").path(format!(
+                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{fingerprint_from_version:032x}",
+                fingerprint_from_version = v.fingerprint()
+            ));
+            then.status(201);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let res = put_version(
+            &client,
+            &srv.base_url(),
+            &USER_KEY,
+            SyncItem::Savedata(SYNC_ITEM_ID),
+            &v,
+        );
+
+        assert!(res.is_ok());
+    }
+}
