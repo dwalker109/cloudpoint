@@ -1,5 +1,4 @@
 use crate::{AppError, AppState};
-use anyhow::anyhow;
 use axum::{
     Json,
     body::Bytes,
@@ -12,6 +11,7 @@ use cloudpoint_lib::{ctr::CtrMeta, version::RemoteVersionMeta};
 use flate2::read::GzDecoder;
 use sqlx::Row;
 use std::io::Read;
+use tracing::warn;
 use uuid::Uuid;
 
 pub async fn chunk_head(
@@ -49,9 +49,14 @@ pub async fn chunk_put(
     let derived_hash = twox_hash::XxHash3_128::oneshot(&decoded);
 
     if expected_hash != derived_hash {
-        return Err(anyhow!(
-            "provided content id is not valid for the provided data"
-        ))?;
+        let message = "content id invalid for uploaded data";
+        warn!(
+            expected = format!("{expected_hash:032x}"),
+            derived = format!("{derived_hash:032x}"),
+            message
+        );
+
+        return Ok((StatusCode::BAD_REQUEST, message).into_response());
     }
 
     sqlx::query(
@@ -64,7 +69,7 @@ pub async fn chunk_put(
     .execute(&state.db_pool)
     .await?;
 
-    Ok(StatusCode::CREATED)
+    Ok(StatusCode::CREATED.into_response())
 }
 
 pub async fn chunk_get(
@@ -120,13 +125,18 @@ pub async fn version_put(
 ) -> Result<impl IntoResponse, AppError> {
     let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
 
-    let expected_version = xxhash3_128;
-    let derived_version = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body)?.fingerprint();
+    let expected_hash = xxhash3_128;
+    let derived_hash = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body)?.fingerprint();
 
-    if expected_version != derived_version {
-        return Err(anyhow!(
-            "provided content id is not valid for the provided data"
-        ))?;
+    if expected_hash != derived_hash {
+        let message = "content id invalid for uploaded data";
+        warn!(
+            expected = format!("{expected_hash:032x}"),
+            derived = format!("{derived_hash:032x}"),
+            message
+        );
+
+        return Ok((StatusCode::BAD_REQUEST, message).into_response());
     }
 
     sqlx::query(
@@ -139,7 +149,7 @@ pub async fn version_put(
     .execute(&state.db_pool)
     .await?;
 
-    Ok(StatusCode::CREATED)
+    Ok(StatusCode::CREATED.into_response())
 }
 
 pub async fn version_get(
