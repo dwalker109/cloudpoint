@@ -11,5 +11,5 @@ create table public.versions
     unique (user_key, sync_item, sha256)
 );
 
-alter table public.versions owner to postgres;
-
+alter table public.versions
+    owner to postgres;

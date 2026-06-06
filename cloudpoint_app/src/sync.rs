@@ -146,7 +146,7 @@ fn run_one(
     let remote_ver = RemoteVersionMeta::latest(
         client,
         &USER_SETTINGS.base_url,
-        *USER_KEY,
+        &USER_KEY,
         sync_state.sync_item,
     )?;
     let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
