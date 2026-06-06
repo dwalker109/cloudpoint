@@ -1,0 +1,14 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "target": "armv6k-nintendo-3ds",
+        },
+        "check": {
+          "overrideCommand": ["cargo", "3ds", "check", "--message-format=json"],
+        },
+      },
+    },
+  },
+}
