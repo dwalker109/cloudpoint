@@ -1,6 +1,6 @@
 use crate::{
     AppError, AppState, HexU128,
-    svc::{chunk, version},
+    services::{chunk, version},
 };
 use axum::{
     Json,
@@ -12,13 +12,14 @@ use axum::{
 use chunktree::{tree::MemLeaf, version::Version};
 use cloudpoint_lib::ctr::CtrMeta;
 use flate2::read::GzDecoder;
+use serde_json::json;
 use std::io::Read;
 use tracing::warn;
 use uuid::Uuid;
 
 pub async fn chunk_head(
     State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, HexU128)>,
+    Path((user_key, _shard, cid)): Path<(Uuid, (), HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
     let exists = chunk::exists(&user_key, &cid, &state.db_pool).await?;
 
@@ -30,7 +31,7 @@ pub async fn chunk_head(
 
 pub async fn chunk_get(
     State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, HexU128)>,
+    Path((user_key, _shard, cid)): Path<(Uuid, (), HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
     let res = chunk::get(&user_key, &cid, &state.db_pool).await;
 
@@ -45,7 +46,7 @@ pub async fn chunk_get(
 
 pub async fn chunk_put(
     State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, HexU128)>,
+    Path((user_key, _shard, cid)): Path<(Uuid, (), HexU128)>,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
     let mut decoder = GzDecoder::new(body.as_ref());
@@ -75,15 +76,32 @@ pub async fn chunk_put(
     Ok(StatusCode::CREATED.into_response())
 }
 
-pub async fn version_meta_latest(
+pub async fn version_dir_list(
     State(state): State<AppState>,
     Path((user_key, sync_item)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let result = version::latest(&user_key, &sync_item, &state.db_pool).await;
 
     match result {
-        Ok(Some(version)) => Ok(Json(version).into_response()),
-        Ok(None) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Ok(Some(version)) => {
+            let dir_list = json!({
+                "paths": [
+                    {
+                        "name": version.cid,
+                        "mtime": version.created_at.timestamp()
+                    }
+                ]
+            });
+
+            Ok(Json(dir_list).into_response())
+        }
+        Ok(None) => {
+            let dir_list = json!({
+                "paths": []
+            });
+
+            Ok(Json(dir_list).into_response())
+        }
         Err(e) => Err(e.into()),
     }
 }
