@@ -9,8 +9,8 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
 use tower_http::trace::TraceLayer;
 
-mod svc;
-mod v1;
+mod handlers;
+mod services;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -78,16 +78,28 @@ async fn main() -> anyhow::Result<()> {
 }
 
 pub fn app(app_state: AppState) -> Router {
+    let v0_router = Router::new()
+        .route("/{u}/chunks/{shard}/{cid}", head(handlers::v0::chunk_head))
+        .route("/{u}/chunks/{shard}/{cid}", get(handlers::v0::chunk_get))
+        .route("/{u}/chunks/{shard}/{cid}", put(handlers::v0::chunk_put))
+        .route("/{u}/archives/{si}/{cid}", put(handlers::v0::version_put))
+        .route("/{u}/archives/{si}/{cid}", get(handlers::v0::version_get))
+        .route("/{u}/archives/{si}/", get(handlers::v0::version_dir_list));
+
     let v1_router = Router::new()
-        .route("/chunk/{u}/{cid}", head(v1::chunk_head))
-        .route("/chunk/{u}/{cid}", get(v1::chunk_get))
-        .route("/chunk/{u}/{cid}", put(v1::chunk_put))
-        .route("/ver/{u}/{si}/{cid}", put(v1::version_put))
-        .route("/ver/{u}/{si}/{cid}", get(v1::version_get))
-        .route("/ver/{u}/{si}/latest", get(v1::version_meta_latest));
+        .route("/chunk/{u}/{cid}", head(handlers::v1::chunk_head))
+        .route("/chunk/{u}/{cid}", get(handlers::v1::chunk_get))
+        .route("/chunk/{u}/{cid}", put(handlers::v1::chunk_put))
+        .route("/ver/{u}/{si}/{cid}", put(handlers::v1::version_put))
+        .route("/ver/{u}/{si}/{cid}", get(handlers::v1::version_get))
+        .route(
+            "/ver/{u}/{si}/latest",
+            get(handlers::v1::version_meta_latest),
+        );
 
     Router::new()
         .route("/", get(|| async { "CLPT!\n" }))
+        .nest("/sync", v0_router)
         .nest("/api/v1", v1_router)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state)
