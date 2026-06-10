@@ -1,4 +1,4 @@
-use crate::{AppError, AppState};
+use crate::{AppError, AppState, HexU128};
 use axum::{
     Json,
     body::Bytes,
@@ -16,15 +16,13 @@ use uuid::Uuid;
 
 pub async fn chunk_head(
     State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, String)>,
+    Path((user_key, cid)): Path<(Uuid, HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
-
     let exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2)",
     )
     .bind(&user_key)
-    .bind(xxhash3_128.to_be_bytes())
+    .bind(cid.to_bytea())
     .fetch_one(&state.db_pool)
     .await?;
 
@@ -34,24 +32,47 @@ pub async fn chunk_head(
     }
 }
 
+pub async fn chunk_get(
+    State(state): State<AppState>,
+    Path((user_key, cid)): Path<(Uuid, HexU128)>,
+) -> Result<impl IntoResponse, AppError> {
+    let res = sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT body_gz FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
+    )
+    .bind(&user_key)
+    .bind(cid.to_bytea())
+    .fetch_one(&state.db_pool)
+    .await;
+
+    match res {
+        Ok(body) => {
+            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
+        }
+        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub async fn chunk_put(
     State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, String)>,
+    Path((user_key, cid)): Path<(Uuid, HexU128)>,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
-
     let mut decoder = GzDecoder::new(body.as_ref());
     let mut decoded = Vec::with_capacity(body.len() * 2);
-    decoder.read_to_end(&mut decoded)?;
+    if let Err(e) = decoder.read_to_end(&mut decoded) {
+        let message = format!("cannot decode uploaded data: {e}");
+        warn!(message);
 
-    let expected_hash = xxhash3_128;
+        return Ok((StatusCode::BAD_REQUEST, message).into_response());
+    };
+
     let derived_hash = twox_hash::XxHash3_128::oneshot(&decoded);
 
-    if expected_hash != derived_hash {
+    if cid != derived_hash {
         let message = "content id invalid for uploaded data";
         warn!(
-            expected = format!("{expected_hash:032x}"),
+            expected = format!("{:032x}", cid.0),
             derived = format!("{derived_hash:032x}"),
             message
         );
@@ -63,36 +84,13 @@ pub async fn chunk_put(
         "INSERT INTO chunks (user_key, xxhash3_128, body_gz, body_len) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
     )
     .bind(&user_key)
-    .bind(xxhash3_128.to_be_bytes())
+    .bind(cid.to_bytea())
     .bind(body.as_ref())
     .bind(decoded.len() as i64)
     .execute(&state.db_pool)
     .await?;
 
     Ok(StatusCode::CREATED.into_response())
-}
-
-pub async fn chunk_get(
-    State(state): State<AppState>,
-    Path((user_key, cid)): Path<(Uuid, String)>,
-) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
-
-    let res = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body_gz FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
-    )
-    .bind(&user_key)
-    .bind(xxhash3_128.to_be_bytes())
-    .fetch_one(&state.db_pool)
-    .await;
-
-    match res {
-        Ok(body) => {
-            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
-        }
-        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
-        Err(e) => Err(e.into()),
-    }
 }
 
 pub async fn version_meta_latest(
@@ -118,20 +116,47 @@ pub async fn version_meta_latest(
     }
 }
 
+pub async fn version_get(
+    State(state): State<AppState>,
+    Path((user_key, sync_item, cid)): Path<(Uuid, String, HexU128)>,
+) -> Result<impl IntoResponse, AppError> {
+    let res = sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT body FROM versions WHERE user_key = $1 AND sync_item = $2 AND xxhash3_128 = $3",
+    )
+    .bind(&user_key)
+    .bind(&sync_item)
+    .bind(cid.to_bytea())
+    .fetch_one(&state.db_pool)
+    .await;
+
+    match res {
+        Ok(body) => {
+            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
+        }
+        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub async fn version_put(
     State(state): State<AppState>,
-    Path((user_key, sync_item, cid)): Path<(Uuid, String, String)>,
+    Path((user_key, sync_item, cid)): Path<(Uuid, String, HexU128)>,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
+    let derived_hash = match postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body) {
+        Ok(v) => v.fingerprint(),
+        Err(e) => {
+            let message = format!("cannot decode uploaded data: {e}");
+            warn!(message);
 
-    let expected_hash = xxhash3_128;
-    let derived_hash = postcard::from_bytes::<Version<MemLeaf, CtrMeta>>(&body)?.fingerprint();
+            return Ok((StatusCode::BAD_REQUEST, message).into_response());
+        }
+    };
 
-    if expected_hash != derived_hash {
+    if cid != derived_hash {
         let message = "content id invalid for uploaded data";
         warn!(
-            expected = format!("{expected_hash:032x}"),
+            expected = format!("{:032x}", cid.0),
             derived = format!("{derived_hash:032x}"),
             message
         );
@@ -144,34 +169,10 @@ pub async fn version_put(
     )
     .bind(&user_key)
     .bind(&sync_item)
-    .bind(xxhash3_128.to_be_bytes())
+    .bind(cid.to_bytea())
     .bind(body.as_ref())
     .execute(&state.db_pool)
     .await?;
 
     Ok(StatusCode::CREATED.into_response())
-}
-
-pub async fn version_get(
-    State(state): State<AppState>,
-    Path((user_key, sync_item, cid)): Path<(Uuid, String, String)>,
-) -> Result<impl IntoResponse, AppError> {
-    let xxhash3_128 = u128::from_str_radix(&cid, 16)?;
-
-    let res = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body FROM versions WHERE user_key = $1 AND sync_item = $2 AND xxhash3_128 = $3",
-    )
-    .bind(&user_key)
-    .bind(&sync_item)
-    .bind(xxhash3_128.to_be_bytes())
-    .fetch_one(&state.db_pool)
-    .await;
-
-    match res {
-        Ok(body) => {
-            Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
-        }
-        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
-        Err(e) => Err(e.into()),
-    }
 }
