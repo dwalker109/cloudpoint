@@ -6,13 +6,7 @@ services:
     ports:
       - 5432:5432
     environment:
-      POSTGRES_PASSWORD: example
-
-  adminer:
-    image: adminer
-    restart: unless-stopped
-    ports:
-      - 8080:8080
+      POSTGRES_PASSWORD: postgres
 
   caddy:
     image: caddy:latest
