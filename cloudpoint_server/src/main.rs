@@ -9,6 +9,7 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
 use tower_http::trace::TraceLayer;
 
+mod svc;
 mod v1;
 
 #[derive(Clone)]
@@ -51,7 +52,7 @@ impl PartialEq<u128> for HexU128 {
 }
 
 impl HexU128 {
-    pub fn to_bytea(self) -> [u8; 16] {
+    pub fn to_bytea(&self) -> [u8; 16] {
         self.0.to_be_bytes()
     }
 }

@@ -1,4 +1,7 @@
-use crate::{AppError, AppState, HexU128};
+use crate::{
+    AppError, AppState, HexU128,
+    svc::{chunk, version},
+};
 use axum::{
     Json,
     body::Bytes,
@@ -7,9 +10,8 @@ use axum::{
     response::IntoResponse,
 };
 use chunktree::{tree::MemLeaf, version::Version};
-use cloudpoint_lib::{ctr::CtrMeta, version::RemoteVersionMeta};
+use cloudpoint_lib::ctr::CtrMeta;
 use flate2::read::GzDecoder;
-use sqlx::Row;
 use std::io::Read;
 use tracing::warn;
 use uuid::Uuid;
@@ -18,13 +20,7 @@ pub async fn chunk_head(
     State(state): State<AppState>,
     Path((user_key, cid)): Path<(Uuid, HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2)",
-    )
-    .bind(&user_key)
-    .bind(cid.to_bytea())
-    .fetch_one(&state.db_pool)
-    .await?;
+    let exists = chunk::exists(&user_key, &cid, &state.db_pool).await?;
 
     match exists {
         true => Ok(StatusCode::OK),
@@ -36,19 +32,13 @@ pub async fn chunk_get(
     State(state): State<AppState>,
     Path((user_key, cid)): Path<(Uuid, HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let res = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body_gz FROM chunks WHERE user_key = $1 AND xxhash3_128 = $2",
-    )
-    .bind(&user_key)
-    .bind(cid.to_bytea())
-    .fetch_one(&state.db_pool)
-    .await;
+    let res = chunk::get(&user_key, &cid, &state.db_pool).await;
 
     match res {
-        Ok(body) => {
+        Ok(Some(body)) => {
             Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
         }
-        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Ok(None) => Ok(StatusCode::NOT_FOUND.into_response()),
         Err(e) => Err(e.into()),
     }
 }
@@ -80,15 +70,7 @@ pub async fn chunk_put(
         return Ok((StatusCode::BAD_REQUEST, message).into_response());
     }
 
-    sqlx::query(
-        "INSERT INTO chunks (user_key, xxhash3_128, body_gz, body_len) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-    )
-    .bind(&user_key)
-    .bind(cid.to_bytea())
-    .bind(body.as_ref())
-    .bind(decoded.len() as i64)
-    .execute(&state.db_pool)
-    .await?;
+    chunk::put(&user_key, &cid, &body, decoded.len() as i64, &state.db_pool).await?;
 
     Ok(StatusCode::CREATED.into_response())
 }
@@ -97,21 +79,11 @@ pub async fn version_meta_latest(
     State(state): State<AppState>,
     Path((user_key, sync_item)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let result = sqlx::query(
-        "SELECT xxhash3_128, created_at FROM versions WHERE user_key = $1 AND sync_item = $2 ORDER BY created_at DESC",
-    )
-        .bind(&user_key)
-        .bind(&sync_item)
-        .fetch_one(&state.db_pool)
-        .await;
+    let result = version::latest(&user_key, &sync_item, &state.db_pool).await;
 
     match result {
-        Ok(row) => Ok(Json(RemoteVersionMeta {
-            cid: format!("{:032x}", u128::from_be_bytes(row.try_get("xxhash3_128")?)),
-            created_at: row.try_get("created_at")?,
-        })
-        .into_response()),
-        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Ok(Some(version)) => Ok(Json(version).into_response()),
+        Ok(None) => Ok(StatusCode::NO_CONTENT.into_response()),
         Err(e) => Err(e.into()),
     }
 }
@@ -120,20 +92,13 @@ pub async fn version_get(
     State(state): State<AppState>,
     Path((user_key, sync_item, cid)): Path<(Uuid, String, HexU128)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let res = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT body FROM versions WHERE user_key = $1 AND sync_item = $2 AND xxhash3_128 = $3",
-    )
-    .bind(&user_key)
-    .bind(&sync_item)
-    .bind(cid.to_bytea())
-    .fetch_one(&state.db_pool)
-    .await;
+    let res = version::get(&user_key, &sync_item, &cid, &state.db_pool).await;
 
     match res {
-        Ok(body) => {
+        Ok(Some(body)) => {
             Ok(([(header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
         }
-        Err(sqlx::Error::RowNotFound) => Ok(StatusCode::NOT_FOUND.into_response()),
+        Ok(None) => Ok(StatusCode::NOT_FOUND.into_response()),
         Err(e) => Err(e.into()),
     }
 }
@@ -164,15 +129,7 @@ pub async fn version_put(
         return Ok((StatusCode::BAD_REQUEST, message).into_response());
     }
 
-    sqlx::query(
-        "INSERT INTO versions (user_key, sync_item, xxhash3_128, body) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-    )
-    .bind(&user_key)
-    .bind(&sync_item)
-    .bind(cid.to_bytea())
-    .bind(body.as_ref())
-    .execute(&state.db_pool)
-    .await?;
+    version::put(&user_key, &sync_item, &cid, &body, &state.db_pool).await?;
 
     Ok(StatusCode::CREATED.into_response())
 }
