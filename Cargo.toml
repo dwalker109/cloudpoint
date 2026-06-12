@@ -2,7 +2,6 @@
 resolver = "3"
 members = ["cloudpoint_app", "cloudpoint_lib", "cloudpoint_server"]
 default-members = ["cloudpoint_app", "cloudpoint_lib"]
-license = "MIT"
 
 [workspace.dependencies]
 anyhow = "1.0.102"
@@ -10,8 +9,6 @@ chrono = "0.4.44"
 chunktree = { git = "ssh://git@github.com/dwalker109/chunktree.git", branch = "main", default-features = false }
 cloudpoint_lib = { path = "cloudpoint_lib" }
 config = { version = "0.15.22", default-features = false }
-ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
-ctru-sys = { git = "https://github.com/rust3ds/ctru-rs" }
 curl-sys = { version = "0.4", default-features = false }
 flexi_logger = { version = "0.31.8", default-features = false }
 httpmock = "0.8.3"
