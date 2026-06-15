@@ -98,7 +98,8 @@ pub fn app(app_state: AppState) -> Router {
         );
 
     Router::new()
-        .route("/", get(|| async { "CLPT!\n" }))
+        .route("/", get(|| async { "CLPT!" }))
+        .route("/version", get(|| async { env!("CARGO_PKG_VERSION") }))
         .nest("/sync", v0_router)
         .nest("/api/v1", v1_router)
         .layer(TraceLayer::new_for_http())
