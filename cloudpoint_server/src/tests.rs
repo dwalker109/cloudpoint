@@ -19,7 +19,7 @@ async fn hello_world(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
-    assert_eq!(&body[..], b"CLPT!\n");
+    assert_eq!(&body[..], b"CLPT!");
 }
 
 mod v0;

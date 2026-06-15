@@ -1,5 +1,9 @@
+use std::io::Read;
+
 use crate::HexU128;
+use flate2::read::GzDecoder;
 use sqlx::{Error, PgPool};
+use tracing::warn;
 use uuid::Uuid;
 
 pub async fn exists(user_key: &Uuid, cid: &HexU128, db_pool: &PgPool) -> Result<bool, Error> {
@@ -50,4 +54,30 @@ pub async fn put(
     .await?;
 
     Ok(())
+}
+
+pub fn validate(cid: &HexU128, body: &[u8]) -> Result<i64, String> {
+    let mut decoder = GzDecoder::new(body.as_ref());
+    let mut decoded = Vec::with_capacity(body.len() * 2);
+    if let Err(e) = decoder.read_to_end(&mut decoded) {
+        let message = format!("cannot decode uploaded data: {e}");
+        warn!(message);
+
+        return Err(message);
+    };
+
+    let derived_hash = &twox_hash::XxHash3_128::oneshot(&decoded);
+
+    if cid != derived_hash {
+        let message = "content id invalid for uploaded data";
+        warn!(
+            expected = cid.to_string(),
+            derived = format!("{derived_hash:032x}"),
+            message
+        );
+
+        return Err(message.into());
+    }
+
+    Ok(decoded.len() as i64)
 }
