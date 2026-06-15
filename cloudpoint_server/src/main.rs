@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::{Deserialize, Deserializer};
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::time::Duration;
+use std::{fmt::Display, time::Duration};
 use tower_http::trace::TraceLayer;
 
 mod handlers;
@@ -35,6 +35,18 @@ where
 }
 
 struct HexU128(u128);
+
+impl From<&str> for HexU128 {
+    fn from(hex: &str) -> Self {
+        Self(u128::from_str_radix(hex, 16).expect("should be valid base 16"))
+    }
+}
+
+impl Display for HexU128 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:032x}", self.0)
+    }
+}
 
 impl<'de> Deserialize<'de> for HexU128 {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -77,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn app(app_state: AppState) -> Router {
+fn app(app_state: AppState) -> Router {
     let v0_router = Router::new()
         .route("/{u}/chunks/{shard}/{cid}", head(handlers::v0::chunk_head))
         .route("/{u}/chunks/{shard}/{cid}", get(handlers::v0::chunk_get))
