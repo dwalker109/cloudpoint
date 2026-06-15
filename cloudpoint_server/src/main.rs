@@ -11,6 +11,7 @@ use tower_http::trace::TraceLayer;
 
 mod handlers;
 mod services;
+mod v0_import;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -82,6 +83,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     sqlx::migrate!().run(&app_state.db_pool).await?;
+
+    if std::env::var("V0_IMPORT").is_ok() {
+        v0_import::run(&app_state.db_pool).await?;
+    }
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
     axum::serve(listener, app(app_state)).await?;
