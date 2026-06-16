@@ -78,17 +78,21 @@ async fn main() -> anyhow::Result<()> {
         db_pool: PgPoolOptions::new()
             .max_connections(20)
             .acquire_timeout(Duration::from_secs(5))
-            .connect("postgres://postgres:example@localhost:5432/cloudpoint")
+            .connect(&std::env::var("DATABASE_URL")?)
             .await?,
     };
 
     sqlx::migrate!().run(&app_state.db_pool).await?;
 
     if std::env::var("V0_IMPORT").is_ok() {
+        tracing::debug!("vo import");
         v0_import::run(&app_state.db_pool).await?;
+        return Ok(());
+    } else {
+        tracing::debug!("no import");
     }
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:6776").await?;
     axum::serve(listener, app(app_state)).await?;
 
     Ok(())

@@ -1,6 +1,0 @@
-your.domain.here {
-    request_body {
-	    max_size 1024KB
-    }
-    reverse_proxy dufs:5000
-}
