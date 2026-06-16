@@ -97,8 +97,9 @@ pack-icons:
         -o src/ctr_gfx/icons/bindings.rs
     sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/ctr_gfx/icons/bindings.rs
 
-server-build:
+docker-build-server:
+    cargo clean
     docker build --ssh default -t dwalker109/cloudpoint -f cloudpoint_server/Dockerfile .
 
-server-run:
-    docker compose -f cloudpoint_server/compose.dev.yml up
+docker-run-server-local:
+    docker compose -f cloudpoint_server/compose.local.yml up

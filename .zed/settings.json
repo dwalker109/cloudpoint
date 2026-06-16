@@ -1,0 +1,16 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "target": "x86_64-unknown-linux-gnu",
+          "allTargets": false,
+        },
+        "check": {
+          "allTargets": false,
+          "workspace": false,
+        },
+      },
+    },
+  },
+}

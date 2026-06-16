@@ -16,7 +16,7 @@ const CHUNK_GZ_DATA: &[u8] = &[
 const SYNC_ITEM: &str = "000400000007E800.savedata";
 const VERSION_CID: u128 = 0x68A9918350F92B62AB8EF8AB0F2EFEA1;
 
-#[sqlx::test(fixtures("../../fixtures/chunks.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/chunks.sql"))]
 async fn bad_path_segments(db_pool: Pool<sqlx::Postgres>) {
     let expected = [
         Request::head(format!("/api/v1/chunk/bad_uuid/{CHUNK_CID:032x}")).body(Body::empty()),
@@ -27,7 +27,7 @@ async fn bad_path_segments(db_pool: Pool<sqlx::Postgres>) {
         Request::put(format!("/api/v1/chunk/{USER_KEY}/bad_cid")).body(Body::empty()),
     ];
 
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     for req in expected {
         let response = app.clone().oneshot(req.unwrap()).await.unwrap();
@@ -36,9 +36,9 @@ async fn bad_path_segments(db_pool: Pool<sqlx::Postgres>) {
     }
 }
 
-#[sqlx::test(fixtures("../../fixtures/chunks.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/chunks.sql"))]
 async fn chunk_head_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -52,9 +52,9 @@ async fn chunk_head_ok(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[sqlx::test(fixtures("../../fixtures/chunks.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/chunks.sql"))]
 async fn chunk_get_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -71,9 +71,9 @@ async fn chunk_get_ok(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(&body[..], CHUNK_GZ_DATA);
 }
 
-#[sqlx::test(fixtures("../../fixtures/chunks.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/chunks.sql"))]
 async fn chunk_get_no_access_not_found(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -92,7 +92,7 @@ async fn chunk_get_no_access_not_found(db_pool: Pool<sqlx::Postgres>) {
 
 #[sqlx::test] // No fixture, intentionally
 async fn chunk_put_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .clone()
@@ -123,7 +123,7 @@ async fn chunk_put_ok(db_pool: Pool<sqlx::Postgres>) {
 
 #[sqlx::test] // No fixture, intentionally
 async fn chunk_put_malformed_errors(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .clone()
@@ -150,9 +150,9 @@ async fn chunk_put_malformed_errors(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
-#[sqlx::test(fixtures("../../fixtures/versions.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/versions.sql"))]
 async fn version_get_latest_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -178,7 +178,7 @@ async fn version_get_latest_ok(db_pool: Pool<sqlx::Postgres>) {
 
 #[sqlx::test] // No fixture, intentionally
 async fn version_get_latest_no_data(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -195,9 +195,9 @@ async fn version_get_latest_no_data(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(body.len(), 0);
 }
 
-#[sqlx::test(fixtures("../../fixtures/versions.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/versions.sql"))]
 async fn version_get_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -217,9 +217,9 @@ async fn version_get_ok(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(ver.fingerprint(), VERSION_CID);
 }
 
-#[sqlx::test(fixtures("../../fixtures/versions.sql"))]
+#[sqlx::test(fixtures("../../../fixtures/versions.sql"))]
 async fn version_get_no_access_not_found(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .oneshot(
@@ -241,7 +241,7 @@ async fn version_get_no_access_not_found(db_pool: Pool<sqlx::Postgres>) {
 
 #[sqlx::test] // No fixture, intentionally
 async fn ver_put_ok(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let ver = Version::new(
         &Tree::<MemLeaf>::new(vec![], ()),
@@ -287,7 +287,7 @@ async fn ver_put_ok(db_pool: Pool<sqlx::Postgres>) {
 
 #[sqlx::test] // No fixture, intentionally
 async fn ver_put_malformed_errors(db_pool: Pool<sqlx::Postgres>) {
-    let app = super::app(AppState { db_pool });
+    let app = super::make(AppState { db_pool });
 
     let response = app
         .clone()

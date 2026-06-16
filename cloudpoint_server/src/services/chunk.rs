@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::HexU128;
+use crate::hex_u128::HexU128;
 use flate2::read::GzDecoder;
 use sqlx::{Error, PgPool};
 use tracing::warn;
