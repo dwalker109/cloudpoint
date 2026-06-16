@@ -1,4 +1,4 @@
-use crate::HexU128;
+use crate::hex_u128::HexU128;
 use chunktree::{tree::MemLeaf, version::Version};
 use cloudpoint_lib::{ctr::CtrMeta, version::RemoteVersionMeta};
 use sqlx::{Error, PgPool, Row};
