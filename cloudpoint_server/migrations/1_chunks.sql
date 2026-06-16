@@ -12,4 +12,7 @@ create table public.chunks
 );
 
 alter table public.chunks
+    alter column body_gz set storage external;
+
+alter table public.chunks
     owner to postgres;
