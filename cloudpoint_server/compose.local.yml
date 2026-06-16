@@ -6,7 +6,7 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: cloudpoint
       POSTGRES_PASSWORD: postgres
@@ -21,7 +21,7 @@ services:
     image: dwalker109/cloudpoint
     restart: unless-stopped
     ports:
-      - "6776:6776"
+      - 6776:6776
     environment:
       RUST_LOG: INFO
       DATABASE_URL: postgres://postgres:postgres@db:5432/cloudpoint
@@ -30,4 +30,4 @@ services:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  pg_data:
