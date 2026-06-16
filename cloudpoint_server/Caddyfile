@@ -1,0 +1,6 @@
+your.domain.here {
+    request_body {
+	    max_size 2048KB
+    }
+    reverse_proxy cloudpoint:6776
+}
