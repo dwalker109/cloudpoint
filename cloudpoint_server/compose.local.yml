@@ -18,7 +18,7 @@ services:
       start_period: 10s
 
   cloudpoint:
-    image: dwalker109/cloudpoint
+    image: dwalker109/cloudpoint:latest
     restart: unless-stopped
     ports:
       - 6776:6776
