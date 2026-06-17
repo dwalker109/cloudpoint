@@ -67,7 +67,7 @@ pub async fn version_dir_list(
                 "paths": [
                     {
                         "name": version.cid,
-                        "mtime": version.created_at.timestamp()
+                        "mtime": version.created_at.timestamp_millis()
                     }
                 ]
             });
