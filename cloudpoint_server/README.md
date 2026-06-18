@@ -1,4 +1,4 @@
-# Cloudpoint Server 1.*.*
+# Cloudpoint Server 1.\*.\*
 
 This crate contains the server powering Cloudpoint. It is used for the
 public instance at https://cloudpoint.dwalker.me and you can also self
@@ -11,6 +11,15 @@ to make it very easy.
 directly, if that's what you prefer. You can't do it yet, since it relies 
 on another one of my crates which isn't yet public. Sorry about that; it
 will be done soon.
+
+## Use
+
+Once you have your self hosted instance running (see below), create 
+(or update) `/3ds/Cloudpoint/settings.ini`:
+
+```
+base_url=http://<local ip or hostname>:6776
+```
 
 ## Docker
 
@@ -39,7 +48,7 @@ You will need a domain pointing at your server for this one. Add it to
 Again, if you want to customise ports, passwords etc just take a 
 look in that file.
 
-## Upgrading from Cloudpoint Server 0.*.*
+## Upgrading from Cloudpoint Server 0.\*.\*
 
 Users of the beta version of Cloudpoint might have the old DUFS based
 server running. This kept all your data in files on the filesystem.
