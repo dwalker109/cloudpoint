@@ -1,4 +1,5 @@
 #![feature(oneshot_channel)]
+#![feature(try_blocks)]
 
 mod app;
 pub mod app_logger;

@@ -93,16 +93,17 @@ fn run_one(
 
     if Ac::new()?.wait_internet_connection().is_err() {
         log::warn!("internet down");
-        bail!("No internet connection");
+        bail!("No internet connection is available - please ensure you are online and try again");
     }
 
     let Ok(smdh) = CtrArchive::smdh(sync_state.sync_item) else {
-        log::info!(
-            "{} archive does not exist, cannot sync",
-            sync_state.sync_item,
-        );
+        log::warn!("{} cannot be read, cannot sync", sync_state.sync_item,);
 
-        bail!("{} not found; was the title deleted?", sync_state.sync_item);
+        bail!(
+            "{} could not be opened; was the title ({}) deleted?",
+            sync_state.sync_item,
+            sync_state.title_short
+        );
     };
 
     for title_id in &sync_state.via_title_ids {
