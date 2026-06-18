@@ -18,11 +18,17 @@ pub fn worker_thread(
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
     let mut state_db = StateDb::open(AppPath::Db)
-        .or_else(|_| StateDb::new(AppPath::Db, &ui_tx))
+        .or_else(|_| {
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            StateDb::new(AppPath::Db, &ui_tx)
+        })
         .expect("state db must be available");
 
     let mut title_db = TitleDb::open(AppPath::Db)
-        .or_else(|_| TitleDb::new(AppPath::Db, &state_db, &ui_tx))
+        .or_else(|_| {
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            TitleDb::new(AppPath::Db, &state_db, &ui_tx)
+        })
         .expect("title db must be available");
 
     let mut install_history_db = InstallHistoryDb::open(AppPath::Db)
@@ -100,8 +106,6 @@ pub fn worker_thread(
                 };
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
-                state_db.process_sync_items_for_title(title_id, false)?;
-                title_db.refresh_shared_extdata_linked_titles(title_id, &state_db)?;
                 match sync::run(
                     state_db
                         .states_mut()

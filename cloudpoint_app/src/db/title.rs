@@ -15,6 +15,7 @@ use cloudpoint_lib::{
     sync::SyncItem,
 };
 use itertools::Itertools;
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -72,8 +73,13 @@ impl TitleDb {
         let total = SD_APP_TITLES.len();
 
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
-            self.add_or_replace_title(*title_id, state_db)?;
-            self.refresh_shared_extdata_linked_titles(*title_id, state_db)?;
+            if let Err(e) = try {
+                self.add_or_replace_title(*title_id, state_db)?;
+                self.refresh_shared_extdata_linked_titles(*title_id, state_db)?;
+            } {
+                self.remove_title(*title_id)?;
+                warn!("error processing title {title_id:016X}: {e}");
+            };
 
             refresh_progress
                 .message("Refreshing titles")
@@ -105,6 +111,12 @@ impl TitleDb {
         } else {
             log::info!("ignored {title_id:016X}, has no save or extdata");
         }
+
+        Ok(())
+    }
+
+    fn remove_title(&mut self, title_id: u64) -> Result<()> {
+        self.1.remove(&title_id);
 
         Ok(())
     }

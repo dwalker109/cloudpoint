@@ -8,6 +8,7 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -71,7 +72,9 @@ impl StateDb {
         let total = SD_APP_TITLES.len();
 
         for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
-            self.process_sync_items_for_title(title_id, auto_enabled)?;
+            if let Err(e) = self.process_sync_items_for_title(title_id, auto_enabled) {
+                warn!("error processing sync state(s) for {title_id:016X}: {e}");
+            };
 
             refresh_progress
                 .message("Refreshing sync items")
@@ -91,6 +94,11 @@ impl StateDb {
 
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
+                if let Err(e) = CtrArchive::smdh(sync_item) {
+                    self.1.remove(&sync_item);
+                    bail!(e);
+                }
+
                 if existing_state.via_title_ids.insert(title_id) {
                     log::info!("updating {sync_item} reached via {title_id:016X}");
 
