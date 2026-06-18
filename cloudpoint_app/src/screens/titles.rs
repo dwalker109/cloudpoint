@@ -165,6 +165,8 @@ impl BaseScreen for TitlesScreen {
 
                 return ScreenCommand::OpenModal(Box::new(SyncModalScreen::new()));
             }
+        } else if keys_down.contains(KeyPad::X) {
+            self.task_tx.send(TaskMsg::Refresh).ok();
         } else if keys_down.contains(KeyPad::Y) {
             if let Some(title) = self.selected_title() {
                 self.task_tx.send(TaskMsg::Toggle(title.title_id)).ok();
