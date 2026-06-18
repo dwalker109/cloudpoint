@@ -8,6 +8,7 @@ pub mod ctr_cfgi;
 mod ctr_fs;
 pub mod ctr_gfx;
 pub mod ctr_ndmu;
+pub mod ctr_nwm;
 pub mod ctr_title;
 pub mod db;
 mod link;

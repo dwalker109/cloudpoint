@@ -169,8 +169,9 @@ impl App {
         log::debug!("about to drop app and await worker exit");
         drop(app);
         match handle.join() {
-            Ok(_) => log::debug!("app exited with clean worker join"),
-            Err(_) => log::warn!("app exited and could not join worker, this is not expected"),
+            Ok(Ok(_)) => log::debug!("app exited with clean worker join, normal exit"),
+            Ok(Err(e)) => log::debug!("app exited with clean worker join, maybe normal exit: {e}"),
+            Err(_) => log::warn!("app exited and could not join worker, abnormal"),
         }
 
         Ok(())
