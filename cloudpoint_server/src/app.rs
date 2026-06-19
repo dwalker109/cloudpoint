@@ -45,16 +45,18 @@ pub fn make(app_state: AppState) -> Router {
         .route("/chunk/{u}/{cid}", head(handlers::v1::chunk_head))
         .route("/chunk/{u}/{cid}", get(handlers::v1::chunk_get))
         .route("/chunk/{u}/{cid}", put(handlers::v1::chunk_put))
-        .route("/ver/{u}/{si}/{cid}", put(handlers::v1::version_put))
-        .route("/ver/{u}/{si}/{cid}", get(handlers::v1::version_get))
+        .route("/version/{u}/{si}/{cid}", put(handlers::v1::version_put))
+        .route("/version/{u}/{si}/{cid}", get(handlers::v1::version_get))
         .route(
-            "/ver/{u}/{si}/latest",
+            "/version/{u}/{si}/latest",
             get(handlers::v1::version_meta_latest),
         );
 
     Router::new()
-        .route("/", get(|| async { "CLPT!" }))
-        .route("/version", get(|| async { env!("CARGO_PKG_VERSION") }))
+        .route(
+            "/",
+            get(|| async { format!("CLPT! {}", env!("CARGO_PKG_VERSION")) }),
+        )
         .nest("/sync", v0_router)
         .nest("/api/v1", v1_router)
         .layer(TraceLayer::new_for_http())
