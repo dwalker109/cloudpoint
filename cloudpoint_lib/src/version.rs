@@ -26,7 +26,7 @@ impl RemoteVersionMeta {
         log::debug!("getting version dir listing for user.key {user_key}, sync_item {sync_item}");
 
         let url = format!(
-            "{base_url}/api/v1/ver/{user_key}/{}/latest",
+            "{base_url}/api/v1/version/{user_key}/{}/latest",
             PathBuf::from(sync_item).display()
         );
 
@@ -50,7 +50,7 @@ pub fn get_version<T: Leaf, K: Serialize + DeserializeOwned>(
     log::debug!("getting version for user.key {user_key}, sync_item {sync_item}, cid {cid}",);
 
     let url = format!(
-        "{base_url}/api/v1/ver/{user_key}/{si}/{cid:032x}",
+        "{base_url}/api/v1/version/{user_key}/{si}/{cid:032x}",
         si = PathBuf::from(sync_item).display(),
     );
 
@@ -74,7 +74,7 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
     log::debug!("putting version for user.key {user_key}, sync_item {sync_item}, cid {cid}",);
 
     let url = format!(
-        "{base_url}/api/v1/ver/{user_key}/{}/{cid:032x}",
+        "{base_url}/api/v1/version/{user_key}/{}/{cid:032x}",
         PathBuf::from(sync_item).display(),
     );
 
@@ -129,7 +129,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/latest"
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/latest"
             ));
             then.status(200).body(
                 r#"
@@ -186,7 +186,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
 
             let version = postcard::to_allocvec(&DuckVersion {
@@ -214,7 +214,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("GET").path(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{FINGERPRINT:032x}",
             ));
             then.status(200)
                 .body(postcard::to_allocvec(b"invalid postcard bytes").unwrap());
@@ -265,7 +265,7 @@ mod tests {
         let srv = MockServer::start();
         srv.mock(|when, then| {
             when.method("PUT").path(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{fingerprint_from_version:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM_ID:016X}.savedata/{fingerprint_from_version:032x}",
                 fingerprint_from_version = v.fingerprint()
             ));
             then.status(201);
