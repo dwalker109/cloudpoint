@@ -1,7 +1,6 @@
 use crate::{
     db::TitleDetails,
     link::{LinkState, SharePermission},
-    sync::ConflictWinner,
 };
 use chrono::{DateTime, Utc};
 use std::sync::{mpsc::Sender, oneshot};
@@ -16,13 +15,14 @@ pub enum TaskMsg {
 }
 
 pub enum OpenModalMsg {
+    Connect,
+    Refresh,
     ResolveConflict {
         title_label: String,
         title_local_time: Option<DateTime<Utc>>,
         title_remote_time: Option<DateTime<Utc>>,
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
-    Refresh,
     Error {
         label: String,
         message: String,
@@ -37,6 +37,11 @@ pub enum OpenModalMsg {
 }
 
 pub enum UiMsg {
+    ConnectDelayed,
+    ConnectDone,
+    ConnectFailed {
+        reason: String,
+    },
     SyncProgress {
         label: String,
         message: String,
@@ -67,6 +72,12 @@ pub enum UiMsg {
     LinkUpdate {
         state: LinkState,
     },
+}
+
+pub enum ConflictWinner {
+    Local,
+    Remote,
+    Undecided,
 }
 
 pub struct SyncProgress {

@@ -41,6 +41,7 @@ pub fn make(app_state: AppState) -> Router {
         .route("/{u}/archives/{si}/", get(handlers::v0::version_dir_list));
 
     let v1_router = Router::new()
+        .route("/preflight", get(handlers::v1::preflight_get))
         .route("/chunk/{u}/{cid}", head(handlers::v1::chunk_head))
         .route("/chunk/{u}/{cid}", get(handlers::v1::chunk_get))
         .route("/chunk/{u}/{cid}", put(handlers::v1::chunk_put))

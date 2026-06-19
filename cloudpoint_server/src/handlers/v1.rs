@@ -7,10 +7,33 @@ use axum::{
     Json,
     body::Bytes,
     extract::{Path, State},
-    http::{StatusCode, header},
+    http::{
+        StatusCode,
+        header::{self, HeaderMap},
+    },
     response::IntoResponse,
 };
+use tracing::{debug, warn};
 use uuid::Uuid;
+
+pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppError> {
+    let Some(ua) = headers.get("User-Agent") else {
+        warn!(headers = format!("{headers:?}"), "no User-Agent header");
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    };
+
+    let Some((app, ver)) = ua.to_str()?.split_once('/') else {
+        warn!(
+            headers = format!("{headers:?}"),
+            "malformed User-Agent header"
+        );
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    };
+
+    debug!(app, ver, "received preflight");
+
+    Ok(StatusCode::OK.into_response())
+}
 
 pub async fn chunk_head(
     State(state): State<AppState>,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::sync::ConflictWinner;
+use crate::app::ConflictWinner;
 use chrono::{DateTime, Utc};
 use std::sync::oneshot;
 

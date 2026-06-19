@@ -26,7 +26,7 @@ impl Screen for SyncModalScreen {
         ctx.text_centered(0.0, 125.0, TOP_W, 0.5, BLACK, &self.upper_2);
 
         if self.task_running {
-            modal_spinner(ctx);
+            modal_spinner(ctx, TOP_W - 60.0, 30.0, 1.2, ACCENT);
         }
     }
 

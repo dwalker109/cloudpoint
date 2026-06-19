@@ -51,7 +51,7 @@ impl CurlHttpClient {
             let cainfo_c = CString::new("romfs:/cacert.pem")?;
             curl_easy_setopt(handle, CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void); // curl copies value so ptr can drop after fn
 
-            let ua_c = CString::new(format!("Cloudpoint/{app_ver} (Nintendo 3DS)"))?;
+            let ua_c = CString::new(format!("Cloudpoint/{app_ver}"))?;
             curl_easy_setopt(handle, CURLOPT_USERAGENT, ua_c.as_ptr() as *const c_void);
 
             curl_easy_setopt(handle, CURLOPT_TIMEOUT, 30_i64);

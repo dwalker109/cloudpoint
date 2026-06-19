@@ -1,5 +1,6 @@
 use crate::{app::UiMsg, ctr_gfx::*};
 pub use conflict_modal::ConflictModalScreen;
+pub use connect_modal::ConnectModalScreen;
 use ctru::prelude::KeyPad;
 pub use error_modal::ErrorModalScreen;
 pub use link::LinkScreen;
@@ -12,6 +13,7 @@ pub use sync_modal::SyncModalScreen;
 pub use titles::TitlesScreen;
 
 mod conflict_modal;
+mod connect_modal;
 mod error_modal;
 mod link;
 mod link_client_modal;
