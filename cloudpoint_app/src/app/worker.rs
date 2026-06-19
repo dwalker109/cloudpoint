@@ -1,7 +1,6 @@
 use super::*;
 use crate::{
     config::{APP_VER, AppPath},
-    ctr_nwm::ForceWlan,
     db::{InstallHistoryDb, StateDb, TitleDb},
     link, sync,
 };
@@ -18,7 +17,8 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    let _wlan = ForceWlan::new()?;
+    modal_tx.send(OpenModalMsg::Connect).ok();
+    sync::connect(&shutdown_rx, &ui_tx)?;
 
     let mut state_db = StateDb::open(AppPath::Db)
         .or_else(|_| {

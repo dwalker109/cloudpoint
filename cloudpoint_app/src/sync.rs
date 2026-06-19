@@ -1,6 +1,6 @@
 use crate::{
-    app::{OpenModalMsg, SyncProgress, UiMsg},
-    config::{AppPath, USER_KEY, USER_SETTINGS},
+    app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
+    config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
@@ -32,12 +32,75 @@ use std::{
         mpsc::{self, Receiver, Sender},
         oneshot,
     },
+    time::{Duration, Instant},
 };
 
-pub enum ConflictWinner {
-    Local,
-    Remote,
-    Undecided,
+pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    log::info!("connecting to server");
+
+    let ac = Ac::new()?;
+    let timeout = Instant::now();
+    let mut backoff = Duration::from_millis(100);
+
+    while let Err(e) = ac.wait_internet_connection() {
+        if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
+            log::info!("aborting during connect due to app shutdown");
+            return Ok(());
+        }
+
+        if timeout.elapsed() > Duration::from_secs(10) {
+            ui_tx.send(UiMsg::ConnectDelayed).ok();
+
+            log::debug!(
+                "trying to await internet connection for {} seconds: {e}",
+                timeout.elapsed().as_secs()
+            );
+        }
+
+        std::thread::sleep(backoff);
+        backoff = backoff + (backoff / 2);
+    }
+
+    let client = CurlHttpClient::new(&APP_VER)?;
+    let url = &format!("{}/api/v1/preflight", USER_SETTINGS.base_url);
+
+    loop {
+        if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
+            log::info!("aborting during connect due to app shutdown");
+            return Ok(());
+        }
+
+        match client.get(url, &[]) {
+            Ok(res) if res.status == 200 => {
+                log::info!(
+                    "connected to server, took {} seconds",
+                    timeout.elapsed().as_secs()
+                );
+                ui_tx.send(UiMsg::ConnectDone).ok();
+                break;
+            }
+            Ok(res) => {
+                log::warn!(
+                    "connected to server but received status code {}, took {} seconds",
+                    res.status,
+                    timeout.elapsed().as_secs()
+                );
+                ui_tx
+                    .send(UiMsg::ConnectFailed {
+                        reason: String::from_utf8_lossy_owned(res.body),
+                    })
+                    .ok();
+                break;
+            }
+            Err(e) => {
+                log::warn!("failing to connect to server (will retry): {e}");
+                ui_tx.send(UiMsg::ConnectDelayed).ok();
+                continue;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn run<'a>(

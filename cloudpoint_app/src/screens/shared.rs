@@ -37,19 +37,19 @@ static SPINNER_B: [&'static str; 8] = [
     "\u{E023}", "\u{E024}", "\u{E025}", "\u{E026}", "\u{E027}", "\u{E020}", "\u{E021}", "\u{E022}",
 ];
 
-pub fn modal_spinner(ctx: &DrawContext) {
+pub fn modal_spinner(ctx: &DrawContext, x: f32, y: f32, scale: f32, colour: u32) {
     ctx.text(
-        TOP_W - 60.0,
-        30.0,
-        1.2,
-        ACCENT,
+        x,
+        y,
+        scale,
+        colour,
         SPINNER_A[(SPINSTANT.elapsed().as_millis() / 150) as usize % SPINNER_A.len()],
     );
     ctx.text(
-        TOP_W - 60.0,
-        30.0,
-        1.2,
-        ACCENT_TRANS,
+        x,
+        y,
+        scale,
+        colour,
         SPINNER_B[(SPINSTANT.elapsed().as_millis() / 150) as usize % SPINNER_B.len()],
     );
 }

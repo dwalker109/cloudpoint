@@ -1,9 +1,9 @@
 use crate::{
     ctr_gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ErrorModalScreen, LinkClientModalScreen,
-        LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
-        ShutdownModalScreen, SyncScreen, TitlesScreen,
+        BaseScreen, ConflictModalScreen, ConnectModalScreen, ErrorModalScreen,
+        LinkClientModalScreen, LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen,
+        ScreenCommand, ScreenId, ShutdownModalScreen, SyncScreen, TitlesScreen,
     },
     setup,
 };
@@ -123,6 +123,12 @@ impl App {
 
             if let Ok(msg) = app.modal_rx.try_recv() {
                 match msg {
+                    OpenModalMsg::Connect => {
+                        app.modal_stack.push(Box::new(ConnectModalScreen::new()));
+                    }
+                    OpenModalMsg::Refresh => {
+                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
+                    }
                     OpenModalMsg::ResolveConflict {
                         title_label,
                         title_local_time,
@@ -135,9 +141,6 @@ impl App {
                             title_remote_time,
                             reply_tx,
                         )));
-                    }
-                    OpenModalMsg::Refresh => {
-                        app.modal_stack.push(Box::new(RefreshModalScreen::new()));
                     }
                     OpenModalMsg::Error { label, message } => {
                         app.modal_stack
