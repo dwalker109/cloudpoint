@@ -50,7 +50,7 @@ impl Leaf for CtrArchiveLeaf {
     fn data(&self) -> Result<impl io::Read + io::Seek, TreeError> {
         let path = CtrFsPath::new(&self.path)?;
         let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-        let reader = io::BufReader::with_capacity(256 * 1024, file);
+        let reader = io::BufReader::with_capacity(256 * 1024, file.into_reader()?);
 
         Ok(reader)
     }
@@ -85,10 +85,9 @@ impl Leaf for CtrArchiveLeaf {
                         SyncItem::Extdata(_) => {
                             log::debug!("setting length for {} via recreate", &self.path);
 
-                            let mut file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
-                            let mut buffer = file.read_to_vec(0, curr_size)?;
+                            let file = self.ctx.archive.open_file(&path, FS_OPEN_READ)?;
+                            let mut buffer = file.into_reader()?.read_to_vec(0, curr_size)?;
                             buffer.resize(length as usize, 0x00);
-                            drop(file);
 
                             self.ctx.archive.delete_file(&path)?;
                             self.ctx.archive.create_file(&path, length)?;

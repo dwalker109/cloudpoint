@@ -88,13 +88,8 @@ impl CtrArchive {
         log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
 
         let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
-        let size = ctr_get_file_size(file_handle)?;
 
-        Ok(CtrFile {
-            file_handle,
-            size,
-            pos: 0,
-        })
+        Ok(CtrFile { file_handle })
     }
 
     pub fn create_file(&self, path: &CtrFsPath, size: u64) -> Result<(), IoError> {
@@ -165,25 +160,9 @@ impl CtrFsPath {
 
 pub struct CtrFile {
     file_handle: Handle,
-    pos: u64,
-    size: u64,
 }
 
 impl CtrFile {
-    pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
-        log::debug!(
-            "reading to owned vec from handle {} at offset {} with length {}",
-            self.file_handle,
-            offset,
-            length
-        );
-
-        let mut buf = vec![0u8; length as usize];
-        self.read_exact(&mut buf)?;
-
-        Ok(buf)
-    }
-
     pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
         log::debug!(
             "writing to handle {} at offset {} with length {}",
@@ -210,14 +189,53 @@ impl CtrFile {
 
         ctr_set_file_size(self.file_handle, size)
     }
+
+    pub fn into_reader(self) -> Result<CtrFileReader, IoError> {
+        let size = self.size()?;
+
+        Ok(CtrFileReader {
+            ctr_file: self,
+            pos: 0,
+            size,
+        })
+    }
 }
 
-impl Read for CtrFile {
+impl Drop for CtrFile {
+    fn drop(&mut self) {
+        log::debug!("dropping handle {}", self.file_handle);
+        ctr_close_file(self.file_handle).expect("file should be closable");
+    }
+}
+
+pub struct CtrFileReader {
+    ctr_file: CtrFile,
+    pos: u64,
+    size: u64,
+}
+
+impl CtrFileReader {
+    pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
+        log::debug!(
+            "reading to owned vec from handle {} at offset {} with length {}",
+            self.ctr_file.file_handle,
+            offset,
+            length
+        );
+
+        let mut buf = vec![0u8; length as usize];
+        self.read_exact(&mut buf)?;
+
+        Ok(buf)
+    }
+}
+
+impl Read for CtrFileReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         log::debug!(
             "reading to provided buffer (of len {}) from handle {} at offset {}",
             buf.len(),
-            self.file_handle,
+            self.ctr_file.file_handle,
             self.pos,
         );
 
@@ -230,14 +248,18 @@ impl Read for CtrFile {
 
         let bytes_to_read = (buf.len() as u64).min(bytes_to_eof) as usize;
 
-        let n = ctr_read_file(self.file_handle, self.pos, &mut buf[..bytes_to_read])?;
+        let n = ctr_read_file(
+            self.ctr_file.file_handle,
+            self.pos,
+            &mut buf[..bytes_to_read],
+        )?;
         self.pos += n;
 
         Ok(n as usize)
     }
 }
 
-impl Seek for CtrFile {
+impl Seek for CtrFileReader {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let new_pos = match pos {
             SeekFrom::Start(n) => n as i64,
@@ -255,13 +277,6 @@ impl Seek for CtrFile {
         self.pos = new_pos as u64;
 
         Ok(self.pos)
-    }
-}
-
-impl Drop for CtrFile {
-    fn drop(&mut self) {
-        log::debug!("dropping handle {}", self.file_handle);
-        ctr_close_file(self.file_handle).expect("file should be closable");
     }
 }
 
