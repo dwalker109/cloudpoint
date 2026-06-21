@@ -6,7 +6,7 @@ use ctru_sys::{
     FSFILE_SetSize, FSFILE_Write, FSUSER_CloseArchive, FSUSER_ControlArchive,
     FSUSER_ControlSecureSave, FSUSER_CreateDirectory, FSUSER_CreateFile, FSUSER_DeleteFile,
     FSUSER_OpenArchive, FSUSER_OpenDirectory, FSUSER_OpenFile, FSUSER_OpenFileDirectly,
-    FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD, PATH_BINARY, R_FAILED,
+    FSUSER_ReadExtSaveDataIcon, Handle, MEDIATYPE_SD, PATH_BINARY, R_FAILED, R_SUCCEEDED,
     SECURESAVE_ACTION_DELETE, SECUREVALUE_SLOT_SD,
 };
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -271,12 +271,13 @@ pub(super) fn ctr_read_file(
         )
     };
 
-    // This call sometimes signals failure even though all bytes were read, so use this
-    // to determine if this call succeeded rather than checking the res code
-    if bytes_read == length as u32 {
-        Ok(length)
-    } else {
-        Err(IoError::new(
+    match (R_SUCCEEDED(res), res as u32) {
+        // Normal successful read
+        (true, _) => Ok(length),
+        // Unusual but OK read: reported as failure but with correct bytes_read value
+        (false, 0xD900458B) if bytes_read == length as u32 => Ok(length),
+        // Bad read
+        (false, _) => Err(IoError::new(
             IoErrorKind::Other,
             anyhow!(
                 "could not read bytes {} to {} via handle {:?} (read {} of {}) [{:#010X}]",
@@ -285,9 +286,9 @@ pub(super) fn ctr_read_file(
                 file_handle,
                 bytes_read,
                 length,
-                res
+                res,
             ),
-        ))
+        )),
     }
 }
 
