@@ -271,24 +271,51 @@ pub(super) fn ctr_read_file(
         )
     };
 
-    match (R_SUCCEEDED(res), res as u32) {
+    match R_SUCCEEDED(res) {
         // Normal successful read
-        (true, _) => Ok(length),
+        true => {
+            log::debug!(
+                "read via handle {file_handle} at offet {offset} perfect read with correct bytes_read ({bytes_read})"
+            );
+
+            Ok(bytes_read as u64)
+        }
         // Unusual but OK read: reported as failure but with correct bytes_read value
-        (false, 0xD900458B) if bytes_read == length as u32 => Ok(length),
-        // Bad read
-        (false, _) => Err(IoError::new(
-            IoErrorKind::Other,
-            anyhow!(
-                "could not read bytes {} to {} via handle {:?} (read {} of {}) [{:#010X}]",
-                offset,
-                offset + length,
-                file_handle,
-                bytes_read,
-                length,
-                res,
-            ),
-        )),
+        false if bytes_read == length as u32 => {
+            log::debug!(
+                "read via handle {file_handle} as offset {offset} recovered read with correct bytes_read ({bytes_read})"
+            );
+
+            Ok(bytes_read as u64)
+        }
+        // Bad read: zero fill up to the reqested len
+        false if bytes_read < length as u32 => {
+            log::warn!(
+                "read via handle {file_handle} at offset {offset} truncated read with short bytes_read ({bytes_read}/{length}) - zero filling to end",
+            );
+            buf[bytes_read as usize..].fill(0x00);
+
+            Err(IoError::new(
+                IoErrorKind::Other,
+                anyhow!("truncated read ({}/{}) [{:#010X}]", bytes_read, length, res,),
+            ))
+        }
+        // Bad read: this is probably an uninitialised archive
+        false => {
+            log::warn!(
+                "read via handle {file_handle} at offset {offset} error read with long (garbage) bytes_read ({bytes_read}/{length})",
+            );
+
+            Err(IoError::new(
+                IoErrorKind::Other,
+                anyhow!(
+                    "impossible read ({}/{}) [{:#010X}]",
+                    bytes_read,
+                    length,
+                    res,
+                ),
+            ))
+        }
     }
 }
 

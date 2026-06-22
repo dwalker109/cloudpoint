@@ -6,7 +6,6 @@ use crate::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
         lookup_savedata_sync_item_for_title,
     },
-    tree::{check_archive, from_archive},
 };
 use anyhow::{Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
@@ -15,7 +14,6 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    rc::Rc,
     sync::mpsc::Sender,
 };
 
@@ -94,22 +92,10 @@ impl StateDb {
     ) -> Result<()> {
         log::debug!("processing refresh for title {title_id:016X}");
 
-        let probe = |sync_item| -> anyhow::Result<()> {
-            let archive = Rc::new(CtrArchive::open(sync_item)?);
-            let tree = from_archive(Rc::clone(&archive))?;
-            Ok(check_archive(&tree)?)
-        };
-
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
                 if let Err(e) = CtrArchive::smdh(sync_item) {
                     log::info!("purging {sync_item}: smdh not accessible");
-                    self.1.remove(&sync_item);
-                    bail!(e);
-                }
-
-                if let Err(e) = probe(sync_item) {
-                    log::info!("purging {sync_item}: not readable");
                     self.1.remove(&sync_item);
                     bail!(e);
                 }
@@ -125,11 +111,6 @@ impl StateDb {
                 }
 
                 return Ok(());
-            }
-
-            if let Err(e) = probe(sync_item) {
-                log::info!("skipping {sync_item}: not readable");
-                bail!(e);
             }
 
             log::info!("adding {sync_item} discovered via {title_id:016X}");
