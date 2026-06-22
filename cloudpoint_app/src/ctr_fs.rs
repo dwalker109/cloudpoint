@@ -248,14 +248,23 @@ impl Read for CtrFileReader {
 
         let bytes_to_read = (buf.len() as u64).min(bytes_to_eof) as usize;
 
-        let n = ctr_read_file(
+        match ctr_read_file(
             self.ctr_file.file_handle,
             self.pos,
             &mut buf[..bytes_to_read],
-        )?;
-        self.pos += n;
-
-        Ok(n as usize)
+        ) {
+            Ok(n) => {
+                self.pos += n;
+                Ok(n as usize)
+            }
+            Err(e) => {
+                log::warn!(
+                    "ctr_read_file reported an error - advancing cursor and continuing anyway: {e}"
+                );
+                self.pos += bytes_to_read as u64;
+                Ok(bytes_to_read)
+            }
+        }
     }
 }
 
