@@ -8,7 +8,7 @@ use crate::{
     },
     tree::{check_archive, from_archive},
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,21 +20,33 @@ use std::{
 };
 
 #[derive(Deserialize, Serialize)]
-pub struct StateDb(#[serde[skip]] PathBuf, HashMap<SyncItem, SyncState>);
+pub struct StateDb {
+    #[serde[skip]]
+    path: PathBuf,
+    header: [u8; 8],
+    data: HashMap<SyncItem, SyncState>,
+}
 
 impl StateDb {
+    const MAGIC: &[u8; 8] = b"SDB00001";
+
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
         log::debug!("loading state db from disk");
 
         let db_path = root_path.as_ref().join("state.db");
 
         if let Ok(buf) = fs::read(&db_path) {
-            let mut state_db = postcard::from_bytes::<StateDb>(&buf)?;
-            state_db.0 = db_path;
+            let mut state_db =
+                postcard::from_bytes::<StateDb>(&buf).context("state db cannot be loaded")?;
+            state_db.path = db_path;
+
+            if state_db.header != *Self::MAGIC {
+                bail!("state db is incompatible");
+            }
 
             Ok(state_db)
         } else {
-            bail!("state db not found")
+            bail!("state db cannot be read")
         }
     }
 
@@ -43,7 +55,11 @@ impl StateDb {
 
         let db_path = root_path.as_ref().join("state.db");
 
-        let mut state_db = Self(db_path, HashMap::new());
+        let mut state_db = Self {
+            path: db_path,
+            header: *Self::MAGIC,
+            data: HashMap::new(),
+        };
         state_db.refresh(true, ui_tx)?;
 
         Ok(state_db)
@@ -54,7 +70,7 @@ impl StateDb {
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
 
-        for state in self.1.values_mut() {
+        for state in self.data.values_mut() {
             state.via_title_ids = state
                 .via_title_ids
                 .intersection(&current_title_ids)
@@ -62,7 +78,7 @@ impl StateDb {
                 .collect();
         }
 
-        self.1.retain(|_, s| !s.via_title_ids.is_empty());
+        self.data.retain(|_, s| !s.via_title_ids.is_empty());
 
         Ok(())
     }
@@ -101,16 +117,16 @@ impl StateDb {
         };
 
         let mut process = |sync_item| -> Result<()> {
-            if let Some(existing_state) = self.1.get_mut(&sync_item) {
+            if let Some(existing_state) = self.data.get_mut(&sync_item) {
                 if let Err(e) = CtrArchive::smdh(sync_item) {
                     log::info!("purging {sync_item}: smdh not accessible");
-                    self.1.remove(&sync_item);
+                    self.data.remove(&sync_item);
                     bail!(e);
                 }
 
                 if let Err(e) = probe(sync_item) {
                     log::info!("purging {sync_item}: not readable");
-                    self.1.remove(&sync_item);
+                    self.data.remove(&sync_item);
                     bail!(e);
                 }
 
@@ -134,7 +150,7 @@ impl StateDb {
 
             log::info!("adding {sync_item} discovered via {title_id:016X}");
 
-            self.1.insert(
+            self.data.insert(
                 sync_item,
                 SyncState::new(
                     sync_item,
@@ -202,29 +218,29 @@ impl StateDb {
     }
 
     pub fn qty_total(&self) -> usize {
-        self.1.len()
+        self.data.len()
     }
 
     pub fn qty_auto(&self) -> usize {
-        self.1.iter().filter(|s| s.1.auto_enabled).count()
+        self.data.iter().filter(|s| s.1.auto_enabled).count()
     }
 
     pub fn state(&self, sync_item: &SyncItem) -> Option<&SyncState> {
-        self.1.get(sync_item)
+        self.data.get(sync_item)
     }
 
     pub fn states(&self) -> impl Iterator<Item = &SyncState> {
-        self.1.values()
+        self.data.values()
     }
 
     pub fn states_mut(&mut self) -> impl Iterator<Item = &mut SyncState> {
-        self.1.values_mut()
+        self.data.values_mut()
     }
 
     fn save(&mut self) -> Result<()> {
         log::debug!("saving state db to disk");
 
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+        fs::write(&self.path, postcard::to_allocvec(&self)?)?;
 
         Ok(())
     }

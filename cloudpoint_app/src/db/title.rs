@@ -9,7 +9,7 @@ use crate::{
     },
     db::StateDb,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use cloudpoint_lib::{
     ctr::{CtrSmdh, SmdhLanguage},
     sync::SyncItem,
@@ -26,21 +26,33 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub struct TitleDb(PathBuf, HashMap<u64, TitleDetails>);
+pub struct TitleDb {
+    #[serde(skip)]
+    path: PathBuf,
+    header: [u8; 8],
+    data: HashMap<u64, TitleDetails>,
+}
 
 impl TitleDb {
+    const MAGIC: &[u8; 8] = b"TDB00001";
+
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
         log::debug!("loading title db from disk");
 
         let db_path = root_path.as_ref().join("title.db");
 
         if let Ok(buf) = fs::read(&db_path) {
-            let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
-            title_db.0 = db_path;
+            let mut title_db =
+                postcard::from_bytes::<TitleDb>(&buf).context("title db cannot be loaded")?;
+            title_db.path = db_path;
+
+            if title_db.header != *Self::MAGIC {
+                bail!("title db is incompatible");
+            }
 
             Ok(title_db)
         } else {
-            bail!("title db not found")
+            bail!("title db cannot be read")
         }
     }
 
@@ -51,7 +63,11 @@ impl TitleDb {
     ) -> Result<Self> {
         log::debug!("building title db");
 
-        let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
+        let mut title_db = Self {
+            path: root_path.as_ref().join("title.db"),
+            header: *Self::MAGIC,
+            data: HashMap::new(),
+        };
         title_db.refresh(state_db, ui_tx)?;
 
         Ok(title_db)
@@ -61,7 +77,7 @@ impl TitleDb {
         log::debug!("pruning orphaned title db records");
 
         let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
-        self.1.retain(|k, _| current_title_ids.contains(k));
+        self.data.retain(|k, _| current_title_ids.contains(k));
 
         Ok(())
     }
@@ -107,7 +123,7 @@ impl TitleDb {
             || title.extdata_sync_status != TitleSyncStatus::Unavailable
         {
             log::info!("added {title_id:016X}, has save or extdata");
-            self.1.insert(title_id, title);
+            self.data.insert(title_id, title);
         } else {
             log::info!("ignored {title_id:016X}, has no save or extdata");
         }
@@ -116,7 +132,7 @@ impl TitleDb {
     }
 
     fn remove_title(&mut self, title_id: u64) -> Result<()> {
-        self.1.remove(&title_id);
+        self.data.remove(&title_id);
 
         Ok(())
     }
@@ -130,10 +146,10 @@ impl TitleDb {
             "refreshing sync status for all titles which share extdata with {title_id:016X}"
         );
 
-        let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
+        let extdata_sync_item = self.data.get(&title_id).and_then(|t| t.extdata_sync_item);
 
         for title in self
-            .1
+            .data
             .values_mut()
             .filter(|t| t.extdata_sync_item == extdata_sync_item)
         {
@@ -144,15 +160,15 @@ impl TitleDb {
     }
 
     pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
-        self.1.get_mut(&title_id)
+        self.data.get_mut(&title_id)
     }
 
     pub fn total_titles(&self) -> usize {
-        self.1.len()
+        self.data.len()
     }
 
     pub fn titles_sorted_vec(&self) -> Vec<TitleDetails> {
-        self.1
+        self.data
             .values()
             .sorted_by_key(|t| t.title_short.to_lowercase())
             .cloned()
@@ -162,7 +178,7 @@ impl TitleDb {
     fn save(&mut self) -> Result<()> {
         log::debug!("saving title db to disk");
 
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+        fs::write(&self.path, postcard::to_allocvec(&self)?)?;
 
         Ok(())
     }
