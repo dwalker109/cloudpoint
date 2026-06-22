@@ -52,7 +52,7 @@ impl TitleDb {
         log::debug!("building title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-        title_db.add_all(state_db, ui_tx)?;
+        title_db.refresh(state_db, ui_tx)?;
 
         Ok(title_db)
     }
@@ -66,7 +66,7 @@ impl TitleDb {
         Ok(())
     }
 
-    pub fn add_all(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    pub fn refresh(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::debug!("adding missing title db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -198,8 +198,8 @@ pub enum TitleSyncStatus {
 impl Display for TitleSyncStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TitleSyncStatus::Available => unreachable!(),
             TitleSyncStatus::Unavailable => write!(f, "Not available"),
+            TitleSyncStatus::Available => unreachable!(),
             TitleSyncStatus::Enabled => write!(f, "Yes"),
             TitleSyncStatus::Disabled => write!(f, "No"),
         }
@@ -250,7 +250,7 @@ impl TitleDetails {
                     true => TitleSyncStatus::Enabled,
                     false => TitleSyncStatus::Disabled,
                 },
-                None => TitleSyncStatus::Available,
+                None => TitleSyncStatus::Unavailable,
             },
             None => TitleSyncStatus::Unavailable,
         };

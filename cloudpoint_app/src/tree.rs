@@ -1,6 +1,6 @@
 use crate::ctr_fs::{CtrArchive, CtrFsPath};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chunktree::tree::{Leaf, Tree, TreeError};
 use cloudpoint_lib::sync::SyncItem;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
@@ -28,10 +28,7 @@ impl Leaf for CtrArchiveLeaf {
     fn new(path: impl AsRef<Path>, ctx: Self::Context) -> Result<Self, TreeError> {
         let path = path.as_ref().to_string_lossy().into_owned();
 
-        Ok(Self {
-            path,
-            ctx: ctx.clone(),
-        })
+        Ok(Self { path, ctx })
     }
 
     fn delete(&mut self) -> Result<(), TreeError> {
@@ -180,4 +177,17 @@ pub fn from_archive(archive: Rc<CtrArchive>) -> Result<Tree<CtrArchiveLeaf>> {
     }
 
     Ok(Tree::new(results, ctx))
+}
+
+pub fn check_archive(tree: &Tree<CtrArchiveLeaf>) -> Result<()> {
+    for leaf in tree.leaves() {
+        let path = CtrFsPath::new(&leaf.path)?;
+        let file = leaf.ctx.archive.open_file(&path, FS_OPEN_READ)?;
+        let size = file.size()?;
+        file.into_reader()?
+            .read_to_vec(0, size)
+            .with_context(|| format!("{} failed archive integrity check", leaf.path))?;
+    }
+
+    Ok(())
 }
