@@ -148,15 +148,22 @@ impl BaseScreen for TitlesScreen {
     }
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
-        if keys_down.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP | KeyPad::CSTICK_UP) {
+        if keys_down.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP) {
             self.selected_idx = self
                 .selected_idx
                 .checked_sub(1)
                 .or_else(|| Some(self.max_idx()))
                 .unwrap_or_default();
-        } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN | KeyPad::CSTICK_DOWN)
-        {
+        } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN) {
             self.selected_idx = (self.selected_idx + 1) % (self.max_idx() + 1);
+        } else if keys_down.intersects(KeyPad::DPAD_LEFT | KeyPad::CPAD_LEFT) {
+            self.selected_idx = self.selected_idx.saturating_sub(PAGE_SIZE);
+            self.show_from = self.selected_idx;
+        } else if keys_down.intersects(KeyPad::DPAD_RIGHT | KeyPad::CPAD_RIGHT) {
+            self.selected_idx = (self.selected_idx + PAGE_SIZE).min(self.max_idx());
+            self.show_from = self
+                .selected_idx
+                .min(self.max_idx().saturating_sub(PAGE_SIZE - 1));
         } else if keys_down.contains(KeyPad::A) {
             if let Some(title) = self.selected_title() {
                 self.task_tx
