@@ -1,19 +1,21 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
     config::USER_KEY,
-    ctr_fs::{self, CtrArchive},
+    ctr_fs::CtrArchive,
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
+        lookup_savedata_sync_item_for_title,
     },
+    tree::{check_archive, from_archive},
 };
 use anyhow::{Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
-use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::mpsc::Sender,
 };
 
@@ -42,7 +44,7 @@ impl StateDb {
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.add_missing(true, ui_tx)?;
+        state_db.refresh(true, ui_tx)?;
 
         Ok(state_db)
     }
@@ -65,7 +67,7 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn add_missing(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    pub fn refresh(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
         log::debug!("adding missing state db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -73,7 +75,7 @@ impl StateDb {
 
         for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
             if let Err(e) = self.process_sync_items_for_title(title_id, auto_enabled) {
-                warn!("error processing sync state(s) for {title_id:016X}: {e}");
+                log::warn!("error processing sync state(s) for {title_id:016X}: {e}");
             };
 
             refresh_progress
@@ -92,9 +94,22 @@ impl StateDb {
     ) -> Result<()> {
         log::debug!("processing refresh for title {title_id:016X}");
 
+        let probe = |sync_item| -> anyhow::Result<()> {
+            let archive = Rc::new(CtrArchive::open(sync_item)?);
+            let tree = from_archive(Rc::clone(&archive))?;
+            Ok(check_archive(&tree)?)
+        };
+
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
                 if let Err(e) = CtrArchive::smdh(sync_item) {
+                    log::info!("purging {sync_item}: smdh not accessible");
+                    self.1.remove(&sync_item);
+                    bail!(e);
+                }
+
+                if let Err(e) = probe(sync_item) {
+                    log::info!("purging {sync_item}: not readable");
                     self.1.remove(&sync_item);
                     bail!(e);
                 }
@@ -112,31 +127,39 @@ impl StateDb {
                 return Ok(());
             }
 
-            if ctr_fs::CtrArchive::open(sync_item).is_ok() {
-                log::info!("adding {sync_item} discovered via {title_id:016X}");
-
-                self.1.insert(
-                    sync_item,
-                    SyncState::new(
-                        sync_item,
-                        title_id,
-                        *USER_KEY,
-                        &CtrArchive::smdh(sync_item)?,
-                        auto_enabled,
-                    ),
-                );
+            if let Err(e) = probe(sync_item) {
+                log::info!("skipping {sync_item}: not readable");
+                bail!(e);
             }
+
+            log::info!("adding {sync_item} discovered via {title_id:016X}");
+
+            self.1.insert(
+                sync_item,
+                SyncState::new(
+                    sync_item,
+                    title_id,
+                    *USER_KEY,
+                    &CtrArchive::smdh(sync_item)?,
+                    auto_enabled,
+                ),
+            );
 
             Ok(())
         };
 
-        let sync_item = SyncItem::Savedata(title_id);
-        process(sync_item)?;
+        if let Some(sync_item) = lookup_savedata_sync_item_for_title(title_id) {
+            if let Err(e) = process(sync_item) {
+                log::warn!("{sync_item} not enabled due to error: {e}");
+            }
+        }
 
-        if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id) {
-            process(sync_item)?;
-        } else if let Some(sync_item) = infer_extdata_sync_item_for_title(title_id) {
-            process(sync_item)?;
+        if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id)
+            .or_else(|| infer_extdata_sync_item_for_title(title_id))
+        {
+            if let Err(e) = process(sync_item) {
+                log::warn!("{sync_item} not enabled due to error: {e}");
+            }
         }
 
         Ok(())

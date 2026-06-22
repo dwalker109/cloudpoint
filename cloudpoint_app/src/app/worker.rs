@@ -55,8 +55,8 @@ pub fn worker_thread(
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                state_db.add_missing(true, &ui_tx)?;
-                title_db.add_all(&state_db, &ui_tx)?;
+                state_db.refresh(true, &ui_tx)?;
+                title_db.refresh(&state_db, &ui_tx)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
                         qty_sync_states: state_db.qty_auto(),
@@ -65,7 +65,6 @@ pub fn worker_thread(
                     .ok();
             }
             Ok(TaskMsg::Toggle(title_id)) => {
-                state_db.process_sync_items_for_title(title_id, false)?;
                 state_db.toggle_auto_sync_for_title(title_id)?;
                 title_db.refresh_shared_extdata_linked_titles(title_id, &state_db)?;
                 ui_tx
