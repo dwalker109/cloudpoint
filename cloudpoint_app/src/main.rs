@@ -12,6 +12,7 @@ pub mod ctr_cfgi;
 mod ctr_fs;
 pub mod ctr_ndmu;
 pub mod ctr_nwm;
+mod ctr_os;
 pub mod ctr_title;
 pub mod db;
 pub mod gfx;
@@ -25,6 +26,7 @@ fn main() -> Result<()> {
     ctru::set_panic_hook(false);
 
     let _logger = app_logger::AppLogger::new()?;
+    let _new_mode = ctr_os::NewMode::new()?;
     let _wlan = ForceWlan::new()?;
     let _sdmc = setup::sdmc()?;
     let _ctr_svc = setup::ambient_ctr_services()?;
