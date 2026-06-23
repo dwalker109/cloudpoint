@@ -12,9 +12,10 @@ to from more modern systems. Or PS Vita.
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/dwalker109/cloudpoint/latest/total)
 ![GitHub Repo stars](https://img.shields.io/github/stars/dwalker109/cloudpoint)
 
-
-![Cloudpoint sync screen](.github/sync.png)
-![Cloudpoint titles screen](.github/titles.png)
+![Cloudpoint titles screen](.github/cp_titles.png)
+![Cloudpoint sync ready screen](.github/cp_sync_ready.png)
+![Cloudpoint sync modal screen](.github/cp_sync_modal.png)
+![Cloudpoint link screen](.github/cp_link.png)
 
 ## Installing
 
@@ -94,9 +95,13 @@ the UI. We *do* know when you last synced a save, so we use that in the UI inste
 ## Roadmap
 
 - Time travel; move between server save versions at your leisure.
-- Android client for all you emulation fans.
+- Website access to manage (and export) your saves
+- Android client for all you emulation fans. You can install Cloudpoint onto your emulator and use it already, 
+  but a native app might make it a little easier.
 
 ## Credits
 
 - [devkitPro](https://devkitpro.org/) makes all of this possible
 - [Rust3DS](https://github.com/rust3ds) packages it all up so I can actually use it
+- [Checkpoint](https://github.com/BernardoGiordano/Checkpoint) is a wonderful source of inspiration for this while thing, 
+  plus a brilliant help when trying to figure out how to do something
