@@ -26,7 +26,7 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub struct TitleDb(PathBuf, HashMap<u64, TitleDetails>);
+pub struct TitleDb(#[serde[skip]] PathBuf, HashMap<u64, TitleDetails>);
 
 impl TitleDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
