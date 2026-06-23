@@ -1,4 +1,4 @@
-use crate::{ctr_gfx::*, screens::ScreenId};
+use crate::{gfx::*, screens::ScreenId};
 use std::{sync::LazyLock, time::Instant};
 
 pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {

@@ -1,5 +1,5 @@
 use crate::{
-    ctr_gfx::Render,
+    gfx::Render,
     screens::{
         BaseScreen, ConflictModalScreen, ConnectModalScreen, ErrorModalScreen,
         LinkClientModalScreen, LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen,

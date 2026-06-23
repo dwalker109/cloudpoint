@@ -46,7 +46,7 @@ ver major minor micro:
 deploy:
     scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/mnt/data
 
-[working-directory('cloudpoint_app/src/ctr_gfx/c2d')]
+[working-directory('cloudpoint_app/src/gfx/c2d')]
 citro2d:
     bindgen wrapper.h \
         --wrap-static-fns \
@@ -90,12 +90,12 @@ pack-icons:
         --atlas \
         `ls icons/*.png | sort` \
         -o romfs/icons.t3x \
-        --header src/ctr_gfx/icons/icons.h
-    bindgen src/ctr_gfx/icons/icons.h \
+        --header src/gfx/icons/icons.h
+    bindgen src/gfx/icons/icons.h \
         --no-layout-tests \
         --raw-line '// @generated — run `just pack-icons` to regenerate' \
-        -o src/ctr_gfx/icons/bindings.rs
-    sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/ctr_gfx/icons/bindings.rs
+        -o src/gfx/icons/bindings.rs
+    sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/gfx/icons/bindings.rs
 
 docker-build-server:
     #!/usr/bin/env bash

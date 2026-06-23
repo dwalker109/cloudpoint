@@ -1,4 +1,4 @@
-use crate::{app::UiMsg, ctr_gfx::*};
+use crate::{app::UiMsg, gfx::*};
 pub use conflict_modal::ConflictModalScreen;
 pub use connect_modal::ConnectModalScreen;
 use ctru::prelude::KeyPad;
