@@ -218,8 +218,8 @@ impl TitleDetails {
         Self {
             title_id,
             product_code: product_code.to_string(),
-            title_short: smdh.title_short(SmdhLanguage::English).to_string(),
-            title_publisher: smdh.title_publisher(SmdhLanguage::English).to_string(),
+            title_short: smdh.title_short(SmdhLanguage::English),
+            title_publisher: smdh.title_publisher(SmdhLanguage::English),
             savedata_sync_item,
             extdata_sync_item,
             savedata_sync_status,

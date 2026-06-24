@@ -15,7 +15,7 @@ use chunktree::{
     version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
-    ctr::{CtrMeta, SmdhLanguage},
+    ctr::CtrMeta,
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
@@ -159,16 +159,6 @@ fn run_one(
         bail!("No internet connection is available - please ensure you are online and try again");
     }
 
-    let Ok(smdh) = CtrArchive::smdh(sync_state.sync_item) else {
-        log::warn!("{} cannot be read, cannot sync", sync_state.sync_item,);
-
-        bail!(
-            "{} could not be opened; was the title ({}) deleted?",
-            sync_state.sync_item,
-            sync_state.title_short
-        );
-    };
-
     for title_id in &sync_state.via_title_ids {
         match install_history_db.check(*title_id) {
             InstallStatus::Updated => {
@@ -199,10 +189,9 @@ fn run_one(
     let title_label = ellipsis(
         &format!(
             "{} ({})",
-            smdh.title_short(SmdhLanguage::English),
-            smdh.title_publisher(SmdhLanguage::English)
+            sync_state.title_short, sync_state.title_publisher,
         ),
-        40,
+        35,
     );
 
     sync_progress.label(&title_label).message("Checking").send();

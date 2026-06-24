@@ -4,7 +4,7 @@ use crate::{
     ctr_fs::CtrArchive,
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_savedata_sync_item_for_title,
+        lookup_savedata_sync_item_for_title, smdh,
     },
 };
 use anyhow::{Result, bail};
@@ -121,7 +121,7 @@ impl StateDb {
                     sync_item,
                     title_id,
                     *USER_KEY,
-                    &CtrArchive::smdh(sync_item)?,
+                    &smdh(title_id)?,
                     auto_enabled,
                 ),
             );
