@@ -6,6 +6,8 @@ Cloudpoint allows you to sync all of your saves (and extdata) between all of you
 via a central server. Transfer progress between consoles effortlessly, the way you're probably used 
 to from more modern systems. Or PS Vita.
 
+Please join the [Discord](https://discord.gg/DTujASJyg) and help me build a community. 
+
 ![GitHub License](https://img.shields.io/github/license/dwalker109/cloudpoint)
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/dwalker109/cloudpoint/total)
@@ -16,6 +18,20 @@ to from more modern systems. Or PS Vita.
 ![Cloudpoint sync ready screen](.github/cp_sync_ready.png)
 ![Cloudpoint sync modal screen](.github/cp_sync_modal.png)
 ![Cloudpoint link screen](.github/cp_link.png)
+
+## Features
+
+- Sync your game saves (and extdata) between all of your consoles (and, in most cases, emulators) 
+- Simple UI with minimal user intervention (works like cloud save on any other console)
+- Public, free to use cloud available for zero setup syncing over the internet
+- Self hosting your own instance is also supported, via the provided Docker image
+- Auto sync all saves in one go, or sync specific game saves on demand
+- Enable/disable specific saves from auto sync
+- Auto discover your saves, and refresh them on demand as you add new games
+- "Link" your consoles to enable initial setup using local ad-hoc wireless; syncs
+  all happen directly with the server (your consoles don't all need to be online at once)
+- Auto enable wireless on boot, disable on quit - be kind to your battery life
+- Slightly increased performance on New... model consoles (but works on all of them really well)
 
 ## Installing
 
@@ -28,8 +44,7 @@ to from more modern systems. Or PS Vita.
 > [!CAUTION]
 > **No warranty is offered or implied.** Great care has been taken to avoid data loss but you must keep backups of important saves yourself. I can't stress this enough; Cloudpoint is brand new. 
 
-Please join the [Discord](https://discord.gg/DTujASJyg) and help me build a community. 
-Please also report and technical issues over there, including bugs, crashes and incompatibilities with specific games. 
+Bug reports are welcome and enouraged, via GitHub Issues.
 
 MIT licensed.
 
