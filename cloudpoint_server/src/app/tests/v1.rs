@@ -156,7 +156,7 @@ async fn version_get_latest_ok(db_pool: Pool<sqlx::Postgres>) {
 
     let response = app
         .oneshot(
-            Request::get(format!("/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/latest"))
+            Request::get(format!("/api/v1/version/{USER_KEY}/{SYNC_ITEM}/latest"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -182,7 +182,7 @@ async fn version_get_latest_no_data(db_pool: Pool<sqlx::Postgres>) {
 
     let response = app
         .oneshot(
-            Request::get(format!("/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/latest"))
+            Request::get(format!("/api/v1/version/{USER_KEY}/{SYNC_ITEM}/latest"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -202,7 +202,7 @@ async fn version_get_ok(db_pool: Pool<sqlx::Postgres>) {
     let response = app
         .oneshot(
             Request::get(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/{VERSION_CID:032x}"
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM}/{VERSION_CID:032x}"
             ))
             .body(Body::empty())
             .unwrap(),
@@ -224,7 +224,7 @@ async fn version_get_no_access_not_found(db_pool: Pool<sqlx::Postgres>) {
     let response = app
         .oneshot(
             Request::get(format!(
-                "/api/v1/ver/{}/{SYNC_ITEM}/{VERSION_CID:032x}",
+                "/api/v1/version/{}/{SYNC_ITEM}/{VERSION_CID:032x}",
                 Uuid::new_v4()
             ))
             .body(Body::empty())
@@ -255,7 +255,7 @@ async fn ver_put_ok(db_pool: Pool<sqlx::Postgres>) {
         .clone()
         .oneshot(
             Request::put(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/{:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM}/{:032x}",
                 ver.fingerprint()
             ))
             .body(Body::from(postcard::to_allocvec(&ver).unwrap()))
@@ -269,7 +269,7 @@ async fn ver_put_ok(db_pool: Pool<sqlx::Postgres>) {
     let response = app
         .oneshot(
             Request::get(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/{:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM}/{:032x}",
                 ver.fingerprint()
             ))
             .body(Body::empty())
@@ -293,7 +293,7 @@ async fn ver_put_malformed_errors(db_pool: Pool<sqlx::Postgres>) {
         .clone()
         .oneshot(
             Request::put(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/{VERSION_CID:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM}/{VERSION_CID:032x}",
             ))
             .body(Body::from("not version data"))
             .unwrap(),
@@ -315,7 +315,7 @@ async fn ver_put_malformed_errors(db_pool: Pool<sqlx::Postgres>) {
         .clone()
         .oneshot(
             Request::put(format!(
-                "/api/v1/ver/{USER_KEY}/{SYNC_ITEM}/{:032x}",
+                "/api/v1/version/{USER_KEY}/{SYNC_ITEM}/{:032x}",
                 ver.fingerprint() + 1 // CID no longer matches content
             ))
             .body(Body::from(postcard::to_allocvec(&ver).unwrap()))
