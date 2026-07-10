@@ -11,6 +11,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"] }
+dialoguer = { version = "0.12.0", default-features = false }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
