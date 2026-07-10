@@ -12,6 +12,7 @@ mod services;
 mod util {
     pub mod gc;
     pub mod import_v0;
+    pub mod verify;
 }
 
 #[derive(Debug, clap::Parser)]
@@ -28,6 +29,8 @@ enum Command {
     ImportV0 { root: PathBuf },
     /// GC unreachable chunks
     Gc,
+    /// Verify all versions can reach their chunks
+    Verify,
 }
 
 #[tokio::main]
@@ -53,6 +56,9 @@ async fn main() -> anyhow::Result<()> {
             {
                 util::gc::run(&db_pool).await?;
             }
+        }
+        Command::Verify => {
+            util::verify::run(&db_pool).await?;
         }
         Command::Serve => {
             let listener = tokio::net::TcpListener::bind("0.0.0.0:6776").await?;
