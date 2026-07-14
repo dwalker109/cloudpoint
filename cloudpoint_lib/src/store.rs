@@ -59,7 +59,21 @@ impl StoreRead for HttpStore {
         let res = self
             .http_client
             .get(&self.fq_hash_url(hash), &[])
-            .map_err(|err| io::Error::other(format!("failed to get chunk {hash:032x}, {err}")))?;
+            .map_err(|err| {
+                io::Error::other(format!("transport failure for chunk {hash:032x}, {err}"))
+            })?;
+
+        match res.status {
+            200 => log::debug!("completed download for chunk {hash:032x}"),
+            _ => {
+                return Err(io::Error::other(format!(
+                    "server rejected get for chunk {hash:032x}, {} (HTTP {})",
+                    String::from_utf8_lossy(&res.body),
+                    res.status,
+                ))
+                .into());
+            }
+        }
 
         log::debug!("adding chunk {hash:032x} to lru cache");
         lru.put(hash, res.body.clone());
@@ -219,6 +233,23 @@ mod tests {
 
         get_mock.assert();
         assert_eq!(buf, b"test data");
+    }
+
+    #[test]
+    fn missing_get_chunk_causes_error() {
+        let srv = MockServer::start();
+        let get_mock = srv.mock(|when, then| {
+            when.method("GET");
+            then.status(404);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+
+        let res = store.get_chunk(0x00);
+
+        get_mock.assert();
+        assert!(res.is_err());
     }
 
     #[test]
