@@ -49,9 +49,11 @@ pub async fn run(db_pool: &PgPool) -> Result<()> {
         .fetch_all(&mut *tx)
         .await?;
 
-        tracing::info!(%user_key, count = deleted.len(), "GC'd orphan chunks");
-
         tx.commit().await?;
+
+        if deleted.len() > 0 {
+            tracing::info!(%user_key, count = deleted.len(), "GC'd orphan chunks");
+        }
     }
 
     Ok(())

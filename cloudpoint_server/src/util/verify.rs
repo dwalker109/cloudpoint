@@ -52,7 +52,6 @@ pub async fn run(db_pool: &PgPool) -> Result<Vec<(Uuid, Vec<String>)>> {
         .fetch_all(&mut *tx)
         .await?;
 
-        // Read-only check; nothing to persist.
         tx.rollback().await?;
 
         if !missing.is_empty() {
@@ -64,21 +63,10 @@ pub async fn run(db_pool: &PgPool) -> Result<Vec<(Uuid, Vec<String>)>> {
                 })
                 .collect();
 
-            tracing::warn!(%user_key, count = hashes.len(), ?hashes, "missing referenced chunks");
+            tracing::warn!(%user_key, count = hashes.len(), ?hashes, "missing chunks");
 
             report.push((user_key, hashes));
-        } else {
-            tracing::info!(%user_key, "all referenced chunks present");
         }
-    }
-
-    if report.len() > 0 {
-        tracing::warn!(
-            total_missing = report.len(),
-            "verification complete: missing chunks found"
-        );
-    } else {
-        tracing::info!("verification complete: no missing chunks found");
     }
 
     Ok(report)

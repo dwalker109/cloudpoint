@@ -2,8 +2,8 @@ default:
     @just --list
 
 test:
-    cargo test --lib -p cloudpoint_lib
-
+    DATABASE_URL="postgres://postgres:postgres@127.0.0.1:6666" cargo test -p cloudpoint_lib -p cloudpoint_server
+    
 build:
     cargo 3ds build --release
 
