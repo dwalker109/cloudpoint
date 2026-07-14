@@ -1,5 +1,4 @@
 use crate::http::CurlHttpClient;
-use anyhow::anyhow;
 use chunktree::store::{StoreError, StoreRead, StoreWrite};
 use flate2::{
     Compression,
@@ -60,12 +59,7 @@ impl StoreRead for HttpStore {
         let res = self
             .http_client
             .get(&self.fq_hash_url(hash), &[])
-            .map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("failed to get chunk {hash:032x}, {err}"),
-                )
-            })?;
+            .map_err(|err| io::Error::other(format!("failed to get chunk {hash:032x}, {err}")))?;
 
         log::debug!("adding chunk {hash:032x} to lru cache");
         lru.put(hash, res.body.clone());
@@ -100,10 +94,9 @@ impl StoreWrite for HttpStore {
             .http_client
             .head(&url, &[])
             .map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("failed to check existence of chunk {hash:032x}, {err}"),
-                )
+                io::Error::other(format!(
+                    "failed to check existence of chunk {hash:032x}, {err}"
+                ))
             })?
             .status
             == 204;
@@ -115,12 +108,21 @@ impl StoreWrite for HttpStore {
             let mut gzip_encoder = GzEncoder::new(data, Compression::best());
             gzip_encoder.read_to_end(&mut body)?;
 
-            self.http_client.put(&url, &body, &[]).map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("failed to put chunk {hash:032x}, {err}"),
-                )
+            let res = self.http_client.put(&url, &body, &[]).map_err(|err| {
+                io::Error::other(format!("transport failure for chunk {hash:032x}, {err}"))
             })?;
+
+            match res.status {
+                201 => log::debug!("completed upload for chunk {hash:032x}"),
+                _ => {
+                    return Err(io::Error::other(format!(
+                        "server rejected put for chunk {hash:032x}, {} (HTTP {})",
+                        String::from_utf8_lossy(&res.body),
+                        res.status,
+                    ))
+                    .into());
+                }
+            }
         } else {
             log::debug!("skipped upload for hash {hash:032x}, already exists")
         }
@@ -150,7 +152,7 @@ mod tests {
         });
         let put_mock = srv.mock(|when, then| {
             when.method("PUT");
-            then.status(200);
+            then.status(201);
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
@@ -159,10 +161,36 @@ mod tests {
         let hash = 123;
         let data =
             b"test data, we will not gzip it for test brevity since we won't bother unzipping it";
-        store.put_chunk(hash, &mut Cursor::new(data)).unwrap();
+        let res = store.put_chunk(hash, &mut Cursor::new(data));
 
         head_mock.assert();
         put_mock.assert();
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn failing_put_chunk_causes_error() {
+        let srv = MockServer::start();
+        let head_mock = srv.mock(|when, then| {
+            when.method("HEAD");
+            then.status(204);
+        });
+        let put_mock = srv.mock(|when, then| {
+            when.method("PUT");
+            then.status(400);
+        });
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+
+        let hash = 123;
+        let data =
+            b"test data, we will not gzip it for test brevity since we won't bother unzipping it";
+        let res = store.put_chunk(hash, &mut Cursor::new(data));
+
+        head_mock.assert();
+        put_mock.assert();
+        assert!(res.is_err());
     }
 
     #[test]

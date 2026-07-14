@@ -6,11 +6,10 @@
 /// wrapper around it.
 ///
 /// Requires 3ds-zlib, 3ds-mbedtls, 3ds-curl be installed on the host system.
-use anyhow::{Result, bail};
 use curl_sys::*;
 use libc::c_void;
 use std::ffi::{CStr, CString};
-use std::ptr;
+use std::{io::Error as IoError, ptr};
 
 #[derive(Debug)]
 pub struct Response {
@@ -26,7 +25,7 @@ pub struct CurlHttpClient {
 // Single-threaded CTR homebrew only.
 unsafe impl Send for CurlHttpClient {}
 
-fn check(code: CURLcode) -> Result<()> {
+fn check(code: CURLcode) -> Result<(), IoError> {
     if code == CURLE_OK {
         Ok(())
     } else {
@@ -35,15 +34,15 @@ fn check(code: CURLcode) -> Result<()> {
             CStr::from_ptr(raw_msg).to_string_lossy()
         };
 
-        bail!("libcurl error {code}: {msg}")
+        Err(IoError::other(format!("libcurl error {code}: {msg}")))
     }
 }
 
 impl CurlHttpClient {
-    pub fn new(app_ver: &str) -> Result<Self> {
+    pub fn new(app_ver: &str) -> Result<Self, IoError> {
         let handle = unsafe { curl_easy_init() };
         if handle.is_null() {
-            bail!("libcurl error: curl_easy_init failed")
+            return Err(IoError::other("libcurl curl_easy_init failed"));
         }
 
         // Options that never change across requests.
@@ -75,15 +74,15 @@ impl CurlHttpClient {
         Ok(Self { handle })
     }
 
-    fn set_long(&self, opt: CURLoption, val: libc::c_long) -> Result<()> {
+    fn set_long(&self, opt: CURLoption, val: libc::c_long) -> Result<(), IoError> {
         check(unsafe { curl_easy_setopt(self.handle, opt, val) })
     }
 
-    fn set_ptr(&self, opt: CURLoption, val: *const c_void) -> Result<()> {
+    fn set_ptr(&self, opt: CURLoption, val: *const c_void) -> Result<(), IoError> {
         check(unsafe { curl_easy_setopt(self.handle, opt, val) })
     }
 
-    fn set_off_t(&self, opt: CURLoption, val: curl_off_t) -> Result<()> {
+    fn set_off_t(&self, opt: CURLoption, val: curl_off_t) -> Result<(), IoError> {
         check(unsafe { curl_easy_setopt(self.handle, opt, val) })
     }
 
@@ -94,7 +93,7 @@ impl CurlHttpClient {
         code as u32
     }
 
-    fn reset_request(&self) -> Result<()> {
+    fn reset_request(&self) -> Result<(), IoError> {
         self.set_long(CURLOPT_HTTPGET, 0)?;
         self.set_long(CURLOPT_NOBODY, 0)?;
         self.set_long(CURLOPT_UPLOAD, 0)?;
@@ -108,7 +107,7 @@ impl CurlHttpClient {
         Ok(())
     }
 
-    fn build_headers(&self, extra: &[(&str, &str)]) -> Result<Slist> {
+    fn build_headers(&self, extra: &[(&str, &str)]) -> Result<Slist, IoError> {
         let mut slist = Slist::new();
 
         for (k, v) in extra {
@@ -118,7 +117,7 @@ impl CurlHttpClient {
         Ok(slist)
     }
 
-    fn perform(&self, headers: &mut Vec<String>, body: &mut Vec<u8>) -> Result<()> {
+    fn perform(&self, headers: &mut Vec<String>, body: &mut Vec<u8>) -> Result<(), IoError> {
         self.set_ptr(CURLOPT_WRITEDATA, body as *mut Vec<u8> as *mut c_void)?;
         self.set_ptr(
             CURLOPT_HEADERDATA,
@@ -127,7 +126,7 @@ impl CurlHttpClient {
         check(unsafe { curl_easy_perform(self.handle) })
     }
 
-    pub fn get(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response> {
+    pub fn get(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, IoError> {
         log::debug!("performing libcurl GET to {url}");
 
         self.reset_request()?;
@@ -150,7 +149,7 @@ impl CurlHttpClient {
         })
     }
 
-    pub fn head(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response> {
+    pub fn head(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, IoError> {
         log::debug!("performing libcurl HEAD to {url}");
 
         self.reset_request()?;
@@ -175,7 +174,12 @@ impl CurlHttpClient {
         })
     }
 
-    pub fn put(&self, url: &str, data: &[u8], headers: &[(&str, &str)]) -> Result<Response> {
+    pub fn put(
+        &self,
+        url: &str,
+        data: &[u8],
+        headers: &[(&str, &str)],
+    ) -> Result<Response, IoError> {
         log::debug!("performing libcurl PUT to {url}");
 
         self.reset_request()?;
@@ -222,11 +226,11 @@ impl Slist {
         Self(ptr::null_mut())
     }
 
-    fn append(&mut self, s: &str) -> Result<()> {
+    fn append(&mut self, s: &str) -> Result<(), IoError> {
         let cs = CString::new(s)?;
         let next = unsafe { curl_slist_append(self.0, cs.as_ptr()) };
         if next.is_null() {
-            bail!("libcurl error: curl_slist_append failed")
+            Err(IoError::other("libcurl curl_slist_append failed"))
         } else {
             self.0 = next;
             Ok(())
