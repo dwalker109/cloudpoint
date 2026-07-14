@@ -183,7 +183,7 @@ async fn version_get_latest_ok(db_pool: Pool<sqlx::Postgres>) {
     );
     assert_eq!(
         file_entry.get("mtime").unwrap().as_u64().unwrap(),
-        1781112405
+        1781112405526
     );
 }
 

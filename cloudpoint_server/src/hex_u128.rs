@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-pub struct HexU128(u128);
+pub struct HexU128(pub u128);
 
 impl From<&str> for HexU128 {
     fn from(hex: &str) -> Self {
