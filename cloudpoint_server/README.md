@@ -48,7 +48,35 @@ You will need a domain pointing at your server for this one. Add it to
 Again, if you want to customise ports, passwords etc just take a 
 look in that file.
 
-## Upgrading from Cloudpoint Server 0.\*.\*
+## Maintenance
+
+While there is not (yet) any user interface for management of versions,
+there are some commands to help keep disk space usage in check, and to 
+help upgrading from the old DUFS based server.
+
+### Garbage Collect
+
+`docker compose -f compose.local.yml run --rm cloudpoint gc`
+
+Remove any orphaned chunks (i.e. save data pieces which do not belong
+to any version).
+
+For this to be useful, you should identify and delete entries from the 
+Postgres `versions` table first. For example, you might decide to remove 
+all versions of a given game's extdata except for the most recent.
+
+Once the version is gone, chunks no longer in use will be removed by 
+this command. Rows in `chunks` can be in use by multiple versions, 
+so don't go randomly deleting stuff from there!
+
+### Verify
+
+`docker compose -f compose.local.yml run --rm cloudpoint verify`
+
+Report any orphaned chunks (i.e. save data pieces which do not belong
+to any version).
+
+### Upgrading from Cloudpoint Server 0.\*.\*
 
 Users of the beta version of Cloudpoint might have the old DUFS based
 server running. This kept all your data in files on the filesystem.
