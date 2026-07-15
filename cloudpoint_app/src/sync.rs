@@ -40,26 +40,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
 
     let ac = Ac::new()?;
     let timeout = Instant::now();
-    let mut backoff = Duration::from_millis(100);
-
-    while let Err(e) = ac.wait_internet_connection() {
-        if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
-            log::info!("aborting during connect due to app shutdown");
-            return Ok(());
-        }
-
-        if timeout.elapsed() > Duration::from_secs(10) {
-            ui_tx.send(UiMsg::ConnectDelayed).ok();
-
-            log::debug!(
-                "trying to await internet connection for {} seconds: {e}",
-                timeout.elapsed().as_secs()
-            );
-        }
-
-        std::thread::sleep(backoff);
-        backoff = backoff + (backoff / 2);
-    }
+    let delay = Duration::from_millis(100);
 
     let client = CurlHttpClient::new(&APP_VER)?;
     let url = &format!("{}/api/v1/preflight", USER_SETTINGS.base_url);
@@ -68,6 +49,19 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
         if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
             log::info!("aborting during connect due to app shutdown");
             return Ok(());
+        }
+
+        if timeout.elapsed() > Duration::from_secs(10) {
+            ui_tx.send(UiMsg::ConnectDelayed).ok();
+        }
+
+        if let Err(e) = ac.wait_internet_connection() {
+            log::debug!(
+                "trying to await internet connection for {} seconds: {e}",
+                timeout.elapsed().as_secs()
+            );
+            std::thread::sleep(delay);
+            continue;
         }
 
         match client.get(url, &[]) {
@@ -95,6 +89,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
             Err(e) => {
                 log::warn!("failing to connect to server (will retry): {e}");
                 ui_tx.send(UiMsg::ConnectDelayed).ok();
+                std::thread::sleep(delay);
                 continue;
             }
         }
