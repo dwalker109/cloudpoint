@@ -16,6 +16,9 @@ pub const TOP_H: f32 = 240.0;
 pub const BOT_W: f32 = 320.0;
 pub const BOT_H: f32 = 240.0;
 
+pub const ROUND_RAD_LG: f32 = 6.0;
+pub const ROUND_RAD_SM: f32 = 3.0;
+
 pub const WHITE: u32 = 0xFFFFFFFF;
 pub const BLACK: u32 = 0xFF000000;
 pub const GREY: u32 = 0xFFCCCCCC;

@@ -21,7 +21,7 @@ impl SyncModalScreen {
 
 impl Screen for SyncModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
         ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 125.0, TOP_W, 0.5, BLACK, &self.upper_2);
 
@@ -31,14 +31,15 @@ impl Screen for SyncModalScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
         if self.task_running {
-            ctx.rect(40.0, 110.0, 240.0, 20.0, ACCENT_TRANS);
-            ctx.rect(
+            ctx.rounded_rect(40.0, 110.0, 240.0, 20.0, ROUND_RAD_SM, GREY);
+            ctx.rounded_rect(
                 40.0,
                 110.0,
                 self.progress as f32 * 240.0 / 100.0,
                 20.0,
+                ROUND_RAD_SM,
                 ACCENT,
             );
             ctx.text_centered(

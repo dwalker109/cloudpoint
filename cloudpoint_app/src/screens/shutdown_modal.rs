@@ -10,12 +10,12 @@ impl ShutdownModalScreen {
 
 impl Screen for ShutdownModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
         ctx.text_centered(0.0, 110.0, TOP_W, 0.6, BLACK, "Shutting down");
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
         ctx.text_centered(
             0.0,
             110.0,

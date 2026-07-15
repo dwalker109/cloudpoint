@@ -70,6 +70,19 @@ impl DrawContext {
         }
     }
 
+    pub fn rounded_rect(&self, x: f32, y: f32, w: f32, h: f32, r: f32, colour: u32) {
+        let r = r.min(w * 0.5).min(h * 0.5).max(0.0);
+
+        unsafe {
+            C2D_DrawRectSolid(x + r, y, 0.5, w - (r * 2.0), h, colour);
+            C2D_DrawRectSolid(x, y + r, 0.5, w, h - (r * 2.0), colour);
+            C2D_DrawCircleSolid(x + r, y + r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + w - r, y + r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + w - r, y + h - r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + r, y + h - r, 0.5, r, colour);
+        }
+    }
+
     pub fn text(&self, x: f32, y: f32, scale: f32, colour: u32, s: &str) {
         unsafe {
             let cs = CString::new(s).unwrap_or_default();

@@ -22,7 +22,7 @@ impl LinkHostModalScreen {
 
 impl Screen for LinkHostModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
 
         ctx.text_centered(0.0, 40.0, TOP_W, 1.2, ACCENT, "\u{E075} \u{E019}");
 
@@ -60,7 +60,7 @@ impl Screen for LinkHostModalScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
+        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
 
         match self.state {
             LinkState::Init | LinkState::WaitingClient(..) => {
