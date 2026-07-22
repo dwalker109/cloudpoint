@@ -97,16 +97,29 @@ pack-icons:
         -o src/gfx/icons/bindings.rs
     sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/gfx/icons/bindings.rs
 
+docker-release-server:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo clean
+    cargo metadata > /dev/null
+    version=$(cargo pkgid -p cloudpoint_server | sed 's/.*[@#]//')
+    docker buildx build --ssh default \
+      --platform linux/amd64,linux/arm64 \
+      -t dwalker109/cloudpoint:"$version" \
+      -t dwalker109/cloudpoint:latest \
+      -f cloudpoint_server/Dockerfile . \
+      --push
+
 docker-build-server:
     #!/usr/bin/env bash
     set -euo pipefail
     cargo clean
-    cargo metadata
+    cargo metadata > /dev/null
     version=$(cargo pkgid -p cloudpoint_server | sed 's/.*[@#]//')
     docker build --ssh default \
       -t dwalker109/cloudpoint:"$version" \
       -t dwalker109/cloudpoint:latest \
       -f cloudpoint_server/Dockerfile .
 
-docker-run-server-local:
+docker-run-server:
     docker compose -f cloudpoint_server/compose.local.yml up
