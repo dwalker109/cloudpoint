@@ -29,13 +29,13 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
 }
 
 pub fn dialog_upper(ctx: &DrawContext) {
+    ctx.rect(0.0, 0.0, TOP_W, TOP_H, BLACK_WASH);
     ctx.img(IMG_DIALOG_SHADOW_TOP, 0.0, 0.0, 1.0);
-    ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
 }
 
 pub fn dialog_lower(ctx: &DrawContext) {
+    ctx.rect(0.0, 0.0, BOT_W, BOT_H, BLACK_WASH);
     ctx.img(IMG_DIALOG_SHADOW_BOT, 0.0, 0.0, 1.0);
-    ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
 }
 
 pub fn modal_spinner(ctx: &DrawContext, x: f32, y: f32, scale: f32, colour: u32) {

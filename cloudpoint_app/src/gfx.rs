@@ -21,6 +21,7 @@ pub const ROUND_RAD_SM: f32 = 3.0;
 
 pub const WHITE: u32 = 0xFFFFFFFF;
 pub const BLACK: u32 = 0xFF000000;
+pub const BLACK_WASH: u32 = 0x33000000;
 pub const GREY: u32 = 0xFFCCCCCC;
 pub const GREY_TRANS: u32 = 0xAACCCCCC;
 pub const DARK_GREY: u32 = 0xFF888888;
@@ -58,7 +59,6 @@ impl Render {
             screen.draw_upper(&ctx);
 
             if let Some(m) = modal {
-                ctx.rect(0.0, 0.0, TOP_W, TOP_H, GREY_TRANS);
                 m.draw_upper(&ctx);
             }
 
@@ -67,7 +67,6 @@ impl Render {
             screen.draw_lower(&ctx);
 
             if let Some(m) = modal {
-                ctx.rect(0.0, 0.0, BOT_W, BOT_H, GREY_TRANS);
                 m.draw_lower(&ctx);
             }
 
