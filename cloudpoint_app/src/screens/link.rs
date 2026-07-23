@@ -70,7 +70,7 @@ impl Screen for LinkScreen {
             .join("\n"),
         );
 
-        ctx.icon(ICON_HELP_QR, 70.0, 60.0, 0.75);
+        ctx.img(IMG_HELP_QR, 70.0, 60.0, 0.75);
     }
 }
 

@@ -3,7 +3,7 @@ default:
 
 test:
     DATABASE_URL="postgres://postgres:postgres@127.0.0.1:6666" cargo test -p cloudpoint_lib -p cloudpoint_server
-    
+
 build:
     cargo 3ds build --release
 
@@ -84,18 +84,18 @@ citro2d:
     arm-none-eabi-ar rcs libextern.a /tmp/extern.o
 
 [working-directory('cloudpoint_app')]
-pack-icons:
+pack-img:
     tex3ds --format rgba8888 \
         --compress auto \
         --atlas \
-        `ls icons/*.png | sort` \
-        -o romfs/icons.t3x \
-        --header src/gfx/icons/icons.h
-    bindgen src/gfx/icons/icons.h \
+        `ls img/*.png | sort` \
+        -o romfs/img.t3x \
+        --header src/gfx/img/img.h
+    bindgen src/gfx/img/img.h \
         --no-layout-tests \
-        --raw-line '// @generated — run `just pack-icons` to regenerate' \
-        -o src/gfx/icons/bindings.rs
-    sed -i 's/icons_\([a-z_]*\)_idx/ICON_\U\1/g' src/gfx/icons/bindings.rs
+        --raw-line '// @generated — run `just pack-img` to regenerate' \
+        -o src/gfx/img/bindings.rs
+    sed -i 's/img_\([a-z_]*\)_idx/IMG_\U\1/g' src/gfx/img/bindings.rs
 
 docker-build-server:
     #!/usr/bin/env bash

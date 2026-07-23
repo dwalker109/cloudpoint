@@ -30,12 +30,12 @@ impl Drop for SpriteSheet {
 pub struct DrawContext {
     buf: C2D_TextBuf,
     glyph_w: f32,
-    icons: SpriteSheet,
+    sprites: SpriteSheet,
 }
 
 impl DrawContext {
     pub(crate) fn new(buf: C2D_TextBuf) -> Self {
-        let icons = SpriteSheet::load("romfs:/icons.t3x").expect("should load icons spritesheet");
+        let sprites = SpriteSheet::load("romfs:/img.t3x").expect("should load img spritesheet");
 
         let glyph_w = unsafe {
             let measure_buf = C2D_TextBufNew(16);
@@ -53,12 +53,12 @@ impl DrawContext {
         Self {
             buf,
             glyph_w,
-            icons,
+            sprites,
         }
     }
 
-    pub fn icon(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
-        let img = self.icons.image(icon_index as usize);
+    pub fn img(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
+        let img = self.sprites.image(icon_index as usize);
         unsafe {
             C2D_DrawImageAt(img, x, y, 0.5, std::ptr::null(), scale, scale);
         }

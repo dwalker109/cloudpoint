@@ -1,11 +1,11 @@
 mod c2d;
 mod draw;
-mod icons;
+mod img;
 
 use crate::screens::{BaseScreen, ModalScreen};
 use c2d::*;
 pub use draw::DrawContext;
-pub use icons::*;
+pub use img::*;
 
 const GFX_TOP: gfxScreen_t = gfxScreen_t_GFX_TOP;
 const GFX_BOTTOM: gfxScreen_t = gfxScreen_t_GFX_BOTTOM;
@@ -22,7 +22,6 @@ pub const ROUND_RAD_SM: f32 = 3.0;
 pub const WHITE: u32 = 0xFFFFFFFF;
 pub const BLACK: u32 = 0xFF000000;
 pub const GREY: u32 = 0xFFCCCCCC;
-pub const GREY_SHADOW: u32 = 0x33CCCCCC;
 pub const GREY_TRANS: u32 = 0xAACCCCCC;
 pub const DARK_GREY: u32 = 0xFF888888;
 pub const ACCENT: u32 = 0xFFF986DB;
