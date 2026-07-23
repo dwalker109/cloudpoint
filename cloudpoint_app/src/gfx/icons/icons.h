@@ -2,6 +2,8 @@
 #pragma once
 
 #define icons_cloud_idx 0
-#define icons_help_qr_idx 1
-#define icons_link_idx 2
-#define icons_list_idx 3
+#define icons_dialog_shadow_bot_idx 1
+#define icons_dialog_shadow_top_idx 2
+#define icons_help_qr_idx 3
+#define icons_link_idx 4
+#define icons_list_idx 5
