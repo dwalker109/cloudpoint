@@ -1,5 +1,5 @@
 use super::*;
-use crate::screens::shared::modal_spinner;
+use crate::screens::shared::{dialog_lower, dialog_upper, modal_spinner};
 
 pub enum ConnectStatus {
     Running,
@@ -21,7 +21,7 @@ impl ConnectModalScreen {
 
 impl Screen for ConnectModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_upper(ctx);
 
         let message_1 = match self.status {
             ConnectStatus::Running => "Connecting",
@@ -40,7 +40,7 @@ impl Screen for ConnectModalScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_lower(ctx);
 
         match self.status {
             ConnectStatus::Running | ConnectStatus::Delayed => {

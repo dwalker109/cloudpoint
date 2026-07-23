@@ -1,6 +1,7 @@
 use crate::{
     ctr_cfgi::format_friend_code_seed,
     link::{LinkState, SharePermission},
+    screens::shared::{dialog_lower, dialog_upper},
 };
 
 use super::*;
@@ -28,7 +29,7 @@ impl LinkClientModalScreen {
 
 impl Screen for LinkClientModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_upper(ctx);
 
         ctx.text_centered(0.0, 40.0, TOP_W, 1.2, ACCENT, "\u{E075} \u{E01A}");
 
@@ -62,7 +63,7 @@ impl Screen for LinkClientModalScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_lower(ctx);
 
         match self.state {
             LinkState::Init => {

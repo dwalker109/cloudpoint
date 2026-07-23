@@ -1,5 +1,8 @@
 use super::*;
-use crate::app::ConflictWinner;
+use crate::{
+    app::ConflictWinner,
+    screens::shared::{dialog_lower, dialog_upper},
+};
 use chrono::{DateTime, Utc};
 use std::sync::oneshot;
 
@@ -30,7 +33,8 @@ impl ConflictModalScreen {
 
 impl Screen for ConflictModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_upper(ctx);
+
         ctx.text_centered(
             0.0,
             50.0,
@@ -79,7 +83,8 @@ impl Screen for ConflictModalScreen {
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rounded_rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, ROUND_RAD_LG, WHITE);
+        dialog_lower(ctx);
+
         ctx.text_centered(40.0, 30.0, BOT_W - 80.0, 1.0, ACCENT, "\u{E079} + \u{E000}");
         ctx.text_centered(
             40.0,

@@ -57,8 +57,8 @@ impl DrawContext {
         }
     }
 
-    pub fn img(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
-        let img = self.sprites.image(icon_index as usize);
+    pub fn img(&self, img_handle: u32, x: f32, y: f32, scale: f32) {
+        let img = self.sprites.image(img_handle as usize);
         unsafe {
             C2D_DrawImageAt(img, x, y, 0.5, std::ptr::null(), scale, scale);
         }
