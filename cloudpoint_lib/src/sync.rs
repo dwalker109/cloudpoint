@@ -112,9 +112,7 @@ impl SyncState {
 #[derive(Debug, Eq, PartialEq)]
 pub enum SyncAction {
     NoChange,
-    NoChangeOnInit,
     Conflict,
-    ConflictOnInit,
     Upload,
     Download,
 }

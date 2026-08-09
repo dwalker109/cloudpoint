@@ -214,7 +214,7 @@ fn run_one(
     log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
 
     match sync_state.get_action(local_fingerprint, remote_fingerprint) {
-        SyncAction::NoChange | SyncAction::NoChangeOnInit => {
+        SyncAction::NoChange => {
             log::info!("local and remote data match for {}", sync_state.sync_item,);
 
             if sync_state.synced_fingerprint.is_none() {
@@ -223,7 +223,7 @@ fn run_one(
 
             sync_state.synced_at = Some(Utc::now());
         }
-        SyncAction::Conflict | SyncAction::ConflictOnInit => {
+        SyncAction::Conflict => {
             log::info!("changed on server and locally for {}", sync_state.sync_item,);
 
             let (reply_tx, reply_rx) = oneshot::channel::<ConflictWinner>();
