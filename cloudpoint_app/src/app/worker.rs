@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use cloudpoint_lib::http::CurlHttpClient;
+use itertools::Itertools;
 use std::{
     rc::Rc,
     sync::mpsc::{Receiver, Sender},
@@ -75,8 +76,11 @@ pub fn worker_thread(
                     .ok();
             }
             Ok(TaskMsg::SyncAuto) => {
+                let mut ordered_states = state_db.states_mut().collect_vec();
+                ordered_states.sort_by(|l, r| l.title_short.cmp(&r.title_short));
+
                 match sync::run(
-                    state_db.states_mut().filter(|s| s.auto_enabled),
+                    ordered_states.into_iter().filter(|s| s.auto_enabled),
                     &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
