@@ -19,7 +19,7 @@ pub struct Settings {
 
 pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
     config::Config::builder()
-        .set_default("base_url", "https://cloudpoint.dwalker.me")
+        .set_default("base_url", "https://api.cloudpointsync.net")
         .unwrap()
         .set_default("log_level", "info")
         .unwrap()
