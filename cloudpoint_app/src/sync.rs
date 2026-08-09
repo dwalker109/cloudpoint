@@ -155,12 +155,12 @@ fn run_one(
     }
 
     for title_id in &sync_state.via_title_ids {
-        match install_history_db.check(*title_id) {
+        match install_history_db.check(*title_id, sync_state.sync_item) {
             InstallStatus::Updated => {
                 log::info!("via_title_id {title_id:016X}: updated tmd mtime, reset sync meta");
                 sync_state.synced_at = None;
                 sync_state.synced_fingerprint = None;
-                install_history_db.touch(*title_id);
+                install_history_db.touch(*title_id, sync_state.sync_item);
             }
             InstallStatus::Unchanged => {
                 log::debug!("via_title_id {title_id:016X}: unchanged tmd mtime, leave sync meta");
