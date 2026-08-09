@@ -29,14 +29,14 @@ impl Screen for SyncScreen {
             10.0,
             TOP_H - 20.0,
             0.4,
-            GREY_TRANS,
+            ACCENT_TRANS,
             &format!("Ver {}", *APP_VER),
         );
         ctx.text(
             315.0,
             TOP_H - 20.0,
             0.4,
-            GREY_TRANS,
+            ACCENT_TRANS,
             &format!("User {}", &USER_KEY.to_string()[..8]),
         );
     }

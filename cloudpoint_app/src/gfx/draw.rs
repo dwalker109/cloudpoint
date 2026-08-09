@@ -30,12 +30,12 @@ impl Drop for SpriteSheet {
 pub struct DrawContext {
     buf: C2D_TextBuf,
     glyph_w: f32,
-    icons: SpriteSheet,
+    sprites: SpriteSheet,
 }
 
 impl DrawContext {
     pub(crate) fn new(buf: C2D_TextBuf) -> Self {
-        let icons = SpriteSheet::load("romfs:/icons.t3x").expect("should load icons spritesheet");
+        let sprites = SpriteSheet::load("romfs:/img.t3x").expect("should load img spritesheet");
 
         let glyph_w = unsafe {
             let measure_buf = C2D_TextBufNew(16);
@@ -53,12 +53,12 @@ impl DrawContext {
         Self {
             buf,
             glyph_w,
-            icons,
+            sprites,
         }
     }
 
-    pub fn icon(&self, icon_index: u32, x: f32, y: f32, scale: f32) {
-        let img = self.icons.image(icon_index as usize);
+    pub fn img(&self, img_handle: u32, x: f32, y: f32, scale: f32) {
+        let img = self.sprites.image(img_handle as usize);
         unsafe {
             C2D_DrawImageAt(img, x, y, 0.5, std::ptr::null(), scale, scale);
         }
@@ -67,6 +67,19 @@ impl DrawContext {
     pub fn rect(&self, x: f32, y: f32, w: f32, h: f32, colour: u32) {
         unsafe {
             C2D_DrawRectSolid(x, y, 0.5, w, h, colour);
+        }
+    }
+
+    pub fn rounded_rect(&self, x: f32, y: f32, w: f32, h: f32, r: f32, colour: u32) {
+        let r = r.min(w * 0.5).min(h * 0.5).max(0.0);
+
+        unsafe {
+            C2D_DrawRectSolid(x + r, y, 0.5, w - (r * 2.0), h, colour);
+            C2D_DrawRectSolid(x, y + r, 0.5, w, h - (r * 2.0), colour);
+            C2D_DrawCircleSolid(x + r, y + r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + w - r, y + r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + w - r, y + h - r, 0.5, r, colour);
+            C2D_DrawCircleSolid(x + r, y + h - r, 0.5, r, colour);
         }
     }
 

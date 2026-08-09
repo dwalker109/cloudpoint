@@ -5,9 +5,9 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
     ctx.rect(0.0, 0.0, TOP_W, TOP_H, WHITE);
     ctx.rect(0.0, 0.0, TOP_W, 32.0, ACCENT);
 
-    ctx.icon(ICON_LIST, 178.0 - 64.0, 0.0, 1.0);
-    ctx.icon(ICON_CLOUD, 178.0, 0.0, 1.0);
-    ctx.icon(ICON_LINK, 178.0 + 64.0, 0.0, 1.0);
+    ctx.img(IMG_LIST, 178.0 - 64.0, 0.0, 1.0);
+    ctx.img(IMG_CLOUD, 178.0, 0.0, 1.0);
+    ctx.img(IMG_LINK, 178.0 + 64.0, 0.0, 1.0);
 
     match cur_screen {
         ScreenId::Titles => {
@@ -28,16 +28,29 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
     ctx.text(TOP_W - 28.0, 0.0, 1.0, WHITE, "\u{E005}");
 }
 
-static SPINSTANT: LazyLock<Instant> = LazyLock::new(|| Instant::now());
+pub fn dialog_upper(ctx: &DrawContext) {
+    ctx.rect(0.0, 0.0, TOP_W, TOP_H, BLACK_WASH);
+    ctx.img(IMG_DIALOG_SHADOW_TOP, 0.0, 0.0, 1.0);
+}
 
-static SPINNER_A: [&'static str; 8] = [
-    "\u{E020}", "\u{E021}", "\u{E022}", "\u{E023}", "\u{E024}", "\u{E025}", "\u{E026}", "\u{E027}",
-];
-static SPINNER_B: [&'static str; 8] = [
-    "\u{E023}", "\u{E024}", "\u{E025}", "\u{E026}", "\u{E027}", "\u{E020}", "\u{E021}", "\u{E022}",
-];
+pub fn dialog_lower(ctx: &DrawContext) {
+    ctx.rect(0.0, 0.0, BOT_W, BOT_H, BLACK_WASH);
+    ctx.img(IMG_DIALOG_SHADOW_BOT, 0.0, 0.0, 1.0);
+}
 
 pub fn modal_spinner(ctx: &DrawContext, x: f32, y: f32, scale: f32, colour: u32) {
+    static SPINSTANT: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+    static SPINNER_A: [&'static str; 8] = [
+        "\u{E020}", "\u{E021}", "\u{E022}", "\u{E023}", "\u{E024}", "\u{E025}", "\u{E026}",
+        "\u{E027}",
+    ];
+
+    static SPINNER_B: [&'static str; 8] = [
+        "\u{E023}", "\u{E024}", "\u{E025}", "\u{E026}", "\u{E027}", "\u{E020}", "\u{E021}",
+        "\u{E022}",
+    ];
+
     ctx.text(
         x,
         y,

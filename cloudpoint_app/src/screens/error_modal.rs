@@ -1,5 +1,7 @@
 use cloudpoint_lib::utils::wrap;
 
+use crate::screens::shared::{dialog_lower, dialog_upper};
+
 use super::*;
 
 pub struct ErrorModalScreen {
@@ -18,13 +20,15 @@ impl ErrorModalScreen {
 
 impl Screen for ErrorModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, TOP_W - 40.0, TOP_H - 40.0, WHITE);
+        dialog_upper(ctx);
+
         ctx.text_centered(0.0, 40.0, TOP_W, 0.8, BLACK, &self.upper_1);
         ctx.text_centered(0.0, 80.0, TOP_W, 0.6, BLACK, &self.upper_2);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {
-        ctx.rect(20.0, 20.0, BOT_W - 40.0, BOT_H - 40.0, WHITE);
+        dialog_lower(ctx);
+
         ctx.text_centered(0.0, 110.0, BOT_W, 0.7, ACCENT, &"\u{E000} Continue");
     }
 }
