@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use cloudpoint_lib::sync::SyncItem;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -9,7 +10,7 @@ use std::{
 use crate::ctr_title::get_installed_at_for_title;
 
 #[derive(Deserialize, Serialize)]
-pub struct InstallHistoryDb(#[serde[skip]] PathBuf, HashMap<u64, u64>);
+pub struct InstallHistoryDb(#[serde[skip]] PathBuf, HashMap<(u64, SyncItem), u64>);
 
 impl InstallHistoryDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
@@ -36,9 +37,9 @@ impl InstallHistoryDb {
         Ok(install_db)
     }
 
-    pub fn check(&self, title_id: u64) -> InstallStatus {
+    pub fn check(&self, title_id: u64, sync_item: SyncItem) -> InstallStatus {
         let latest_mtime = &get_installed_at_for_title(title_id);
-        let cached_mtime = self.1.get(&title_id);
+        let cached_mtime = self.1.get(&(title_id, sync_item));
 
         log::debug!("latest_mtime is {:?}", latest_mtime);
         log::debug!("cached_mtime is {:?}", cached_mtime);
@@ -51,9 +52,9 @@ impl InstallHistoryDb {
         }
     }
 
-    pub fn touch(&mut self, title_id: u64) {
+    pub fn touch(&mut self, title_id: u64, sync_item: SyncItem) {
         self.1.insert(
-            title_id,
+            (title_id, sync_item),
             get_installed_at_for_title(title_id)
                 .expect("install mtime should be available for title"),
         );
