@@ -346,14 +346,8 @@ fn dl(
     )?;
 
     if local_meta.required_version() != remote_ver.meta().required_version() {
-        log::info!(
-            "title versions do not match, cannot sync: local={:?} remote={:?}",
-            local_meta.required_version(),
-            remote_ver.meta().required_version()
-        );
-
-        bail!(
-            "Title version mismatch: local={:?} remote={:?} (ensure you are running the latest version on all consoles and try again)",
+        log::warn!(
+            "title versions do not match, but sync will attempt to continue: local={:?} remote={:?}",
             local_meta.required_version(),
             remote_ver.meta().required_version()
         );
