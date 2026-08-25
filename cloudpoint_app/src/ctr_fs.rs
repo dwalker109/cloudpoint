@@ -13,6 +13,17 @@ use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
 mod ffi;
 
+pub fn smdh_file(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
+    log::debug!("fetching smdh file for {}", sync_item);
+
+    match sync_item {
+        SyncItem::Savedata(title_id) | SyncItem::Gba(title_id) => {
+            Ok(ctr_read_title_smdh(title_id)?.into())
+        }
+        SyncItem::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
+    }
+}
+
 struct CtrArchivePath {
     _sync_item: SyncItem,
     buffer: [u32; 3],
@@ -34,6 +45,7 @@ impl CtrArchivePath {
                 [MediaType::Sd as u32, extdata_id as u32, 0],
                 ArchiveID::Extdata,
             ),
+            SyncItem::Gba(_) => unimplemented!("gba is not handled as a CtrArchive"),
         };
 
         Ok(Self {
@@ -59,15 +71,6 @@ pub struct CtrArchive {
 }
 
 impl CtrArchive {
-    pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
-        log::debug!("fetching smdh for {}", sync_item);
-
-        match sync_item {
-            SyncItem::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
-            SyncItem::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
-        }
-    }
-
     pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
         log::debug!("opening archive for {}", sync_item);
 

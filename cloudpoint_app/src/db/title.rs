@@ -99,7 +99,7 @@ impl TitleDb {
 
         let title_id = title.title_id;
         let product_code = &title.product_code;
-        let smdh = ctr_title::smdh(title_id)?;
+        let smdh = ctr_title::title_smdh(title_id)?;
 
         let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
 
@@ -228,7 +228,7 @@ impl TitleDetails {
     }
 
     pub fn smdh(&self) -> Result<CtrSmdh> {
-        Ok(ctr_title::smdh(self.title_id)?)
+        Ok(ctr_title::title_smdh(self.title_id)?)
     }
 
     pub fn refresh_sync_status(&mut self, state_db: &StateDb) {

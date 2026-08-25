@@ -1,4 +1,4 @@
-use crate::ctr_fs::CtrArchive;
+use crate::ctr_fs::{CtrArchive, smdh_file};
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},
@@ -64,18 +64,20 @@ static SD_TMD_ROOTS: LazyLock<Vec<PathBuf>> = LazyLock::new(|| {
     roots
 });
 
-pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
+pub fn title_smdh(title_id: u64) -> Result<CtrSmdh> {
     log::debug!("looking up smdh for {title_id} via faked SyncItem");
 
     let fake_sync_item = SyncItem::Savedata(title_id);
-    Ok(CtrArchive::smdh(fake_sync_item)?.into())
+    Ok(smdh_file(fake_sync_item)?.into())
 }
 
-pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
+pub fn title_meta(sync_item: SyncItem) -> Result<CtrMeta> {
     log::debug!("looking up ctr meta for {sync_item}");
 
     match sync_item {
-        SyncItem::Savedata(title_id) => Ok(CtrMeta::new(ctr_get_title_version(title_id)?)),
+        SyncItem::Savedata(title_id) | SyncItem::Gba(title_id) => {
+            Ok(CtrMeta::new(ctr_get_title_version(title_id)?))
+        }
         SyncItem::Extdata(_) => Ok(CtrMeta::new(0)),
     }
 }

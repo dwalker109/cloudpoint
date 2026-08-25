@@ -1,10 +1,10 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
     config::USER_KEY,
-    ctr_fs::CtrArchive,
+    ctr_fs::smdh_file,
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_savedata_sync_item_for_title, smdh,
+        lookup_savedata_sync_item_for_title, title_smdh,
     },
 };
 use anyhow::{Result, bail};
@@ -94,7 +94,7 @@ impl StateDb {
 
         let mut process = |sync_item| -> Result<()> {
             if let Some(existing_state) = self.1.get_mut(&sync_item) {
-                if let Err(e) = CtrArchive::smdh(sync_item) {
+                if let Err(e) = smdh_file(sync_item) {
                     log::info!("purging {sync_item}: smdh not accessible");
                     self.1.remove(&sync_item);
                     bail!(e);
@@ -121,7 +121,7 @@ impl StateDb {
                     sync_item,
                     title_id,
                     *USER_KEY,
-                    &smdh(title_id)?,
+                    &title_smdh(title_id)?,
                     auto_enabled,
                 ),
             );

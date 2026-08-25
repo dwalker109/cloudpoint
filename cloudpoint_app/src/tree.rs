@@ -92,6 +92,8 @@ impl Leaf for CtrArchiveLeaf {
                             let file = self.ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
                             file.write(0, &buffer, FS_WRITE_FLUSH)?;
                         }
+                        // Gba will never be used in a CtrArchiveLeaf
+                        SyncItem::Gba(_) => unimplemented!("gba is not handled as a CtrArchive"),
                     }
                 }
             }

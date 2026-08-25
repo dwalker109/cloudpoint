@@ -3,7 +3,7 @@ use crate::{
     config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::CtrArchive,
     ctr_ndmu::KeepAwake,
-    ctr_title::meta,
+    ctr_title::title_meta,
     db::{InstallHistoryDb, InstallStatus},
     tree::{self, CtrArchiveLeaf},
 };
@@ -199,7 +199,7 @@ fn run_one(
     )?;
     let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
 
-    let local_meta = meta(sync_state.sync_item)?;
+    let local_meta = title_meta(sync_state.sync_item)?;
     let local_archive = Rc::new(CtrArchive::open(sync_state.sync_item)?);
     let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
     let local_ver = Version::new(
