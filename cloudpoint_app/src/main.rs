@@ -6,18 +6,19 @@ use crate::ctr_nwm::ForceWlan;
 use anyhow::Result;
 
 mod app;
-pub mod app_logger;
-pub mod config;
-pub mod ctr_cfgi;
+mod app_logger;
+mod config;
+mod ctr_cfgi;
 mod ctr_fs;
-pub mod ctr_ndmu;
-pub mod ctr_nwm;
+
+mod ctr_ndmu;
+mod ctr_nwm;
 mod ctr_os;
-pub mod ctr_title;
-pub mod db;
-pub mod gfx;
+mod ctr_title;
+mod db;
+mod gfx;
 mod link;
-pub mod screens;
+mod screens;
 mod setup;
 mod sync;
 mod tree;

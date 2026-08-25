@@ -1,6 +1,6 @@
 pub use install_history::{InstallHistoryDb, InstallStatus};
 pub use state::StateDb;
-pub use title::{TitleDb, TitleDetails, TitleSyncStatus};
+pub use title::{TitleDb, TitleDetails};
 
 mod install_history;
 mod state;

@@ -143,14 +143,6 @@ impl TitleDb {
         Ok(())
     }
 
-    pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
-        self.1.get_mut(&title_id)
-    }
-
-    pub fn total_titles(&self) -> usize {
-        self.1.len()
-    }
-
     pub fn titles_sorted_vec(&self) -> Vec<TitleDetails> {
         self.1
             .values()
@@ -225,10 +217,6 @@ impl TitleDetails {
             savedata_sync_status,
             extdata_sync_status,
         }
-    }
-
-    pub fn smdh(&self) -> Result<CtrSmdh> {
-        Ok(ctr_title::title_smdh(self.title_id)?)
     }
 
     pub fn refresh_sync_status(&mut self, state_db: &StateDb) {
