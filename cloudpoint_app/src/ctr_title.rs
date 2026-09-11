@@ -1,4 +1,4 @@
-use crate::ctr_fs::CtrArchive;
+use crate::ctr_fs::fs_user::CtrArchive;
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},

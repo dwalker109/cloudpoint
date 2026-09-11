@@ -1,7 +1,7 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
     config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
-    ctr_fs::CtrArchive,
+    ctr_fs::fs_user::CtrArchive,
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
     db::{InstallHistoryDb, InstallStatus},

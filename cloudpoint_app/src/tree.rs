@@ -1,4 +1,4 @@
-use crate::ctr_fs::{CtrArchive, CtrFsPath};
+use crate::ctr_fs::fs_user::{CtrArchive, CtrFsPath};
 
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
