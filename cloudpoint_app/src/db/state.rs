@@ -202,6 +202,10 @@ impl StateDb {
         self.1.values_mut()
     }
 
+    pub fn states_hashmap(&self) -> HashMap<SyncItem, SyncState> {
+        self.states().map(|s| (s.sync_item, s.clone())).collect()
+    }
+
     fn save(&mut self) -> Result<()> {
         log::debug!("saving state db to disk");
 

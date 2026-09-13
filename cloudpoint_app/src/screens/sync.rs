@@ -56,13 +56,10 @@ impl BaseScreen for SyncScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::RefreshDone {
-                qty_sync_states,
-                titles,
+                qty_auto, titles, ..
             } => {
-                self.status_text = format!(
-                    "{qty_sync_states} items enabled across {} titles",
-                    titles.len()
-                );
+                self.status_text =
+                    format!("{qty_auto} items enabled across {} titles", titles.len());
             }
             _ => {}
         }

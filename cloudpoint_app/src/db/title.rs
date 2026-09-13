@@ -12,14 +12,13 @@ use crate::{
 use anyhow::{Result, bail};
 use cloudpoint_lib::{
     ctr::{CtrSmdh, SmdhLanguage},
-    sync::SyncItem,
+    sync::{SyncItem, SyncItemStatus, SyncState},
 };
 use itertools::Itertools;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Display,
     fs,
     path::{Path, PathBuf},
     sync::mpsc::Sender,
@@ -71,11 +70,11 @@ impl TitleDb {
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
         let total = SD_APP_TITLES.len();
+        let states = state_db.states_hashmap();
 
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
             if let Err(e) = try {
-                self.add_or_replace_title(*title_id, state_db)?;
-                self.refresh_shared_extdata_linked_titles(*title_id, state_db)?;
+                self.add_or_replace_title(*title_id, &states)?;
             } {
                 self.remove_title(*title_id)?;
                 warn!("error processing title {title_id:016X}: {e}");
@@ -90,7 +89,11 @@ impl TitleDb {
         Ok(())
     }
 
-    fn add_or_replace_title(&mut self, title_id: u64, state_db: &StateDb) -> Result<()> {
+    fn add_or_replace_title(
+        &mut self,
+        title_id: u64,
+        states: &HashMap<SyncItem, SyncState>,
+    ) -> Result<()> {
         log::debug!("processing {title_id:016X}");
 
         let Some(title) = SD_APP_TITLES.get(&title_id) else {
@@ -101,10 +104,10 @@ impl TitleDb {
         let product_code = &title.product_code;
         let smdh = ctr_title::smdh(title_id)?;
 
-        let title = TitleDetails::new(title_id, &product_code, &smdh, &state_db);
+        let title = TitleDetails::new(title_id, &product_code, &smdh);
 
-        if title.savedata_sync_status != TitleSyncStatus::Unavailable
-            || title.extdata_sync_status != TitleSyncStatus::Unavailable
+        if title.savedata_status(&states) != SyncItemStatus::Unavailable
+            || title.extdata_status(&states) != SyncItemStatus::Unavailable
         {
             log::info!("added {title_id:016X}, has save or extdata");
             self.1.insert(title_id, title);
@@ -117,28 +120,6 @@ impl TitleDb {
 
     fn remove_title(&mut self, title_id: u64) -> Result<()> {
         self.1.remove(&title_id);
-
-        Ok(())
-    }
-
-    pub fn refresh_shared_extdata_linked_titles(
-        &mut self,
-        title_id: u64,
-        state_db: &StateDb,
-    ) -> Result<()> {
-        log::info!(
-            "refreshing sync status for all titles which share extdata with {title_id:016X}"
-        );
-
-        let extdata_sync_item = self.1.get(&title_id).and_then(|t| t.extdata_sync_item);
-
-        for title in self
-            .1
-            .values_mut()
-            .filter(|t| t.extdata_sync_item == extdata_sync_item)
-        {
-            title.refresh_sync_status(state_db);
-        }
 
         Ok(())
     }
@@ -183,37 +164,13 @@ pub struct TitleDetails {
     pub title_publisher: String,
     pub savedata_sync_item: Option<SyncItem>,
     pub extdata_sync_item: Option<SyncItem>,
-    pub savedata_sync_status: TitleSyncStatus,
-    pub extdata_sync_status: TitleSyncStatus,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
-pub enum TitleSyncStatus {
-    Unavailable,
-    Available,
-    Enabled,
-    Disabled,
-}
-
-impl Display for TitleSyncStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TitleSyncStatus::Unavailable => write!(f, "Not available"),
-            TitleSyncStatus::Available => unreachable!(),
-            TitleSyncStatus::Enabled => write!(f, "Yes"),
-            TitleSyncStatus::Disabled => write!(f, "No"),
-        }
-    }
 }
 
 impl TitleDetails {
-    pub fn new(title_id: u64, product_code: &str, smdh: &CtrSmdh, state_db: &StateDb) -> Self {
+    pub fn new(title_id: u64, product_code: &str, smdh: &CtrSmdh) -> Self {
         let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id);
         let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
             .or_else(|| infer_extdata_sync_item_for_title(title_id));
-
-        let (savedata_sync_status, extdata_sync_status) =
-            Self::sync_items_status(&savedata_sync_item, &extdata_sync_item, state_db);
 
         Self {
             title_id,
@@ -222,8 +179,6 @@ impl TitleDetails {
             title_publisher: smdh.title_publisher(SmdhLanguage::English),
             savedata_sync_item,
             extdata_sync_item,
-            savedata_sync_status,
-            extdata_sync_status,
         }
     }
 
@@ -231,33 +186,27 @@ impl TitleDetails {
         Ok(ctr_title::smdh(self.title_id)?)
     }
 
-    pub fn refresh_sync_status(&mut self, state_db: &StateDb) {
-        let (sss, ess) =
-            Self::sync_items_status(&self.savedata_sync_item, &self.extdata_sync_item, state_db);
-
-        self.savedata_sync_status = sss;
-        self.extdata_sync_status = ess;
+    pub fn savedata_status(&self, states: &HashMap<SyncItem, SyncState>) -> SyncItemStatus {
+        Self::sync_item_status(&self.savedata_sync_item, states)
     }
 
-    fn sync_items_status(
-        savedata_sync_item: &Option<SyncItem>,
-        extdata_sync_item: &Option<SyncItem>,
-        state_db: &StateDb,
-    ) -> (TitleSyncStatus, TitleSyncStatus) {
-        let lookup = |si: &Option<SyncItem>| match si {
-            Some(si) => match state_db.state(si) {
+    pub fn extdata_status(&self, states: &HashMap<SyncItem, SyncState>) -> SyncItemStatus {
+        Self::sync_item_status(&self.extdata_sync_item, states)
+    }
+
+    fn sync_item_status(
+        sync_item: &Option<SyncItem>,
+        states: &HashMap<SyncItem, SyncState>,
+    ) -> SyncItemStatus {
+        match sync_item {
+            Some(s) => match states.get(s) {
                 Some(s) => match s.auto_enabled {
-                    true => TitleSyncStatus::Enabled,
-                    false => TitleSyncStatus::Disabled,
+                    true => SyncItemStatus::Enabled,
+                    false => SyncItemStatus::Disabled,
                 },
-                None => TitleSyncStatus::Unavailable,
+                None => SyncItemStatus::Unavailable,
             },
-            None => TitleSyncStatus::Unavailable,
-        };
-
-        let save = lookup(savedata_sync_item);
-        let extdata = lookup(extdata_sync_item);
-
-        (save, extdata)
+            None => SyncItemStatus::Unavailable,
+        }
     }
 }

@@ -47,8 +47,9 @@ pub fn worker_thread(
 
     ui_tx
         .send(UiMsg::RefreshDone {
-            qty_sync_states: state_db.qty_auto(),
             titles: title_db.titles_sorted_vec(),
+            sync_states: state_db.states_hashmap(),
+            qty_auto: state_db.qty_auto(),
         })
         .ok();
 
@@ -60,18 +61,19 @@ pub fn worker_thread(
                 title_db.refresh(&state_db, &ui_tx)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
-                        qty_sync_states: state_db.qty_auto(),
                         titles: title_db.titles_sorted_vec(),
+                        sync_states: state_db.states_hashmap(),
+                        qty_auto: state_db.qty_auto(),
                     })
                     .ok();
             }
             Ok(TaskMsg::Toggle(title_id)) => {
                 state_db.toggle_auto_sync_for_title(title_id)?;
-                title_db.refresh_shared_extdata_linked_titles(title_id, &state_db)?;
                 ui_tx
                     .send(UiMsg::RefreshDone {
-                        qty_sync_states: state_db.qty_auto(),
                         titles: title_db.titles_sorted_vec(),
+                        sync_states: state_db.states_hashmap(),
+                        qty_auto: state_db.qty_auto(),
                     })
                     .ok();
             }
@@ -147,8 +149,9 @@ pub fn worker_thread(
                 };
                 ui_tx
                     .send(UiMsg::RefreshDone {
-                        qty_sync_states: state_db.qty_auto(),
                         titles: title_db.titles_sorted_vec(),
+                        sync_states: state_db.states_hashmap(),
+                        qty_auto: state_db.qty_auto(),
                     })
                     .ok();
             }

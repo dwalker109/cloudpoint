@@ -3,7 +3,11 @@ use crate::{
     link::{LinkState, SharePermission},
 };
 use chrono::{DateTime, Utc};
-use std::sync::{mpsc::Sender, oneshot};
+use cloudpoint_lib::sync::{SyncItem, SyncState};
+use std::{
+    collections::HashMap,
+    sync::{mpsc::Sender, oneshot},
+};
 
 pub enum TaskMsg {
     SyncAuto,
@@ -56,8 +60,9 @@ pub enum UiMsg {
         progress: usize,
     },
     RefreshDone {
-        qty_sync_states: usize,
         titles: Vec<TitleDetails>,
+        sync_states: HashMap<SyncItem, SyncState>,
+        qty_auto: usize,
     },
     LinkHostConfirm {
         friend_code: String,
