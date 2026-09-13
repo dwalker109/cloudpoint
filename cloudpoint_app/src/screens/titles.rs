@@ -1,10 +1,13 @@
+use cloudpoint_lib::sync::{SyncItem, SyncState};
+
 use super::*;
 use crate::{app::TaskMsg, db::TitleDetails};
-use std::sync::mpsc::Sender;
+use std::{collections::HashMap, sync::mpsc::Sender};
 
 pub struct TitlesScreen {
     task_tx: Sender<TaskMsg>,
     titles: Vec<TitleDetails>,
+    sync_states: HashMap<SyncItem, SyncState>,
     selected_idx: usize,
     show_from: usize,
 }
@@ -14,6 +17,7 @@ impl TitlesScreen {
         Self {
             task_tx,
             titles: Vec::new(),
+            sync_states: HashMap::new(),
             selected_idx: 0,
             show_from: 0,
         }
@@ -103,7 +107,10 @@ impl Screen for TitlesScreen {
             BOT_W,
             0.55,
             BLACK,
-            &format!("Save auto sync: {}", title.savedata_sync_status),
+            &format!(
+                "Save auto sync: {}",
+                title.savedata_status(&self.sync_states)
+            ),
         );
         ctx.text_centered(
             0.0,
@@ -111,7 +118,10 @@ impl Screen for TitlesScreen {
             BOT_W,
             0.55,
             BLACK,
-            &format!("Extdata auto sync: {}", title.extdata_sync_status),
+            &format!(
+                "Extdata auto sync: {}",
+                title.extdata_status(&self.sync_states)
+            ),
         );
 
         ctx.text(
@@ -138,8 +148,13 @@ impl BaseScreen for TitlesScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::RefreshDone { titles, .. } => {
+            UiMsg::RefreshDone {
+                titles,
+                sync_states,
+                ..
+            } => {
                 self.titles = titles.clone();
+                self.sync_states = sync_states.clone()
             }
             _ => {}
         }

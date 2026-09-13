@@ -1,7 +1,7 @@
 use crate::ctr::{CtrSmdh, SmdhLanguage};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, fmt::Display, path::PathBuf};
 use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -24,6 +24,23 @@ impl From<SyncItem> for PathBuf {
         match value {
             SyncItem::Savedata(title_id) => PathBuf::from(format!("{title_id:016X}.savedata")),
             SyncItem::Extdata(extdata_id) => PathBuf::from(format!("{extdata_id:016X}.extdata")),
+        }
+    }
+}
+
+#[derive(Eq, PartialEq)]
+pub enum SyncItemStatus {
+    Unavailable,
+    Enabled,
+    Disabled,
+}
+
+impl Display for SyncItemStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SyncItemStatus::Unavailable => write!(f, "Not available"),
+            SyncItemStatus::Enabled => write!(f, "Yes"),
+            SyncItemStatus::Disabled => write!(f, "No"),
         }
     }
 }
