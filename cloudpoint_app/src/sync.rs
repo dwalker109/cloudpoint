@@ -200,8 +200,8 @@ fn run_one(
     let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
 
     let local_meta = meta(sync_state.sync_item)?;
-    let local_archive = Rc::new(Archive::open(sync_state.sync_item)?);
-    let local_tree = fs_user::from_archive(Rc::clone(&local_archive))?;
+    let local_archive = Archive::open(sync_state.sync_item)?;
+    let local_tree = fs_user::from_archive(local_archive)?;
     let local_ver = Version::new(
         &local_tree,
         local_meta,
@@ -253,7 +253,6 @@ fn run_one(
                         sync_state,
                         Rc::clone(&client),
                         sync_progress,
-                        Rc::clone(&local_archive),
                         &local_meta,
                         &local_ver,
                         local_tree,
@@ -278,7 +277,6 @@ fn run_one(
                 sync_state,
                 Rc::clone(&client),
                 sync_progress,
-                Rc::clone(&local_archive),
                 &local_meta,
                 &local_ver,
                 local_tree,
@@ -329,7 +327,6 @@ fn dl(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
     sync_progress: &mut SyncProgress,
-    archive: Rc<Archive>,
     local_meta: &CtrMeta,
     local_ver: &Version<CtrLeaf, CtrMeta>,
     local_tree: Tree<CtrLeaf>,
@@ -382,7 +379,8 @@ fn dl(
         bail!("Something went wrong downloading the remote version");
     }
 
-    archive.finalise()?;
+    let (_, local_tree, _, _) = u.try_unwrap()?;
+    local_tree.context().finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
     s.synced_at = Some(Utc::now());

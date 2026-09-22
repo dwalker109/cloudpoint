@@ -16,6 +16,14 @@ pub enum CtrContext {
     FsUser(fs_user::FsUserContext),
 }
 
+impl CtrContext {
+    pub fn finalise(&self) -> std::io::Result<()> {
+        match self {
+            CtrContext::FsUser(ctx) => ctx.archive.finalise(),
+        }
+    }
+}
+
 impl Leaf for CtrLeaf {
     type Context = CtrContext;
 

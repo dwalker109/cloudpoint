@@ -6,7 +6,6 @@ use chunktree::tree::{Leaf, Tree, TreeError};
 use cloudpoint_lib::sync::SyncItem;
 use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
 use std::io;
-use std::rc::Rc;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -19,7 +18,7 @@ pub struct FsUserLeaf {
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FsUserContext {
-    archive: Rc<Archive>,
+    pub(super) archive: Archive,
 }
 
 impl Leaf for FsUserLeaf {
@@ -140,11 +139,8 @@ impl Leaf for FsUserLeaf {
     }
 }
 
-pub fn from_archive(archive: Rc<Archive>) -> Result<Tree<CtrLeaf>> {
-    log::debug!(
-        "creating local tree for fs_user archive {:?}",
-        archive.as_ref()
-    );
+pub fn from_archive(archive: Archive) -> Result<Tree<CtrLeaf>> {
+    log::debug!("creating local tree for fs_user archive {:?}", archive);
 
     let ctx = FsUserContext { archive };
     let mut results = HashMap::new();
