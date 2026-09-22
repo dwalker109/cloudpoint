@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub mod driver;
+pub(super) mod driver;
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FsUserLeaf {
@@ -18,7 +18,7 @@ pub struct FsUserLeaf {
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct FsUserContext {
-    pub(in crate::ctr_fs) archive: driver::Archive,
+    pub(in crate::ctr_fs) archive: driver::FsUserArchive,
 }
 
 impl Leaf for FsUserLeaf {
@@ -33,7 +33,7 @@ impl Leaf for FsUserLeaf {
     fn delete(&mut self, ctx: &Self::Context) -> Result<(), TreeError> {
         log::debug!("deleting {}", &self.path);
 
-        let path = driver::InnerPath::new(&self.path)?;
+        let path = driver::FsUserInnerPath::new(&self.path)?;
         ctx.archive.delete_file(&path)?;
 
         Ok(())
@@ -44,7 +44,7 @@ impl Leaf for FsUserLeaf {
     }
 
     fn data(&self, ctx: &Self::Context) -> Result<impl io::Read + io::Seek, TreeError> {
-        let path = driver::InnerPath::new(&self.path)?;
+        let path = driver::FsUserInnerPath::new(&self.path)?;
         let file = ctx.archive.open_file(&path, FS_OPEN_READ)?;
         let reader = io::BufReader::with_capacity(256 * 1024, file.into_reader()?);
 
@@ -52,7 +52,7 @@ impl Leaf for FsUserLeaf {
     }
 
     fn len(&self, ctx: &Self::Context) -> Result<u64, TreeError> {
-        let path = driver::InnerPath::new(&self.path)?;
+        let path = driver::FsUserInnerPath::new(&self.path)?;
         let file = ctx.archive.open_file(&path, FS_OPEN_READ)?;
         let file_size = file.size()?;
 
@@ -60,7 +60,7 @@ impl Leaf for FsUserLeaf {
     }
 
     fn set_len(&mut self, length: u64, ctx: &Self::Context) -> Result<(), TreeError> {
-        let path = driver::InnerPath::new(&self.path)?;
+        let path = driver::FsUserInnerPath::new(&self.path)?;
 
         match ctx.archive.open_file(&path, FS_OPEN_READ) {
             // File exists, check size and resize if needed
@@ -106,7 +106,7 @@ impl Leaf for FsUserLeaf {
                     .collect::<Vec<_>>();
 
                 for sep in path_separators {
-                    let dir_path = driver::InnerPath::new(&self.path[0..=sep])?;
+                    let dir_path = driver::FsUserInnerPath::new(&self.path[0..=sep])?;
 
                     if let Err(_) = ctx.archive.open_directory(&dir_path) {
                         ctx.archive.create_directory(&dir_path)?;
@@ -131,7 +131,7 @@ impl Leaf for FsUserLeaf {
         let mut buf = Vec::new();
         source.read_to_end(&mut buf)?;
 
-        let path = driver::InnerPath::new(&self.path)?;
+        let path = driver::FsUserInnerPath::new(&self.path)?;
         let file = ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
         file.write(offset, &buf, FS_WRITE_FLUSH)?;
 
@@ -139,7 +139,7 @@ impl Leaf for FsUserLeaf {
     }
 }
 
-pub fn from_archive(archive: driver::Archive) -> Result<Tree<CtrLeaf>> {
+pub fn from_archive(archive: driver::FsUserArchive) -> Result<Tree<CtrLeaf>> {
     log::debug!("creating local tree for fs_user archive {:?}", archive);
 
     let ctx = FsUserContext { archive };
@@ -154,7 +154,7 @@ pub fn from_archive(archive: driver::Archive) -> Result<Tree<CtrLeaf>> {
     ) -> Result<()> {
         log::debug!("checking {dir_path}");
 
-        let path = driver::InnerPath::new(dir_path)?;
+        let path = driver::FsUserInnerPath::new(dir_path)?;
         let directory = ctx.archive.open_directory(&path)?;
         let entries = directory.read()?;
 

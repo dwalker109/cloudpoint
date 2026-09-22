@@ -13,13 +13,13 @@ use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
 mod ffi;
 
-struct ArchivePath {
+struct FsUserArchivePath {
     _sync_item: SyncItem,
     buffer: [u32; 3],
     archive_id: ArchiveID,
 }
 
-impl ArchivePath {
+impl FsUserArchivePath {
     fn new(sync_item: SyncItem) -> Result<Self, IoError> {
         let (buffer, archive_id) = match sync_item {
             SyncItem::Savedata(title_id) => (
@@ -53,12 +53,12 @@ impl ArchivePath {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Archive {
+pub struct FsUserArchive {
     sync_item: SyncItem,
     archive_handle: u64,
 }
 
-impl Archive {
+impl FsUserArchive {
     pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
         log::debug!("fetching smdh for {}", sync_item);
 
@@ -71,7 +71,7 @@ impl Archive {
     pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
         log::debug!("opening archive for {}", sync_item);
 
-        let path = ArchivePath::new(sync_item)?;
+        let path = FsUserArchivePath::new(sync_item)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
 
         Ok(Self {
@@ -84,39 +84,39 @@ impl Archive {
         &self.sync_item
     }
 
-    pub fn open_file(&self, path: &InnerPath, flags: u8) -> Result<InnerFile, IoError> {
+    pub fn open_file(&self, path: &FsUserInnerPath, flags: u8) -> Result<FsUserInnerFile, IoError> {
         log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
 
         let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
 
-        Ok(InnerFile { file_handle })
+        Ok(FsUserInnerFile { file_handle })
     }
 
-    pub fn create_file(&self, path: &InnerPath, size: u64) -> Result<(), IoError> {
+    pub fn create_file(&self, path: &FsUserInnerPath, size: u64) -> Result<(), IoError> {
         log::debug!("creating file {:?} in archive for {}", path, self.sync_item);
 
         ctr_create_file(self.archive_handle, path.fs_path(), size)
     }
 
-    pub fn delete_file(&self, path: &InnerPath) -> Result<(), IoError> {
+    pub fn delete_file(&self, path: &FsUserInnerPath) -> Result<(), IoError> {
         log::debug!("deleting file {:?} in archive for {}", path, self.sync_item);
 
         ctr_delete_file(self.archive_handle, path.fs_path())
     }
 
-    pub fn open_directory(&self, path: &InnerPath) -> Result<InnerDirectory, IoError> {
+    pub fn open_directory(&self, path: &FsUserInnerPath) -> Result<FsUserInnerDirectory, IoError> {
         log::debug!(
             "opening directory {:?} in archive for {}",
             path,
             self.sync_item
         );
 
-        Ok(InnerDirectory {
+        Ok(FsUserInnerDirectory {
             directory_handle: ctr_open_directory(self.archive_handle, path.fs_path())?,
         })
     }
 
-    pub fn create_directory(&self, path: &InnerPath) -> Result<(), IoError> {
+    pub fn create_directory(&self, path: &FsUserInnerPath) -> Result<(), IoError> {
         log::debug!(
             "creating directory {:?} in archive for {}",
             path,
@@ -138,7 +138,7 @@ impl Archive {
     }
 }
 
-impl Drop for Archive {
+impl Drop for FsUserArchive {
     fn drop(&mut self) {
         log::debug!("dropping archive for {}", self.sync_item);
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
@@ -146,9 +146,9 @@ impl Drop for Archive {
 }
 
 #[derive(Debug)]
-pub struct InnerPath(CString);
+pub struct FsUserInnerPath(CString);
 
-impl InnerPath {
+impl FsUserInnerPath {
     pub fn new(path: &str) -> Result<Self, IoError> {
         Ok(Self(CString::new(path)?))
     }
@@ -158,11 +158,11 @@ impl InnerPath {
     }
 }
 
-pub struct InnerFile {
+pub struct FsUserInnerFile {
     file_handle: Handle,
 }
 
-impl InnerFile {
+impl FsUserInnerFile {
     pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
         log::debug!(
             "writing to handle {} at offset {} with length {}",
@@ -190,10 +190,10 @@ impl InnerFile {
         ctr_set_file_size(self.file_handle, size)
     }
 
-    pub fn into_reader(self) -> Result<InnerFileReader, IoError> {
+    pub fn into_reader(self) -> Result<FsUserReader, IoError> {
         let size = self.size()?;
 
-        Ok(InnerFileReader {
+        Ok(FsUserReader {
             file: self,
             pos: 0,
             size,
@@ -201,20 +201,20 @@ impl InnerFile {
     }
 }
 
-impl Drop for InnerFile {
+impl Drop for FsUserInnerFile {
     fn drop(&mut self) {
         log::debug!("dropping handle {}", self.file_handle);
         ctr_close_file(self.file_handle).expect("file should be closable");
     }
 }
 
-pub struct InnerFileReader {
-    file: InnerFile,
+pub struct FsUserReader {
+    file: FsUserInnerFile,
     pos: u64,
     size: u64,
 }
 
-impl InnerFileReader {
+impl FsUserReader {
     pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
         log::debug!(
             "reading to owned vec from handle {} at offset {} with length {}",
@@ -230,7 +230,7 @@ impl InnerFileReader {
     }
 }
 
-impl Read for InnerFileReader {
+impl Read for FsUserReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         log::debug!(
             "reading to provided buffer (of len {}) from handle {} at offset {}",
@@ -264,7 +264,7 @@ impl Read for InnerFileReader {
     }
 }
 
-impl Seek for InnerFileReader {
+impl Seek for FsUserReader {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let new_pos = match pos {
             SeekFrom::Start(n) => n as i64,
@@ -285,11 +285,11 @@ impl Seek for InnerFileReader {
     }
 }
 
-pub struct InnerDirectory {
+pub struct FsUserInnerDirectory {
     directory_handle: Handle,
 }
 
-impl InnerDirectory {
+impl FsUserInnerDirectory {
     pub fn read(&self) -> Result<Vec<FS_DirectoryEntry>, IoError> {
         log::debug!("reading directory at handle {}", self.directory_handle,);
 
@@ -297,7 +297,7 @@ impl InnerDirectory {
     }
 }
 
-impl Drop for InnerDirectory {
+impl Drop for FsUserInnerDirectory {
     fn drop(&mut self) {
         log::debug!("dropping handle {}", self.directory_handle);
         ctr_close_directory(self.directory_handle).expect("dir should be closable");

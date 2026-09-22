@@ -1,8 +1,7 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
     config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
-    ctr_fs::fs_user::driver::Archive,
-    ctr_fs::{CtrLeaf, fs_user},
+    ctr_fs::{CtrArchive, CtrLeaf},
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
     db::{InstallHistoryDb, InstallStatus},
@@ -200,8 +199,7 @@ fn run_one(
     let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
 
     let local_meta = meta(sync_state.sync_item)?;
-    let local_archive = Archive::open(sync_state.sync_item)?;
-    let local_tree = fs_user::from_archive(local_archive)?;
+    let local_tree = CtrArchive::open(sync_state.sync_item)?.into_tree()?;
     let local_ver = Version::new(
         &local_tree,
         local_meta,

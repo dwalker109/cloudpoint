@@ -1,4 +1,3 @@
-use crate::ctr_fs::fs_user::driver::Archive;
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},
@@ -10,6 +9,8 @@ use ctru::services::{
 };
 use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
 use std::{collections::HashMap, ffi::CString, fs::read_dir, path::PathBuf, sync::LazyLock};
+
+use crate::ctr_fs::{CtrArchive, smdh};
 
 pub struct CtrAmTitle {
     pub title_id: u64,
@@ -64,11 +65,11 @@ static SD_TMD_ROOTS: LazyLock<Vec<PathBuf>> = LazyLock::new(|| {
     roots
 });
 
-pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
+pub fn title_smdh(title_id: u64) -> Result<CtrSmdh> {
     log::debug!("looking up smdh for {title_id} via faked SyncItem");
 
     let fake_sync_item = SyncItem::Savedata(title_id);
-    Ok(Archive::smdh(fake_sync_item)?.into())
+    Ok(smdh(fake_sync_item)?.into())
 }
 
 pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
@@ -85,7 +86,7 @@ pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
     let maybe_archive_id = SyncItem::Savedata(title_id);
 
-    Archive::open(maybe_archive_id)
+    CtrArchive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)
         .ok()
 }
@@ -100,7 +101,7 @@ pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
             let maybe_archive_id = SyncItem::Extdata(extdata_id);
 
-            Archive::open(maybe_archive_id)
+            CtrArchive::open(maybe_archive_id)
                 .map(|_| maybe_archive_id)
                 .ok()
         })
@@ -111,7 +112,7 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
     let maybe_archive_id = SyncItem::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
 
-    Archive::open(maybe_archive_id)
+    CtrArchive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)
         .ok()
 }

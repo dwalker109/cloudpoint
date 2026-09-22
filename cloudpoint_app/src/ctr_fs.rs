@@ -1,12 +1,41 @@
 use anyhow::Result;
-use chunktree::tree::{Leaf, TreeError};
+use chunktree::tree::{Leaf, Tree, TreeError};
+use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
 use std::{
-    io::{Read, Seek},
+    io::{Error as IoError, Read, Seek},
     path::Path,
 };
 
-pub mod fs_user;
-pub mod fs_pxi {}
+mod fs_user;
+mod fs_pxi {}
+
+pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
+    match sync_item {
+        SyncItem::Savedata(_) | SyncItem::Extdata(_) => {
+            fs_user::driver::FsUserArchive::smdh(sync_item)
+        }
+    }
+}
+
+pub enum CtrArchive {
+    FsUser(fs_user::driver::FsUserArchive),
+}
+
+impl CtrArchive {
+    pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
+        match sync_item {
+            SyncItem::Savedata(_) | SyncItem::Extdata(_) => Ok(CtrArchive::FsUser(
+                fs_user::driver::FsUserArchive::open(sync_item)?,
+            )),
+        }
+    }
+
+    pub fn into_tree(self) -> Result<Tree<CtrLeaf>> {
+        match self {
+            CtrArchive::FsUser(archive) => fs_user::from_archive(archive),
+        }
+    }
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum CtrLeaf {
