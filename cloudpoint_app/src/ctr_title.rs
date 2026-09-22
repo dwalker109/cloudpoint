@@ -1,4 +1,4 @@
-use crate::ctr_fs::fs_user::CtrArchive;
+use crate::ctr_fs::fs_user::Archive;
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},
@@ -68,7 +68,7 @@ pub fn smdh(title_id: u64) -> Result<CtrSmdh> {
     log::debug!("looking up smdh for {title_id} via faked SyncItem");
 
     let fake_sync_item = SyncItem::Savedata(title_id);
-    Ok(CtrArchive::smdh(fake_sync_item)?.into())
+    Ok(Archive::smdh(fake_sync_item)?.into())
 }
 
 pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
@@ -85,7 +85,7 @@ pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
     let maybe_archive_id = SyncItem::Savedata(title_id);
 
-    CtrArchive::open(maybe_archive_id)
+    Archive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)
         .ok()
 }
@@ -100,7 +100,7 @@ pub fn lookup_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
             let maybe_archive_id = SyncItem::Extdata(extdata_id);
 
-            CtrArchive::open(maybe_archive_id)
+            Archive::open(maybe_archive_id)
                 .map(|_| maybe_archive_id)
                 .ok()
         })
@@ -111,7 +111,7 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 
     let maybe_archive_id = SyncItem::Extdata((title_id >> 8) & 0x00000000FFFFFFFF);
 
-    CtrArchive::open(maybe_archive_id)
+    Archive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)
         .ok()
 }

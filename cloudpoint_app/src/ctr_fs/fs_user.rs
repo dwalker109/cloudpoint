@@ -13,13 +13,13 @@ use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
 mod ffi;
 
-struct CtrArchivePath {
+struct ArchivePath {
     _sync_item: SyncItem,
     buffer: [u32; 3],
     archive_id: ArchiveID,
 }
 
-impl CtrArchivePath {
+impl ArchivePath {
     fn new(sync_item: SyncItem) -> Result<Self, IoError> {
         let (buffer, archive_id) = match sync_item {
             SyncItem::Savedata(title_id) => (
@@ -53,12 +53,12 @@ impl CtrArchivePath {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct CtrArchive {
+pub struct Archive {
     sync_item: SyncItem,
     archive_handle: u64,
 }
 
-impl CtrArchive {
+impl Archive {
     pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
         log::debug!("fetching smdh for {}", sync_item);
 
@@ -71,7 +71,7 @@ impl CtrArchive {
     pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
         log::debug!("opening archive for {}", sync_item);
 
-        let path = CtrArchivePath::new(sync_item)?;
+        let path = ArchivePath::new(sync_item)?;
         let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
 
         Ok(Self {
@@ -84,39 +84,39 @@ impl CtrArchive {
         &self.sync_item
     }
 
-    pub fn open_file(&self, path: &CtrFsPath, flags: u8) -> Result<CtrFile, IoError> {
+    pub fn open_file(&self, path: &InnerPath, flags: u8) -> Result<InnerFile, IoError> {
         log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
 
         let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
 
-        Ok(CtrFile { file_handle })
+        Ok(InnerFile { file_handle })
     }
 
-    pub fn create_file(&self, path: &CtrFsPath, size: u64) -> Result<(), IoError> {
+    pub fn create_file(&self, path: &InnerPath, size: u64) -> Result<(), IoError> {
         log::debug!("creating file {:?} in archive for {}", path, self.sync_item);
 
         ctr_create_file(self.archive_handle, path.fs_path(), size)
     }
 
-    pub fn delete_file(&self, path: &CtrFsPath) -> Result<(), IoError> {
+    pub fn delete_file(&self, path: &InnerPath) -> Result<(), IoError> {
         log::debug!("deleting file {:?} in archive for {}", path, self.sync_item);
 
         ctr_delete_file(self.archive_handle, path.fs_path())
     }
 
-    pub fn open_directory(&self, path: &CtrFsPath) -> Result<CtrDirectory, IoError> {
+    pub fn open_directory(&self, path: &InnerPath) -> Result<InnerDirectory, IoError> {
         log::debug!(
             "opening directory {:?} in archive for {}",
             path,
             self.sync_item
         );
 
-        Ok(CtrDirectory {
+        Ok(InnerDirectory {
             directory_handle: ctr_open_directory(self.archive_handle, path.fs_path())?,
         })
     }
 
-    pub fn create_directory(&self, path: &CtrFsPath) -> Result<(), IoError> {
+    pub fn create_directory(&self, path: &InnerPath) -> Result<(), IoError> {
         log::debug!(
             "creating directory {:?} in archive for {}",
             path,
@@ -138,7 +138,7 @@ impl CtrArchive {
     }
 }
 
-impl Drop for CtrArchive {
+impl Drop for Archive {
     fn drop(&mut self) {
         log::debug!("dropping archive for {}", self.sync_item);
         ctr_close_archive(self.archive_handle).expect("archive should be closable");
@@ -146,9 +146,9 @@ impl Drop for CtrArchive {
 }
 
 #[derive(Debug)]
-pub struct CtrFsPath(CString);
+pub struct InnerPath(CString);
 
-impl CtrFsPath {
+impl InnerPath {
     pub fn new(path: &str) -> Result<Self, IoError> {
         Ok(Self(CString::new(path)?))
     }
@@ -158,11 +158,11 @@ impl CtrFsPath {
     }
 }
 
-pub struct CtrFile {
+pub struct InnerFile {
     file_handle: Handle,
 }
 
-impl CtrFile {
+impl InnerFile {
     pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
         log::debug!(
             "writing to handle {} at offset {} with length {}",
@@ -190,35 +190,35 @@ impl CtrFile {
         ctr_set_file_size(self.file_handle, size)
     }
 
-    pub fn into_reader(self) -> Result<CtrFileReader, IoError> {
+    pub fn into_reader(self) -> Result<InnerFileReader, IoError> {
         let size = self.size()?;
 
-        Ok(CtrFileReader {
-            ctr_file: self,
+        Ok(InnerFileReader {
+            file: self,
             pos: 0,
             size,
         })
     }
 }
 
-impl Drop for CtrFile {
+impl Drop for InnerFile {
     fn drop(&mut self) {
         log::debug!("dropping handle {}", self.file_handle);
         ctr_close_file(self.file_handle).expect("file should be closable");
     }
 }
 
-pub struct CtrFileReader {
-    ctr_file: CtrFile,
+pub struct InnerFileReader {
+    file: InnerFile,
     pos: u64,
     size: u64,
 }
 
-impl CtrFileReader {
+impl InnerFileReader {
     pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
         log::debug!(
             "reading to owned vec from handle {} at offset {} with length {}",
-            self.ctr_file.file_handle,
+            self.file.file_handle,
             offset,
             length
         );
@@ -230,12 +230,12 @@ impl CtrFileReader {
     }
 }
 
-impl Read for CtrFileReader {
+impl Read for InnerFileReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         log::debug!(
             "reading to provided buffer (of len {}) from handle {} at offset {}",
             buf.len(),
-            self.ctr_file.file_handle,
+            self.file.file_handle,
             self.pos,
         );
 
@@ -248,11 +248,7 @@ impl Read for CtrFileReader {
 
         let bytes_to_read = (buf.len() as u64).min(bytes_to_eof) as usize;
 
-        match ctr_read_file(
-            self.ctr_file.file_handle,
-            self.pos,
-            &mut buf[..bytes_to_read],
-        ) {
+        match ctr_read_file(self.file.file_handle, self.pos, &mut buf[..bytes_to_read]) {
             Ok(n) => {
                 self.pos += n;
                 Ok(n as usize)
@@ -268,7 +264,7 @@ impl Read for CtrFileReader {
     }
 }
 
-impl Seek for CtrFileReader {
+impl Seek for InnerFileReader {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let new_pos = match pos {
             SeekFrom::Start(n) => n as i64,
@@ -289,11 +285,11 @@ impl Seek for CtrFileReader {
     }
 }
 
-pub struct CtrDirectory {
+pub struct InnerDirectory {
     directory_handle: Handle,
 }
 
-impl CtrDirectory {
+impl InnerDirectory {
     pub fn read(&self) -> Result<Vec<FS_DirectoryEntry>, IoError> {
         log::debug!("reading directory at handle {}", self.directory_handle,);
 
@@ -301,7 +297,7 @@ impl CtrDirectory {
     }
 }
 
-impl Drop for CtrDirectory {
+impl Drop for InnerDirectory {
     fn drop(&mut self) {
         log::debug!("dropping handle {}", self.directory_handle);
         ctr_close_directory(self.directory_handle).expect("dir should be closable");
