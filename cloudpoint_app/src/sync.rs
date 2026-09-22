@@ -1,11 +1,10 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
     config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
-    ctr_fs::fs_user::CtrArchive,
+    ctr_fs::{CtrArchive, CtrLeaf},
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
     db::{InstallHistoryDb, InstallStatus},
-    tree::{self, CtrArchiveLeaf},
 };
 use anyhow::{Result, bail};
 use chrono::Utc;
@@ -200,8 +199,7 @@ fn run_one(
     let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
 
     let local_meta = meta(sync_state.sync_item)?;
-    let local_archive = Rc::new(CtrArchive::open(sync_state.sync_item)?);
-    let local_tree = tree::from_archive(Rc::clone(&local_archive))?;
+    let local_tree = CtrArchive::open(sync_state.sync_item)?.into_tree()?;
     let local_ver = Version::new(
         &local_tree,
         local_meta,
@@ -253,7 +251,6 @@ fn run_one(
                         sync_state,
                         Rc::clone(&client),
                         sync_progress,
-                        Rc::clone(&local_archive),
                         &local_meta,
                         &local_ver,
                         local_tree,
@@ -278,7 +275,6 @@ fn run_one(
                 sync_state,
                 Rc::clone(&client),
                 sync_progress,
-                Rc::clone(&local_archive),
                 &local_meta,
                 &local_ver,
                 local_tree,
@@ -296,8 +292,8 @@ fn ul(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
     sync_progress: &mut SyncProgress,
-    local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
-    local_tree: &Tree<CtrArchiveLeaf>,
+    local_ver: &Version<CtrLeaf, CtrMeta>,
+    local_tree: &Tree<CtrLeaf>,
     local_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("uploading {}", s.sync_item);
@@ -329,15 +325,14 @@ fn dl(
     s: &mut SyncState,
     client: Rc<CurlHttpClient>,
     sync_progress: &mut SyncProgress,
-    archive: Rc<CtrArchive>,
     local_meta: &CtrMeta,
-    local_ver: &Version<CtrArchiveLeaf, CtrMeta>,
-    local_tree: Tree<CtrArchiveLeaf>,
+    local_ver: &Version<CtrLeaf, CtrMeta>,
+    local_tree: Tree<CtrLeaf>,
     remote_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("downloading {}", s.sync_item);
 
-    let remote_ver = get_version::<CtrArchiveLeaf, CtrMeta>(
+    let remote_ver = get_version::<CtrLeaf, CtrMeta>(
         &client,
         &USER_SETTINGS.base_url,
         &USER_KEY,
@@ -382,7 +377,8 @@ fn dl(
         bail!("Something went wrong downloading the remote version");
     }
 
-    archive.finalise()?;
+    let (_, local_tree, _, _) = u.try_unwrap()?;
+    local_tree.context().finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
     s.synced_at = Some(Utc::now());
@@ -390,7 +386,7 @@ fn dl(
     Ok(())
 }
 
-fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<()> {
+fn backup(tree: &Tree<CtrLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = AppPath::Backup.join(format!(
         "{}/{}/{}",
         sync_state.fs_safe_name,
@@ -400,9 +396,9 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
 
     log::info!("backing up to {:?}", root_dir);
 
-    for leaf in local_tree.leaves() {
+    for leaf in tree.leaves() {
         let dst_path: PathBuf = root_dir.join(
-            leaf.path()
+            leaf.path(tree.context())
                 .components()
                 .filter(|c| matches!(c, std::path::Component::Normal(_)))
                 .collect::<PathBuf>(),
@@ -410,7 +406,7 @@ fn backup(local_tree: &Tree<CtrArchiveLeaf>, sync_state: &SyncState) -> Result<(
 
         fs::create_dir_all(dst_path.parent().expect("file has parent directory"))?;
         let mut writer = BufWriter::new(File::create(dst_path)?);
-        io::copy(&mut leaf.data()?, &mut writer)?;
+        io::copy(&mut leaf.data(tree.context())?, &mut writer)?;
     }
 
     log::info!("backup complete");

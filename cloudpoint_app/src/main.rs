@@ -20,7 +20,6 @@ mod link;
 pub mod screens;
 mod setup;
 mod sync;
-mod tree;
 
 fn main() -> Result<()> {
     ctru::set_panic_hook(false);

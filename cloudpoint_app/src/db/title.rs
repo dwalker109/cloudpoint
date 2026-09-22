@@ -1,6 +1,6 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
-    ctr_title::{self, SD_APP_TITLES},
+    ctr_title::{SD_APP_TITLES, title_smdh},
 };
 use crate::{
     ctr_title::{
@@ -102,7 +102,7 @@ impl TitleDb {
 
         let title_id = title.title_id;
         let product_code = &title.product_code;
-        let smdh = ctr_title::smdh(title_id)?;
+        let smdh = title_smdh(title_id)?;
 
         let title = TitleDetails::new(title_id, &product_code, &smdh);
 
@@ -183,7 +183,7 @@ impl TitleDetails {
     }
 
     pub fn smdh(&self) -> Result<CtrSmdh> {
-        Ok(ctr_title::smdh(self.title_id)?)
+        Ok(title_smdh(self.title_id)?)
     }
 
     pub fn savedata_status(&self, states: &HashMap<SyncItem, SyncState>) -> SyncItemStatus {

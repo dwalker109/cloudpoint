@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub enum SyncItem {
     Savedata(u64),
     Extdata(u64),
+    Gba(u64),
 }
 
 impl std::fmt::Display for SyncItem {
@@ -15,6 +16,7 @@ impl std::fmt::Display for SyncItem {
         match self {
             SyncItem::Savedata(title_id) => write!(f, "{title_id:016X} savedata"),
             SyncItem::Extdata(extdata_id) => write!(f, "{extdata_id:016X} extdata"),
+            SyncItem::Gba(title_id) => write!(f, "{title_id:016X} gba"),
         }
     }
 }
@@ -24,6 +26,7 @@ impl From<SyncItem> for PathBuf {
         match value {
             SyncItem::Savedata(title_id) => PathBuf::from(format!("{title_id:016X}.savedata")),
             SyncItem::Extdata(extdata_id) => PathBuf::from(format!("{extdata_id:016X}.extdata")),
+            SyncItem::Gba(title_id) => PathBuf::from(format!("{title_id:016X}.gba")),
         }
     }
 }
