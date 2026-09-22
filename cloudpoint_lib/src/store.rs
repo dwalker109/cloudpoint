@@ -87,10 +87,11 @@ impl StoreWrite for HttpStore {
         &mut self,
         leaf_chunks: &chunktree::tree::LeafChunks,
         source: &T,
+        context: &T::Context,
     ) -> Result<(), StoreError> {
         for &(hash, offset, length) in leaf_chunks.chunks() {
             if self.upload_dedupe.insert(hash) {
-                self.put_chunk(hash, &mut source.read_chunk(offset, length)?)?;
+                self.put_chunk(hash, &mut source.read_chunk(offset, length, context)?)?;
             } else {
                 log::debug!("skipped upload of chunk {hash:032x}, duplicated within session");
             }
