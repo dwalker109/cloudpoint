@@ -1,11 +1,11 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
     config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
-    ctr_fs::fs_user::Archive,
+    ctr_fs::fs_user::driver::Archive,
+    ctr_fs::{CtrLeaf, fs_user},
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
     db::{InstallHistoryDb, InstallStatus},
-    tree::{CtrLeaf, fs_user},
 };
 use anyhow::{Result, bail};
 use chrono::Utc;

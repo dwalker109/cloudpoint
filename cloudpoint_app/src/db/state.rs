@@ -1,7 +1,7 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
     config::USER_KEY,
-    ctr_fs::fs_user::Archive,
+    ctr_fs::fs_user::driver::Archive,
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
         lookup_savedata_sync_item_for_title, smdh,

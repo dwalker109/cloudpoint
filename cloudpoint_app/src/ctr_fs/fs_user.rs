@@ -1,305 +1,186 @@
+use super::{CtrContext, CtrLeaf};
 use anyhow::Result;
-use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
-use ctru::services::fs::{ArchiveID, MediaType};
-use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
-use ffi::{
-    ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
-    ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
-    ctr_open_directory, ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
-    ctr_read_title_smdh, ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
+use chunktree::tree::{Leaf, Tree, TreeError};
+use cloudpoint_lib::sync::SyncItem;
+use ctru_sys::{FS_ATTRIBUTE_DIRECTORY, FS_OPEN_READ, FS_OPEN_WRITE, FS_WRITE_FLUSH};
+use std::io;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
 };
-use std::ffi::{CString, c_void};
-use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
 
-mod ffi;
+pub mod driver;
 
-struct ArchivePath {
-    _sync_item: SyncItem,
-    buffer: [u32; 3],
-    archive_id: ArchiveID,
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct FsUserLeaf {
+    path: String,
 }
 
-impl ArchivePath {
-    fn new(sync_item: SyncItem) -> Result<Self, IoError> {
-        let (buffer, archive_id) = match sync_item {
-            SyncItem::Savedata(title_id) => (
-                [
-                    MediaType::Sd as u32,
-                    title_id as u32,
-                    (title_id >> 32) as u32,
-                ],
-                ArchiveID::UserSavedata,
-            ),
-            SyncItem::Extdata(extdata_id) => (
-                [MediaType::Sd as u32, extdata_id as u32, 0],
-                ArchiveID::Extdata,
-            ),
-        };
-
-        Ok(Self {
-            _sync_item: sync_item,
-            buffer,
-            archive_id,
-        })
-    }
-
-    fn fs_path(&self) -> FS_Path {
-        FS_Path {
-            type_: PATH_BINARY,
-            size: 12,
-            data: self.buffer.as_ptr() as *const c_void,
-        }
-    }
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct FsUserContext {
+    pub(in crate::ctr_fs) archive: driver::Archive,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Archive {
-    sync_item: SyncItem,
-    archive_handle: u64,
-}
+impl Leaf for FsUserLeaf {
+    type Context = FsUserContext;
 
-impl Archive {
-    pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
-        log::debug!("fetching smdh for {}", sync_item);
+    fn new(path: impl AsRef<Path>, _ctx: &Self::Context) -> Result<Self, TreeError> {
+        let path = path.as_ref().to_string_lossy().into_owned();
 
-        match sync_item {
-            SyncItem::Savedata(title_id) => Ok(ctr_read_title_smdh(title_id)?.into()),
-            SyncItem::Extdata(extdata_id) => Ok(ctr_read_ext_smdh(extdata_id)?.into()),
+        Ok(Self { path })
+    }
+
+    fn delete(&mut self, ctx: &Self::Context) -> Result<(), TreeError> {
+        log::debug!("deleting {}", &self.path);
+
+        let path = driver::InnerPath::new(&self.path)?;
+        ctx.archive.delete_file(&path)?;
+
+        Ok(())
+    }
+
+    fn path(&self, _ctx: &Self::Context) -> &Path {
+        Path::new(&self.path)
+    }
+
+    fn data(&self, ctx: &Self::Context) -> Result<impl io::Read + io::Seek, TreeError> {
+        let path = driver::InnerPath::new(&self.path)?;
+        let file = ctx.archive.open_file(&path, FS_OPEN_READ)?;
+        let reader = io::BufReader::with_capacity(256 * 1024, file.into_reader()?);
+
+        Ok(reader)
+    }
+
+    fn len(&self, ctx: &Self::Context) -> Result<u64, TreeError> {
+        let path = driver::InnerPath::new(&self.path)?;
+        let file = ctx.archive.open_file(&path, FS_OPEN_READ)?;
+        let file_size = file.size()?;
+
+        Ok(file_size)
+    }
+
+    fn set_len(&mut self, length: u64, ctx: &Self::Context) -> Result<(), TreeError> {
+        let path = driver::InnerPath::new(&self.path)?;
+
+        match ctx.archive.open_file(&path, FS_OPEN_READ) {
+            // File exists, check size and resize if needed
+            Ok(file) => {
+                let curr_size = file.size()?;
+                drop(file);
+
+                if curr_size != length {
+                    match ctx.archive.sync_item() {
+                        // Savedata supports resize in place
+                        SyncItem::Savedata(_) => {
+                            log::debug!("setting length for {} via syscall", &self.path);
+
+                            let file = ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
+                            file.set_size(length)?;
+                        }
+                        // Extdata requires recreating the file with a new length, resizes aren't supported
+                        SyncItem::Extdata(_) => {
+                            log::debug!("setting length for {} via recreate", &self.path);
+
+                            let file = ctx.archive.open_file(&path, FS_OPEN_READ)?;
+                            let mut buffer = file.into_reader()?.read_to_vec(0, curr_size)?;
+                            buffer.resize(length as usize, 0x00);
+
+                            ctx.archive.delete_file(&path)?;
+                            ctx.archive.create_file(&path, length)?;
+
+                            let file = ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
+                            file.write(0, &buffer, FS_WRITE_FLUSH)?;
+                        }
+                    }
+                }
+            }
+            // Probably doesn't exist, try to create it (including intermediary directories)
+            Err(_) => {
+                log::debug!("setting length for {} via initial create", &self.path);
+
+                let path_separators = self
+                    .path
+                    .char_indices()
+                    .filter_map(|(i, c)| (c == '/').then_some(i))
+                    .skip(1)
+                    .collect::<Vec<_>>();
+
+                for sep in path_separators {
+                    let dir_path = driver::InnerPath::new(&self.path[0..=sep])?;
+
+                    if let Err(_) = ctx.archive.open_directory(&dir_path) {
+                        ctx.archive.create_directory(&dir_path)?;
+                    }
+                }
+
+                ctx.archive.create_file(&path, length)?;
+            }
         }
+
+        Ok(())
     }
 
-    pub fn open(sync_item: SyncItem) -> Result<Self, IoError> {
-        log::debug!("opening archive for {}", sync_item);
+    fn write_chunk(
+        &mut self,
+        offset: u64,
+        source: &mut impl io::Read,
+        ctx: &Self::Context,
+    ) -> Result<(), TreeError> {
+        log::debug!("writing chunk for {}", &self.path);
 
-        let path = ArchivePath::new(sync_item)?;
-        let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
+        let mut buf = Vec::new();
+        source.read_to_end(&mut buf)?;
 
-        Ok(Self {
-            sync_item,
-            archive_handle: handle,
-        })
-    }
-
-    pub fn sync_item(&self) -> &SyncItem {
-        &self.sync_item
-    }
-
-    pub fn open_file(&self, path: &InnerPath, flags: u8) -> Result<InnerFile, IoError> {
-        log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
-
-        let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
-
-        Ok(InnerFile { file_handle })
-    }
-
-    pub fn create_file(&self, path: &InnerPath, size: u64) -> Result<(), IoError> {
-        log::debug!("creating file {:?} in archive for {}", path, self.sync_item);
-
-        ctr_create_file(self.archive_handle, path.fs_path(), size)
-    }
-
-    pub fn delete_file(&self, path: &InnerPath) -> Result<(), IoError> {
-        log::debug!("deleting file {:?} in archive for {}", path, self.sync_item);
-
-        ctr_delete_file(self.archive_handle, path.fs_path())
-    }
-
-    pub fn open_directory(&self, path: &InnerPath) -> Result<InnerDirectory, IoError> {
-        log::debug!(
-            "opening directory {:?} in archive for {}",
-            path,
-            self.sync_item
-        );
-
-        Ok(InnerDirectory {
-            directory_handle: ctr_open_directory(self.archive_handle, path.fs_path())?,
-        })
-    }
-
-    pub fn create_directory(&self, path: &InnerPath) -> Result<(), IoError> {
-        log::debug!(
-            "creating directory {:?} in archive for {}",
-            path,
-            self.sync_item
-        );
-
-        ctr_create_directory(self.archive_handle, path.fs_path())
-    }
-
-    pub fn finalise(&self) -> Result<(), IoError> {
-        log::debug!("finalising save write in archive for {}", self.sync_item);
-
-        if let SyncItem::Savedata(title_id) = self.sync_item {
-            ctr_commit_archive(self.archive_handle)?;
-            ctr_reset_secure_save_meta(title_id)?;
-        }
+        let path = driver::InnerPath::new(&self.path)?;
+        let file = ctx.archive.open_file(&path, FS_OPEN_WRITE)?;
+        file.write(offset, &buf, FS_WRITE_FLUSH)?;
 
         Ok(())
     }
 }
 
-impl Drop for Archive {
-    fn drop(&mut self) {
-        log::debug!("dropping archive for {}", self.sync_item);
-        ctr_close_archive(self.archive_handle).expect("archive should be closable");
-    }
-}
+pub fn from_archive(archive: driver::Archive) -> Result<Tree<CtrLeaf>> {
+    log::debug!("creating local tree for fs_user archive {:?}", archive);
 
-#[derive(Debug)]
-pub struct InnerPath(CString);
+    let ctx = FsUserContext { archive };
+    let mut results = HashMap::new();
 
-impl InnerPath {
-    pub fn new(path: &str) -> Result<Self, IoError> {
-        Ok(Self(CString::new(path)?))
-    }
+    walk_sub("/", &ctx, &mut results)?;
 
-    pub fn fs_path(&self) -> FS_Path {
-        unsafe { fsMakePath(PATH_ASCII, self.0.as_ptr() as *const _) }
-    }
-}
+    fn walk_sub(
+        dir_path: &str,
+        ctx: &<FsUserLeaf as Leaf>::Context,
+        results: &mut HashMap<PathBuf, CtrLeaf>,
+    ) -> Result<()> {
+        log::debug!("checking {dir_path}");
 
-pub struct InnerFile {
-    file_handle: Handle,
-}
+        let path = driver::InnerPath::new(dir_path)?;
+        let directory = ctx.archive.open_directory(&path)?;
+        let entries = directory.read()?;
 
-impl InnerFile {
-    pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
-        log::debug!(
-            "writing to handle {} at offset {} with length {}",
-            self.file_handle,
-            offset,
-            buffer.len()
-        );
+        for entry in entries {
+            let mut fq_path = [
+                dir_path,
+                String::from_utf16(&entry.name)?.trim_end_matches('\0'),
+            ]
+            .join("");
 
-        ctr_write_file(self.file_handle, offset, buffer, flags)
-    }
-
-    pub fn size(&self) -> Result<u64, IoError> {
-        log::debug!("getting size of file at handle {}", self.file_handle,);
-
-        ctr_get_file_size(self.file_handle)
-    }
-
-    pub fn set_size(&self, size: u64) -> Result<(), IoError> {
-        log::debug!(
-            "setting size of file at handle {} to {}",
-            self.file_handle,
-            size
-        );
-
-        ctr_set_file_size(self.file_handle, size)
-    }
-
-    pub fn into_reader(self) -> Result<InnerFileReader, IoError> {
-        let size = self.size()?;
-
-        Ok(InnerFileReader {
-            file: self,
-            pos: 0,
-            size,
-        })
-    }
-}
-
-impl Drop for InnerFile {
-    fn drop(&mut self) {
-        log::debug!("dropping handle {}", self.file_handle);
-        ctr_close_file(self.file_handle).expect("file should be closable");
-    }
-}
-
-pub struct InnerFileReader {
-    file: InnerFile,
-    pos: u64,
-    size: u64,
-}
-
-impl InnerFileReader {
-    pub fn read_to_vec(&mut self, offset: u64, length: u64) -> Result<Vec<u8>, IoError> {
-        log::debug!(
-            "reading to owned vec from handle {} at offset {} with length {}",
-            self.file.file_handle,
-            offset,
-            length
-        );
-
-        let mut buf = vec![0u8; length as usize];
-        self.read_exact(&mut buf)?;
-
-        Ok(buf)
-    }
-}
-
-impl Read for InnerFileReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        log::debug!(
-            "reading to provided buffer (of len {}) from handle {} at offset {}",
-            buf.len(),
-            self.file.file_handle,
-            self.pos,
-        );
-
-        let bytes_to_eof = match self.size.checked_sub(self.pos) {
-            Some(0) | None => {
-                return Ok(0);
-            }
-            Some(n) => n,
-        };
-
-        let bytes_to_read = (buf.len() as u64).min(bytes_to_eof) as usize;
-
-        match ctr_read_file(self.file.file_handle, self.pos, &mut buf[..bytes_to_read]) {
-            Ok(n) => {
-                self.pos += n;
-                Ok(n as usize)
-            }
-            Err(e) => {
-                log::warn!(
-                    "ctr_read_file reported an error - advancing cursor and continuing anyway: {e}"
-                );
-                self.pos += bytes_to_read as u64;
-                Ok(bytes_to_read)
+            if entry.attributes & FS_ATTRIBUTE_DIRECTORY != 0 {
+                log::debug!("found subdir, descending");
+                fq_path.push('/');
+                walk_sub(&fq_path, ctx, results)?;
+            } else {
+                log::debug!("found file, adding");
+                let fq_path = PathBuf::from(fq_path);
+                let leaf = FsUserLeaf::new(&fq_path, ctx)?;
+                results.insert(fq_path, CtrLeaf::FsUser(leaf));
             }
         }
+
+        Ok(())
     }
-}
 
-impl Seek for InnerFileReader {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let new_pos = match pos {
-            SeekFrom::Start(n) => n as i64,
-            SeekFrom::End(n) => self.size as i64 + n,
-            SeekFrom::Current(n) => self.pos as i64 + n,
-        };
+    let tree = Tree::new(results, CtrContext::FsUser(ctx));
 
-        if new_pos < 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "cannot seek to before start",
-            ));
-        }
-
-        self.pos = new_pos as u64;
-
-        Ok(self.pos)
-    }
-}
-
-pub struct InnerDirectory {
-    directory_handle: Handle,
-}
-
-impl InnerDirectory {
-    pub fn read(&self) -> Result<Vec<FS_DirectoryEntry>, IoError> {
-        log::debug!("reading directory at handle {}", self.directory_handle,);
-
-        ctr_read_directory(self.directory_handle)
-    }
-}
-
-impl Drop for InnerDirectory {
-    fn drop(&mut self) {
-        log::debug!("dropping handle {}", self.directory_handle);
-        ctr_close_directory(self.directory_handle).expect("dir should be closable");
-    }
+    Ok(tree)
 }
