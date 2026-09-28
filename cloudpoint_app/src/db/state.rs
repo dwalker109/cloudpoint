@@ -4,7 +4,7 @@ use crate::{
     ctr_fs::smdh,
     ctr_title::{
         SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_savedata_sync_item_for_title, title_smdh,
+        lookup_gba_sync_item_for_title, lookup_savedata_sync_item_for_title, title_smdh,
     },
 };
 use anyhow::{Result, bail};
@@ -129,7 +129,9 @@ impl StateDb {
             Ok(())
         };
 
-        if let Some(sync_item) = lookup_savedata_sync_item_for_title(title_id) {
+        if let Some(sync_item) = lookup_savedata_sync_item_for_title(title_id)
+            .or_else(|| lookup_gba_sync_item_for_title(title_id))
+        {
             if let Err(e) = process(sync_item) {
                 log::warn!("{sync_item} not enabled due to error: {e}");
             }

@@ -1,7 +1,9 @@
 use anyhow::Result;
 use cloudpoint_lib::{ctr::CtrSmdh, sync::SyncItem};
 use ctru::services::fs::{ArchiveID, MediaType};
-use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
+use ctru_sys::{
+    FS_Archive, FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath,
+};
 use ffi::{
     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
@@ -56,7 +58,7 @@ impl FsUserArchivePath {
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FsUserArchive {
     sync_item: SyncItem,
-    archive_handle: u64,
+    archive_handle: FS_Archive,
 }
 
 impl FsUserArchive {

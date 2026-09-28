@@ -1,17 +1,18 @@
+use crate::ctr_fs::fs_pxi::driver::ffi::{
+    pxi_calc_savegame_mac, pxi_close_archive, pxi_close_file, pxi_get_file_size, pxi_open_archive,
+    pxi_open_file, pxi_read_file, pxi_write_file,
+};
 use anyhow::Result;
 use cloudpoint_lib::sync::SyncItem;
-use ctru::services::fs::{ArchiveID, MediaType};
-use ctru_sys::{FS_DirectoryEntry, FS_Path, Handle, PATH_ASCII, PATH_BINARY, fsMakePath};
-// use ffi::{
-//     ctr_close_archive, ctr_close_directory, ctr_close_file, ctr_commit_archive,
-//     ctr_create_directory, ctr_create_file, ctr_delete_file, ctr_get_file_size, ctr_open_archive,
-//     ctr_open_directory, ctr_open_file, ctr_read_directory, ctr_read_ext_smdh, ctr_read_file,
-//     ctr_read_title_smdh, ctr_reset_secure_save_meta, ctr_set_file_size, ctr_write_file,
-// };
+use ctru::services::fs::MediaType;
+use ctru_sys::{
+    FS_OPEN_READ, FS_OPEN_WRITE, FS_Path, FS_WRITE_FLUSH, FSPXI_Archive, FSPXI_File, PATH_BINARY,
+};
 use std::cell::RefCell;
-use std::ffi::{CString, c_void};
-use std::io::{self, Error as IoError, Read, Seek, SeekFrom};
+use std::ffi::c_void;
+use std::io::{self, Error as IoError, ErrorKind as IoErrorKind};
 
+mod agb_utils;
 mod ffi;
 
 struct FsPxiArchivePath {
@@ -51,7 +52,7 @@ impl FsPxiArchivePath {
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FsPxiArchive {
     sync_item: SyncItem,
-    archive_handle: u64,
+    archive_handle: FSPXI_Archive,
     buffer: RefCell<Vec<u8>>,
 }
 
@@ -60,27 +61,20 @@ impl FsPxiArchive {
         log::debug!("opening archive for {}", sync_item);
 
         let path = FsPxiArchivePath::new(sync_item)?;
-        let handle = ctr_open_archive(path.archive_id, path.fs_path())?;
-
-        // open the underlying file and grab the bytes, file can be allowed to drop after
-
-        Ok(Self {
+        let handle = pxi_open_archive(path.fs_path())?;
+        let archive = Self {
             sync_item,
             archive_handle: handle,
-        })
+            buffer: RefCell::default(),
+        };
+
+        let agb_container = AgbContainer::open(archive.archive_handle, FS_OPEN_READ as u32)?;
+        let agb_raw = agb_container.read_all()?;
+        let current_data = agb_utils::extract_savedata(&agb_raw)?;
+        *archive.buffer.borrow_mut() = current_data.to_vec();
+
+        Ok(archive)
     }
-
-    pub fn sync_item(&self) -> &SyncItem {
-        &self.sync_item
-    }
-
-    // pub fn open_file(&self, path: &FsUserInnerPath, flags: u8) -> Result<FsUserInnerFile, IoError> {
-    //     log::debug!("opening file {:?} in archive for {}", path, self.sync_item);
-
-    //     let file_handle = ctr_open_file(self.archive_handle, path.fs_path(), flags)?;
-
-    //     Ok(FsUserInnerFile { file_handle })
-    // }
 
     pub fn buffer_to_vec(&self) -> Vec<u8> {
         self.buffer.borrow().to_vec()
@@ -90,19 +84,31 @@ impl FsPxiArchive {
         self.buffer.borrow().len()
     }
 
-    pub fn buffer_write(&self, offset: u64, source: &mut impl io::Read) {
-        let start = offset as usize;
-        let end = start+self.buffer_len();
+    pub fn buffer_write(&self, offset: u64, source: &mut impl io::Read) -> Result<(), IoError> {
+        log::debug!("mem only write for {} at offset {}", self.sync_item, offset);
 
-        io::copy(source, &mut self.buffer.borrow_mut()[start..end]);
+        let mut buffer = self.buffer.borrow_mut();
+        let mut dst = &mut buffer[(offset as usize)..];
+        io::copy(source, &mut dst)?;
+
+        Ok(())
     }
 
     pub fn finalise(&self) -> Result<(), IoError> {
         log::debug!("finalising save write in archive for {}", self.sync_item);
 
-        // open the underlying file and write the bytes, file can be allowed to drop after
+        let agb_container =
+            AgbContainer::open(self.archive_handle, (FS_OPEN_READ | FS_OPEN_WRITE) as u32)?;
+        let agb_raw = agb_container.read_all()?;
+        let buffer = self.buffer.borrow();
+        let (header_offset, body_offset, mut header, hash) =
+            agb_utils::prepare_write_parts(&agb_raw, &buffer)?;
 
-        todo!()
+        let cmac = agb_container.calc_mac(&hash)?;
+        agb_utils::update_header_cmac(&mut header, cmac);
+
+        agb_container.write(body_offset, &buffer)?;
+        agb_container.write(header_offset, &header)?;
 
         Ok(())
     }
@@ -111,40 +117,65 @@ impl FsPxiArchive {
 impl Drop for FsPxiArchive {
     fn drop(&mut self) {
         log::debug!("dropping archive for {}", self.sync_item);
-        ctr_close_archive(self.archive_handle).expect("archive should be closable");
+        pxi_close_archive(self.archive_handle).expect("archive should be closable");
     }
 }
 
-pub struct FsPxiInnerFile {
-    file_handle: Handle,
+struct AgbContainer {
+    file_handle: FSPXI_File,
 }
 
-impl FsPxiInnerFile {
-    pub fn read_all(&self) -> Result<Vec<u8>, IoError> {
-        todo!()
+impl AgbContainer {
+    fn open(archive_handle: FSPXI_Archive, flags: u32) -> Result<Self, IoError> {
+        let handle = pxi_open_file(archive_handle, flags)?;
+
+        Ok(Self {
+            file_handle: handle,
+        })
     }
 
-    pub fn write(&self, offset: u64, buffer: &[u8], flags: u16) -> Result<(), IoError> {
+    fn read_all(&self) -> Result<Vec<u8>, IoError> {
+        let size = pxi_get_file_size(self.file_handle)? as usize;
+        let mut buf = vec![0u8; size];
+        pxi_read_file(self.file_handle, 0, &mut buf[0..])?;
+
+        Ok(buf)
+    }
+
+    fn write(&self, offset: u64, buf: &[u8]) -> Result<(), IoError> {
         log::debug!(
-            "writing to handle {} at offset {} with length {}",
+            "writing to pxi handle {} at offset {} with length {}",
             self.file_handle,
             offset,
-            buffer.len()
+            buf.len()
         );
 
-        ctr_write_file(self.file_handle, offset, buffer, flags)
+        pxi_write_file(self.file_handle, offset, buf, FS_WRITE_FLUSH as u32)
     }
 
-    pub fn size(&self) -> Result<u64, IoError> {
-        log::debug!("getting size of file at handle {}", self.file_handle,);
+    fn calc_mac(&self, hash: &[u8; 32]) -> Result<[u8; agb_utils::CMAC_SIZE], IoError> {
+        let mut prev = pxi_calc_savegame_mac(self.file_handle, hash)?;
 
-        ctr_get_file_size(self.file_handle)
+        for _ in 1..10 {
+            let next = pxi_calc_savegame_mac(self.file_handle, hash)?;
+
+            if next == prev {
+                return Ok(next);
+            }
+
+            prev = next;
+        }
+
+        Err(IoError::new(
+            IoErrorKind::Other,
+            format!("savegame mac did not stabilise after numerous attempts"),
+        ))
     }
 }
 
-impl Drop for FsPxiInnerFile {
+impl Drop for AgbContainer {
     fn drop(&mut self) {
-        log::debug!("dropping handle {}", self.file_handle);
-        ctr_close_file(self.file_handle).expect("file should be closable");
+        log::debug!("dropping pxi handle {}", self.file_handle);
+        pxi_close_file(self.file_handle).expect("file should be closable");
     }
 }

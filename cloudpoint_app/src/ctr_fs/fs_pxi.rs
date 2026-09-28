@@ -1,5 +1,3 @@
-use crate::ctr_fs::fs_pxi::driver::FsPxiArchive;
-
 use super::{CtrContext, CtrLeaf};
 use anyhow::Result;
 use chunktree::tree::{Leaf, Tree, TreeError};
@@ -12,7 +10,8 @@ use std::{
 
 pub(super) mod driver;
 
-/// Archive type only really supports a single GBA save at a fixed binary path, so only one fake leaf is supported
+/// Archive type only really supports a single GBA save at a fixed binary path,
+/// so only one fake leaf is supported and paths passed in are just ignored
 static AGB_FAKEPATH: &str = "agb_save.bin";
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
@@ -50,10 +49,15 @@ impl Leaf for FsPxiLeaf {
         Ok(ctx.archive.buffer_len() as u64)
     }
 
-    fn set_len(&mut self, _length: u64, _ctx: &Self::Context) -> Result<(), TreeError> {
-        log::debug!("resizing is unsupported for gba save");
+    fn set_len(&mut self, length: u64, ctx: &Self::Context) -> Result<(), TreeError> {
+        log::debug!(
+            "resizing is unsupported for gba save, ensuring requested size already matches"
+        );
 
-        Err(io::Error::from(io::ErrorKind::Unsupported).into())
+        match self.len(ctx)? == length {
+            true => Ok(()),
+            false => Err(io::Error::from(io::ErrorKind::Unsupported).into()),
+        }
     }
 
     fn write_chunk(
@@ -64,7 +68,7 @@ impl Leaf for FsPxiLeaf {
     ) -> Result<(), TreeError> {
         log::debug!("writing chunk for gba save");
 
-        todo!();
+        ctx.archive.buffer_write(offset, source)?;
 
         Ok(())
     }
