@@ -4,11 +4,14 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use ctru::services::{am::Am, gfx::Gfx, romfs::RomFS, soc::Soc};
+use pxi::FsPxi;
 use std::{
     fs,
     sync::mpsc::{Receiver, Sender},
     thread::JoinHandle,
 };
+
+mod pxi;
 
 pub fn sdmc() -> Result<()> {
     let paths = [AppPath::Base, AppPath::Db, AppPath::Log, AppPath::Backup];
@@ -24,10 +27,16 @@ pub fn sdmc() -> Result<()> {
     Ok(())
 }
 
-pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx)> {
+pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx, FsPxi)> {
     log::debug!("initialising ambient ctr services");
 
-    Ok((Am::new()?, RomFS::new()?, Soc::new()?, Gfx::new()?))
+    Ok((
+        Am::new()?,
+        RomFS::new()?,
+        Soc::new()?,
+        Gfx::new()?,
+        FsPxi::new()?,
+    ))
 }
 
 pub fn start_worker(
@@ -41,6 +50,5 @@ pub fn start_worker(
     let handle = std::thread::Builder::new()
         .stack_size(256 * 1024)
         .spawn(move || worker_thread(task_rx, shutdown_rx, ui_tx, modal_tx))?;
-
     Ok(handle)
 }
