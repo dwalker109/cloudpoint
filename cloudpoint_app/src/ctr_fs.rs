@@ -23,6 +23,7 @@ pub fn smdh(sync_item: SyncItem) -> Result<CtrSmdh, IoError> {
 
 pub enum CtrArchive {
     FsUser(fs_user::driver::FsUserArchive),
+    FsPxi(fs_pxi::driver::FsPxiArchive),
 }
 
 impl CtrArchive {
@@ -31,13 +32,16 @@ impl CtrArchive {
             SyncItem::Savedata(_) | SyncItem::Extdata(_) => Ok(CtrArchive::FsUser(
                 fs_user::driver::FsUserArchive::open(sync_item)?,
             )),
-            SyncItem::Gba(_) => todo!(),
+            SyncItem::Gba(_) => Ok(CtrArchive::FsPxi(fs_pxi::driver::FsPxiArchive::open(
+                sync_item,
+            )?)),
         }
     }
 
     pub fn into_tree(self) -> Result<Tree<CtrLeaf>> {
         match self {
             CtrArchive::FsUser(archive) => fs_user::from_archive(archive),
+            CtrArchive::FsPxi(archive) => fs_pxi::from_archive(archive),
         }
     }
 }
@@ -57,7 +61,7 @@ impl CtrContext {
     pub fn finalise(&self) -> std::io::Result<()> {
         match self {
             CtrContext::FsUser(ctx) => ctx.archive.finalise(),
-            CtrContext::FsPxi(ctx) => todo!(),
+            CtrContext::FsPxi(ctx) => ctx.archive.finalise(),
         }
     }
 }

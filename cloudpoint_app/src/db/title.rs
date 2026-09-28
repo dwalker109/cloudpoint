@@ -1,6 +1,6 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
-    ctr_title::{SD_APP_TITLES, title_smdh},
+    ctr_title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
 };
 use crate::{
     ctr_title::{
@@ -168,7 +168,8 @@ pub struct TitleDetails {
 
 impl TitleDetails {
     pub fn new(title_id: u64, product_code: &str, smdh: &CtrSmdh) -> Self {
-        let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id);
+        let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id)
+            .or_else(|| lookup_gba_sync_item_for_title(title_id));
         let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
             .or_else(|| infer_extdata_sync_item_for_title(title_id));
 

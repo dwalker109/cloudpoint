@@ -82,9 +82,19 @@ pub fn meta(sync_item: SyncItem) -> Result<CtrMeta> {
 }
 
 pub fn lookup_savedata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
-    log::debug!("looking up savedata for title {title_id:016X} by probing save archive");
+    log::debug!("looking up ctr savedata for title {title_id:016X} by probing save archive");
 
     let maybe_archive_id = SyncItem::Savedata(title_id);
+
+    CtrArchive::open(maybe_archive_id)
+        .map(|_| maybe_archive_id)
+        .ok()
+}
+
+pub fn lookup_gba_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
+    log::debug!("looking up gba savedata for title {title_id:016X} by probing save archive");
+
+    let maybe_archive_id = SyncItem::Gba(title_id);
 
     CtrArchive::open(maybe_archive_id)
         .map(|_| maybe_archive_id)

@@ -1,6 +1,7 @@
 #![feature(oneshot_channel)]
 #![feature(try_blocks)]
 #![feature(string_from_utf8_lossy_owned)]
+#![feature(io_const_error)]
 
 use crate::ctr_nwm::ForceWlan;
 use anyhow::Result;
@@ -13,6 +14,7 @@ mod ctr_fs;
 pub mod ctr_ndmu;
 pub mod ctr_nwm;
 mod ctr_os;
+mod ctr_pxi;
 pub mod ctr_title;
 pub mod db;
 pub mod gfx;

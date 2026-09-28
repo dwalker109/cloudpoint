@@ -18,6 +18,7 @@ config = { workspace = true, features = ["ini"] }
 uuid = { workspace = true, features = ["v4"] }
 itertools = { workspace = true }
 twox-hash = { workspace = true }
+sha2 = "0.11.0"
 
 
 [package.metadata.cargo-3ds]

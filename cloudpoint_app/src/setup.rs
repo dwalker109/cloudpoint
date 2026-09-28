@@ -1,17 +1,15 @@
 use crate::{
     app::{OpenModalMsg, TaskMsg, UiMsg, worker_thread},
     config::AppPath,
+    ctr_pxi::FsPxi,
 };
 use anyhow::{Context, Result};
 use ctru::services::{am::Am, gfx::Gfx, romfs::RomFS, soc::Soc};
-use pxi::FsPxi;
 use std::{
     fs,
     sync::mpsc::{Receiver, Sender},
     thread::JoinHandle,
 };
-
-mod pxi;
 
 pub fn sdmc() -> Result<()> {
     let paths = [AppPath::Base, AppPath::Db, AppPath::Log, AppPath::Backup];
