@@ -23,6 +23,7 @@ flate2 = "1.1.9"
 twox-hash = "2.1.2"
 lru = "0.18.0"
 sha2 = "0.11.0"
+toml = "1.1.6"
 
 [patch.crates-io]
 libz-sys = { path = "patches/libz-sys" }
