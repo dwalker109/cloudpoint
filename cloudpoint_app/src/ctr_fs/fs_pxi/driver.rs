@@ -3,6 +3,7 @@ use crate::ctr_fs::fs_pxi::driver::ffi::{
     pxi_open_file, pxi_read_file, pxi_write_file,
 };
 use anyhow::Result;
+use cloudpoint_lib::agb_utils;
 use cloudpoint_lib::sync::SyncItem;
 use ctru::services::fs::MediaType;
 use ctru_sys::{
@@ -12,7 +13,6 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::io::{self, Error as IoError, ErrorKind as IoErrorKind};
 
-mod agb_utils;
 mod ffi;
 
 struct FsPxiArchivePath {

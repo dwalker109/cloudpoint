@@ -85,19 +85,19 @@ fn locate_current(container: &[u8]) -> Option<(usize, usize)> {
         Some((save_size, read_u32(OFFSET_TIMES_SAVED)))
     };
 
-    // Top slot is valid, inspect directly
-    if let Some((save_size, times_saved_top)) = slot_at(0) {
-        let bottom_offset = HEADER_SIZE + save_size;
+    // Slot 0 valid, check slot 1 directly as well
+    if let Some((save_size, times_saved_s0)) = slot_at(0) {
+        let offset_s1 = HEADER_SIZE + save_size;
 
-        let offset = match slot_at(bottom_offset) {
-            Some((_, times_saved_bottom)) if times_saved_bottom > times_saved_top => bottom_offset,
+        let winning_offset = match slot_at(offset_s1) {
+            Some((_, times_saved_s1)) if times_saved_s1 > times_saved_s0 => offset_s1,
             _ => 0,
         };
 
-        return Some((offset, save_size));
+        return Some((winning_offset, save_size));
     }
 
-    // Top slot not valid, iterate potential offsets for bottom slot
+    // Slot 0 not valid, iterate potential offsets for slot 1
     for save_size in SAVE_SIZES {
         let offset = HEADER_SIZE + save_size;
 
@@ -107,4 +107,49 @@ fn locate_current(container: &[u8]) -> Option<(usize, usize)> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs::File, io::Read};
+
+    #[test]
+    fn selects_slot_0() {
+        let mut buf = Vec::new();
+        File::open("./fixtures/agb_0.bin")
+            .unwrap()
+            .read_to_end(&mut buf)
+            .unwrap();
+
+        let (offset, save_size) = locate_current(&buf).unwrap();
+        assert_eq!(offset, 0x0000);
+        assert_eq!(save_size, 0x2000);
+    }
+
+    #[test]
+    fn selects_slot_1() {
+        let mut buf = Vec::new();
+        File::open("./fixtures/agb_1.bin")
+            .unwrap()
+            .read_to_end(&mut buf)
+            .unwrap();
+
+        let (offset, save_size) = locate_current(&buf).unwrap();
+        assert_eq!(offset, 0x2200);
+        assert_eq!(save_size, 0x2000);
+    }
+
+    #[test]
+    fn fallback_slot_1() {
+        let mut buf = Vec::new();
+        File::open("./fixtures/agb_2.bin")
+            .unwrap()
+            .read_to_end(&mut buf)
+            .unwrap();
+
+        let (offset, save_size) = locate_current(&buf).unwrap();
+        assert_eq!(offset, 0x2200);
+        assert_eq!(save_size, 0x2000);
+    }
 }
