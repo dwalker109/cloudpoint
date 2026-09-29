@@ -160,6 +160,18 @@ pub(super) fn pxi_read_file(
         ));
     }
 
+    if bytes_read as usize != buf.len() {
+        return Err(IoError::new(
+            IoErrorKind::Other,
+            anyhow!(
+                "truncated read ({}/{}) [{:#010X}]",
+                bytes_read,
+                buf.len(),
+                res,
+            ),
+        ));
+    }
+
     Ok(bytes_read as u64)
 }
 

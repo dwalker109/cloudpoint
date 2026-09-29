@@ -10,8 +10,8 @@ use std::{
 
 pub(super) mod driver;
 
-/// Archive type only really supports a single GBA save at a fixed binary path,
-/// so only one fake leaf is supported and paths passed in are just ignored
+/// Archive type only supports a single GBA save at a fixed binary path,
+/// so only one fake leaf is supported and paths passed in are ignored.
 static AGB_FAKEPATH: &str = "agb_save.bin";
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]

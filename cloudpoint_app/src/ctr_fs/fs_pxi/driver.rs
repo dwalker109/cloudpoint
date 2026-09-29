@@ -172,7 +172,7 @@ impl AgbContainer {
 
         Err(IoError::new(
             IoErrorKind::Other,
-            format!("savegame mac did not stabilise after numerous attempts"),
+            format!("savegame mac did not stabilise after multiple attempts"),
         ))
     }
 }
