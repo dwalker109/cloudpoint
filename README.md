@@ -17,11 +17,13 @@ Please join the [Discord](https://discord.gg/fkaXcnWt3V) and help me build a com
 ![Cloudpoint titles screen](.github/cp_titles.png)
 ![Cloudpoint sync ready screen](.github/cp_sync_ready.png)
 ![Cloudpoint sync modal screen](.github/cp_sync_modal.png)
+![Cloudpoint sync conflict screen](.github/cp_sync_conflict.png)
 ![Cloudpoint link screen](.github/cp_link.png)
 
 ## Features
 
-- Sync your game saves (and extdata) between all of your consoles (and, in most cases, emulators) 
+- Sync your game saves (and extdata) between all of your consoles (and, in most cases, emulators)
+- Supports almost all 3DS titles, including Virtual Console (GBA included) 
 - Simple UI with minimal user intervention (works like cloud save on any other console)
 - Public, free to use cloud available for zero setup syncing over the internet
 - Self hosting your own instance is also supported, via the provided Docker image
