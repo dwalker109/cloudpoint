@@ -436,7 +436,6 @@ dependencies = [
  "postcard",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "twox-hash",
  "uuid",
 ]
@@ -458,6 +457,7 @@ dependencies = [
  "postcard",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "uuid",
 ]
 
