@@ -1,0 +1,10 @@
+skip = [
+    # NetPass - uses extdata for SpotPass download
+    0x000400000F657400,
+
+    # SMM - locks saves to originating movable.sed
+    0x00040000001A0300,
+    0x00040000001A0400,
+    0x00040000001A0500,
+    0x00040000001BB800,
+]

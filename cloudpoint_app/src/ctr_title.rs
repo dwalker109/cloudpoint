@@ -8,7 +8,14 @@ use ctru::services::{
     fs::MediaType,
 };
 use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
-use std::{collections::HashMap, ffi::CString, fs::read_dir, path::PathBuf, sync::LazyLock};
+use serde::Deserialize;
+use std::{
+    collections::HashMap,
+    ffi::CString,
+    fs::{read_dir, read_to_string},
+    path::PathBuf,
+    sync::LazyLock,
+};
 
 use crate::ctr_fs::{CtrArchive, smdh};
 
@@ -28,16 +35,30 @@ impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
     }
 }
 
+#[derive(Default, Deserialize)]
+struct TitleConfig {
+    skip: Vec<u64>,
+}
+
 pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| {
     log::info!("building cached list of titles on SD");
 
     let am = Am::new().expect("am service should be available");
+
     let title_list = am
         .title_list(MediaType::Sd)
         .expect("am title list should be available");
+
+    let title_config: TitleConfig = toml::from_str(
+        &read_to_string("romfs:/title_config.toml")
+            .expect("romfs:/title_config.toml should be present"),
+    )
+    .unwrap_or_default();
+
     let applications = title_list
         .iter()
         .filter(|t| (t.id() >> 32) as u32 == 0x00040000)
+        .filter(|t| !title_config.skip.contains(&t.id()))
         .map(|t| (t.id(), CtrAmTitle::from(t)))
         .collect();
 
