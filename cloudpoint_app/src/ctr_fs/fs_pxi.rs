@@ -76,8 +76,8 @@ impl Leaf for FsPxiLeaf {
 
 pub fn from_archive(archive: driver::FsPxiArchive) -> Result<Tree<CtrLeaf>> {
     log::debug!(
-        "creating synthetic local tree for fs_pxi archive {:?}",
-        archive
+        "creating synthetic local tree for fs_pxi archive {}",
+        archive.sync_item()
     );
 
     let ctx = FsPxiContext { archive };

@@ -76,6 +76,10 @@ impl FsPxiArchive {
         Ok(archive)
     }
 
+    pub fn sync_item(&self) -> &SyncItem {
+        &self.sync_item
+    }
+
     pub fn buffer_to_vec(&self) -> Vec<u8> {
         self.buffer.borrow().to_vec()
     }
