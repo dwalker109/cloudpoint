@@ -105,7 +105,7 @@ impl StoreWrite for HttpStore {
 
         let url = self.fq_hash_url(hash);
 
-        let should_upload = self
+        let head_status = self
             .http_client
             .head(&url, &[])
             .map_err(|err| {
@@ -113,33 +113,38 @@ impl StoreWrite for HttpStore {
                     "failed to check existence of chunk {hash:032x}, {err}"
                 ))
             })?
-            .status
-            == 204;
+            .status;
 
-        if should_upload {
-            log::debug!("uploading for hash {hash:032x}");
+        match head_status {
+            204 => {
+                log::debug!("uploading for hash {hash:032x}");
 
-            let mut body = Vec::new();
-            let mut gzip_encoder = GzEncoder::new(data, Compression::best());
-            gzip_encoder.read_to_end(&mut body)?;
+                let mut body = Vec::new();
+                let mut gzip_encoder = GzEncoder::new(data, Compression::best());
+                gzip_encoder.read_to_end(&mut body)?;
 
-            let res = self.http_client.put(&url, &body, &[]).map_err(|err| {
-                io::Error::other(format!("transport failure for chunk {hash:032x}, {err}"))
-            })?;
+                let res = self.http_client.put(&url, &body, &[]).map_err(|err| {
+                    io::Error::other(format!("transport failure for chunk {hash:032x}, {err}"))
+                })?;
 
-            match res.status {
-                201 => log::debug!("completed upload for chunk {hash:032x}"),
-                _ => {
-                    return Err(io::Error::other(format!(
-                        "server rejected put for chunk {hash:032x}, {} (HTTP {})",
-                        String::from_utf8_lossy(&res.body),
-                        res.status,
-                    ))
-                    .into());
+                match res.status {
+                    201 => log::debug!("completed upload for chunk {hash:032x}"),
+                    _ => {
+                        return Err(io::Error::other(format!(
+                            "server rejected put for chunk {hash:032x}, {} (HTTP {})",
+                            String::from_utf8_lossy(&res.body),
+                            res.status,
+                        ))
+                        .into());
+                    }
                 }
             }
-        } else {
-            log::debug!("skipped upload for hash {hash:032x}, already exists")
+            200 => log::debug!("skipped upload for hash {hash:032x}, already exists"),
+            _ => {
+                return Err(StoreError::Io(io::Error::other(format!(
+                    "unexpected http {head_status} while checking existence of chunk {hash:032x}",
+                ))));
+            }
         }
 
         Ok(())
