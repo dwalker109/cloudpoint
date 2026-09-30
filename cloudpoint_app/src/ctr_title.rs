@@ -158,8 +158,9 @@ pub fn get_installed_at_for_title(title_id: u64) -> Result<u64> {
             title_id as u32
         ))?;
 
-        let mtime = ffi::ctr_archive_get_mtime(tmd_path)?;
-        latest = latest.max(mtime);
+        if let Ok(mtime) = ffi::ctr_archive_get_mtime(tmd_path) {
+            latest = latest.max(mtime);
+        }
     }
 
     Ok(latest)
