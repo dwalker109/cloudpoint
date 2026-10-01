@@ -104,19 +104,20 @@ pub fn run<'a>(
     modal_tx: Sender<OpenModalMsg>,
     client: &Rc<CurlHttpClient>,
     install_history_db: &mut InstallHistoryDb,
-) -> Result<()> {
+) -> Result<usize> {
     log::info!("starting sync");
 
     let _keep_awake = KeepAwake::new();
     let mut sync_progress = SyncProgress::new(ui_tx);
 
     let states = states.collect::<Vec<_>>();
-    let total = states.len();
+    let qty_total = states.len();
+    let mut qty_completed = 0;
 
     for (i, sync_state) in states.into_iter().enumerate() {
         if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
             log::info!("aborting mid sync due to app shutdown");
-            return Ok(());
+            return Ok(qty_completed);
         }
 
         match run_one(
@@ -126,17 +127,19 @@ pub fn run<'a>(
             &client,
             install_history_db,
         ) {
-            Ok(_) => sync_progress.progress((i + 1) * 100 / total),
+            Ok(_) => sync_progress.progress((i + 1) * 100 / qty_total),
             Err(e) => {
                 log::error!("failed mid sync: {e}");
                 return Err(e);
             }
         };
+
+        qty_completed += 1;
     }
 
-    log::info!("completed sync");
+    log::info!("completed sync of {qty_completed} sync states");
 
-    Ok(())
+    Ok(qty_completed)
 }
 
 fn run_one(
