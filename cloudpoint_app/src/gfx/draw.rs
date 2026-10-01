@@ -157,6 +157,16 @@ impl DrawContext {
     }
 }
 
+impl Drop for DrawContext {
+    fn drop(&mut self) {
+        log::debug!("dropping draw context");
+
+        unsafe {
+            C2D_TextBufDelete(self.buf);
+        }
+    }
+}
+
 fn contains_glyph(s: &str) -> bool {
     s.chars().any(|c| c >= '\u{E000}' && c <= '\u{E0FF}')
 }

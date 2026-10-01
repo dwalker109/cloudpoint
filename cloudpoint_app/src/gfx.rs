@@ -31,7 +31,7 @@ pub const ACCENT_TRANS: u32 = 0xAAF986DB;
 pub struct Render {
     upper_screen: *mut C3D_RenderTarget,
     lower_screen: *mut C3D_RenderTarget,
-    text_buf: C2D_TextBuf,
+    draw_context: DrawContext,
 }
 
 impl Render {
@@ -45,29 +45,28 @@ impl Render {
             Self {
                 upper_screen: C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT),
                 lower_screen: C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT),
-                text_buf: C2D_TextBufNew(1024),
+                draw_context: DrawContext::new(C2D_TextBufNew(1024)),
             }
         }
     }
 
     pub fn frame(&mut self, screen: &dyn BaseScreen, modal: Option<&dyn ModalScreen>) {
-        let ctx = DrawContext::new(self.text_buf);
         unsafe {
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW as u8);
             C2D_TargetClear(self.upper_screen, WHITE);
             C2D_SceneBegin(self.upper_screen);
-            screen.draw_upper(&ctx);
+            screen.draw_upper(&self.draw_context);
 
             if let Some(m) = modal {
-                m.draw_upper(&ctx);
+                m.draw_upper(&self.draw_context);
             }
 
             C2D_TargetClear(self.lower_screen, WHITE);
             C2D_SceneBegin(self.lower_screen);
-            screen.draw_lower(&ctx);
+            screen.draw_lower(&self.draw_context);
 
             if let Some(m) = modal {
-                m.draw_lower(&ctx);
+                m.draw_lower(&self.draw_context);
             }
 
             C3D_FrameEnd(0);
@@ -80,7 +79,6 @@ impl Drop for Render {
         log::debug!("dropping renderer");
 
         unsafe {
-            C2D_TextBufDelete(self.text_buf);
             C2D_Fini();
             C3D_Fini();
         }
