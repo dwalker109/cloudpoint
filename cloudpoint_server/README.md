@@ -1,9 +1,12 @@
 # Cloudpoint Server 1.\*.\*
 
 This crate contains the server powering Cloudpoint. It is used for the
-public instance at https://cloudpoint.dwalker.me and you can also self
+public instance at https://cloudpointsync.net and you can also self
 host it. It is available as a docker image and compose files are provided
 to make it very easy.
+
+It is built for both x86_64 and arm64, which covers the vast majority of
+use cases. Docker will pull the right one automatically.
 
 ## Building
 
