@@ -23,7 +23,7 @@ impl Screen for ErrorModalScreen {
         dialog_upper(ctx);
 
         ctx.text_centered(0.0, 40.0, TOP_W, 0.8, BLACK, &self.upper_1);
-        ctx.text_centered(0.0, 80.0, TOP_W, 0.6, BLACK, &self.upper_2);
+        ctx.text_centered(0.0, 80.0, TOP_W, 0.6, DARK_GREY, &self.upper_2);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {

@@ -36,7 +36,7 @@ impl Screen for ConnectModalScreen {
         };
 
         ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, message_1);
-        ctx.text_centered(0.0, 125.0, TOP_W, 0.5, BLACK, message_2);
+        ctx.text_centered(0.0, 125.0, TOP_W, 0.5, DARK_GREY, message_2);
     }
 
     fn draw_lower(&self, ctx: &DrawContext) {

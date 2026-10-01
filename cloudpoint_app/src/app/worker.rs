@@ -10,6 +10,7 @@ use itertools::Itertools;
 use std::{
     rc::Rc,
     sync::mpsc::{Receiver, Sender},
+    time::Instant,
 };
 
 pub fn worker_thread(
@@ -78,6 +79,8 @@ pub fn worker_thread(
                     .ok();
             }
             Ok(TaskMsg::SyncAuto) => {
+                let started_at = Instant::now();
+
                 let mut ordered_states = state_db.states_mut().collect_vec();
                 ordered_states.sort_by(|l, r| l.title_short.cmp(&r.title_short));
 
@@ -93,7 +96,10 @@ pub fn worker_thread(
                         ui_tx
                             .send(UiMsg::SyncDone {
                                 result: "Sync completed".into(),
-                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                                message: format!(
+                                    "in {} seconds",
+                                    Instant::now().duration_since(started_at).as_secs()
+                                ),
                             })
                             .ok();
                     }
@@ -101,7 +107,10 @@ pub fn worker_thread(
                         ui_tx
                             .send(UiMsg::SyncDone {
                                 result: "Sync failed".into(),
-                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                                message: format!(
+                                    "at {}",
+                                    chrono::Utc::now().format("%Y-%m-%d %H:%M")
+                                ),
                             })
                             .ok();
                         modal_tx
@@ -124,11 +133,17 @@ pub fn worker_thread(
                     &client,
                     &mut install_history_db,
                 ) {
-                    Ok(_) => {
+                    Ok(qty) => {
                         ui_tx
                             .send(UiMsg::SyncDone {
                                 result: "Sync completed".into(),
-                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                                message: format!(
+                                    "for {qty} sync {}",
+                                    match qty {
+                                        1 => "item",
+                                        _ => "items",
+                                    }
+                                ),
                             })
                             .ok();
                     }
@@ -136,7 +151,10 @@ pub fn worker_thread(
                         ui_tx
                             .send(UiMsg::SyncDone {
                                 result: "Sync failed".into(),
-                                message: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                                message: format!(
+                                    "at {}",
+                                    chrono::Utc::now().format("%Y-%m-%d %H:%M")
+                                ),
                             })
                             .ok();
                         modal_tx
