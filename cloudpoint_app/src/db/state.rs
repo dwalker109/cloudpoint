@@ -42,17 +42,12 @@ impl StateDb {
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.refresh(true, title_db, ui_tx)?;
+        state_db.refresh(true, title_db, ui_tx);
 
         Ok(state_db)
     }
 
-    pub fn refresh(
-        &mut self,
-        auto_enabled: bool,
-        title_db: &TitleDb,
-        ui_tx: &Sender<UiMsg>,
-    ) -> Result<()> {
+    pub fn refresh(&mut self, auto_enabled: bool, title_db: &TitleDb, ui_tx: &Sender<UiMsg>) {
         log::debug!("refreshing state db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -72,8 +67,6 @@ impl StateDb {
         }
 
         self.prune_orphaned();
-
-        Ok(())
     }
 
     pub fn process_sync_items_for_title(&mut self, title: &TitleDetails, auto_enabled: bool) {
