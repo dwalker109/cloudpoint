@@ -26,13 +26,16 @@ use std::{
     fs::{self, File},
     io::{self, BufWriter},
     path::PathBuf,
-    rc::Rc,
     sync::{
+        LazyLock,
         mpsc::{self, Receiver, Sender},
         oneshot,
     },
     time::{Duration, Instant},
 };
+
+static HTTP_CLIENT: LazyLock<CurlHttpClient> =
+    LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
 
 pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> {
     log::info!("connecting to server");
@@ -40,8 +43,6 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
     let ac = Ac::new()?;
     let timeout = Instant::now();
     let delay = Duration::from_millis(100);
-
-    let client = CurlHttpClient::new(&APP_VER)?;
     let url = &format!("{}/api/v1/preflight", USER_SETTINGS.base_url);
 
     loop {
@@ -63,7 +64,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
             continue;
         }
 
-        match client.get(url, &[]) {
+        match HTTP_CLIENT.get(url, &[]) {
             Ok(res) if res.status == 200 => {
                 log::info!(
                     "connected to server, took {} seconds",
@@ -102,7 +103,6 @@ pub fn run<'a>(
     shutdown_rx: &Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
-    client: &Rc<CurlHttpClient>,
     install_history_db: &mut InstallHistoryDb,
 ) -> Result<usize> {
     log::info!("starting sync");
@@ -124,7 +124,6 @@ pub fn run<'a>(
             sync_state,
             &mut sync_progress,
             &modal_tx,
-            &client,
             install_history_db,
         ) {
             Ok(_) => sync_progress.progress((i + 1) * 100 / qty_total),
@@ -146,7 +145,6 @@ fn run_one(
     sync_state: &mut SyncState,
     sync_progress: &mut SyncProgress,
     modal_tx: &Sender<OpenModalMsg>,
-    client: &Rc<CurlHttpClient>,
     install_history_db: &mut InstallHistoryDb,
 ) -> Result<()> {
     log::info!("Starting sync of {}", sync_state.sync_item);
@@ -194,7 +192,7 @@ fn run_one(
     sync_progress.label(&title_label).message("Checking").send();
 
     let remote_ver = RemoteVersionMeta::latest(
-        client,
+        &HTTP_CLIENT,
         &USER_SETTINGS.base_url,
         &USER_KEY,
         sync_state.sync_item,
@@ -242,7 +240,7 @@ fn run_one(
                 ConflictWinner::Local => {
                     ul(
                         sync_state,
-                        Rc::clone(&client),
+                        &HTTP_CLIENT,
                         sync_progress,
                         &local_ver,
                         &local_tree,
@@ -252,7 +250,7 @@ fn run_one(
                 ConflictWinner::Remote => {
                     dl(
                         sync_state,
-                        Rc::clone(&client),
+                        &HTTP_CLIENT,
                         sync_progress,
                         &local_meta,
                         &local_ver,
@@ -266,7 +264,7 @@ fn run_one(
         SyncAction::Upload => {
             ul(
                 sync_state,
-                Rc::clone(&client),
+                &HTTP_CLIENT,
                 sync_progress,
                 &local_ver,
                 &local_tree,
@@ -276,7 +274,7 @@ fn run_one(
         SyncAction::Download => {
             dl(
                 sync_state,
-                Rc::clone(&client),
+                &HTTP_CLIENT,
                 sync_progress,
                 &local_meta,
                 &local_ver,
@@ -293,7 +291,7 @@ fn run_one(
 
 fn ul(
     s: &mut SyncState,
-    client: Rc<CurlHttpClient>,
+    client: &CurlHttpClient,
     sync_progress: &mut SyncProgress,
     local_ver: &Version<CtrLeaf, CtrMeta>,
     local_tree: &Tree<CtrLeaf>,
@@ -304,7 +302,7 @@ fn ul(
     sync_progress.message("Uploading").send();
 
     let mut store = HttpStore::new(
-        Rc::clone(&client),
+        client.clone(),
         USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
@@ -326,7 +324,7 @@ fn ul(
 
 fn dl(
     s: &mut SyncState,
-    client: Rc<CurlHttpClient>,
+    client: &CurlHttpClient,
     sync_progress: &mut SyncProgress,
     local_meta: &CtrMeta,
     local_ver: &Version<CtrLeaf, CtrMeta>,
@@ -361,7 +359,7 @@ fn dl(
     let diff = Diff::new(&local_ver, &remote_ver);
     let cache = MemStore::default();
     let store = HttpStore::new(
-        Rc::clone(&client),
+        client.clone(),
         USER_SETTINGS.base_url.clone(),
         USER_KEY.clone(),
     );
