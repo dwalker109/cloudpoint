@@ -55,7 +55,7 @@ impl BaseScreen for SyncScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::RefreshDone {
+            UiMsg::Ready {
                 qty_auto, titles, ..
             } => {
                 self.status_text =

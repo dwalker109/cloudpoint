@@ -1,4 +1,3 @@
-use crate::ctr::{CtrSmdh, SmdhLanguage};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt::Display, path::PathBuf};
@@ -52,9 +51,6 @@ impl Display for SyncItemStatus {
 pub struct SyncState {
     pub sync_item: SyncItem,
     pub auto_enabled: bool,
-    pub title_short: String,
-    pub title_publisher: String,
-    pub fs_safe_name: String,
     pub synced_fingerprint: Option<u128>,
     pub synced_at: Option<DateTime<Utc>>,
     pub via_title_ids: HashSet<u64>,
@@ -66,27 +62,11 @@ impl SyncState {
         sync_item: SyncItem,
         via_title_id: u64,
         via_user_key: Uuid,
-        smdh: &CtrSmdh,
         auto_enabled: bool,
     ) -> Self {
-        let title_short = smdh.title_short(SmdhLanguage::English);
-        let title_publisher = smdh.title_publisher(SmdhLanguage::English);
-
-        let illegal = r#".,!\\/:?*"<>|"#;
-        let fs_safe_name = title_short
-            .chars()
-            .map(|c| illegal.contains(c).then_some(' ').or(Some(c)))
-            .flatten()
-            .collect::<String>()
-            .trim_end()
-            .to_owned();
-
         Self {
             sync_item,
             auto_enabled,
-            title_short,
-            title_publisher,
-            fs_safe_name,
             synced_fingerprint: None,
             synced_at: None,
             via_title_ids: HashSet::from([via_title_id]),
@@ -247,9 +227,6 @@ mod tests {
             sync_item: SyncItem::Savedata(0x00040000_1234ABCD),
             auto_enabled: true,
             via_title_ids: HashSet::new(),
-            title_short: "Foo Bar: Yeah!".into(),
-            title_publisher: "Cloudpoint, Inc.".into(),
-            fs_safe_name: "Foo Bar  Yeah ".into(),
             synced_fingerprint: None,
             synced_at: None,
             via_user_key: Uuid::max(),

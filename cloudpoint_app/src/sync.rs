@@ -4,7 +4,7 @@ use crate::{
     ctr_fs::{CtrArchive, CtrLeaf},
     ctr_ndmu::KeepAwake,
     ctr_title::meta,
-    db::{InstallHistoryDb, InstallStatus},
+    db::{InstallHistoryDb, InstallStatus, TitleDb},
 };
 use anyhow::{Result, bail};
 use chrono::Utc;
@@ -18,7 +18,6 @@ use cloudpoint_lib::{
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
-    utils::ellipsis,
     version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
@@ -100,6 +99,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
 
 pub fn run<'a>(
     states: impl Iterator<Item = &'a mut SyncState>,
+    title_db: &TitleDb,
     shutdown_rx: &Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
@@ -122,6 +122,7 @@ pub fn run<'a>(
 
         match run_one(
             sync_state,
+            &title_db.sync_state_label(&sync_state),
             &mut sync_progress,
             &modal_tx,
             install_history_db,
@@ -143,6 +144,7 @@ pub fn run<'a>(
 
 fn run_one(
     sync_state: &mut SyncState,
+    title_label: &str,
     sync_progress: &mut SyncProgress,
     modal_tx: &Sender<OpenModalMsg>,
     install_history_db: &mut InstallHistoryDb,
@@ -181,15 +183,7 @@ fn run_one(
         sync_state.via_user_key = *USER_KEY;
     }
 
-    let title_label = ellipsis(
-        &format!(
-            "{} ({})",
-            sync_state.title_short, sync_state.title_publisher,
-        ),
-        35,
-    );
-
-    sync_progress.label(&title_label).message("Checking").send();
+    sync_progress.label(title_label).message("Checking").send();
 
     let remote_ver = RemoteVersionMeta::latest(
         &HTTP_CLIENT,
@@ -229,7 +223,7 @@ fn run_one(
 
             modal_tx
                 .send(OpenModalMsg::ResolveConflict {
-                    title_label: title_label.clone(),
+                    title_label: title_label.to_string(),
                     title_local_time: sync_state.synced_at,
                     title_remote_time: remote_ver.as_ref().map(|v| v.created_at),
                     reply_tx,
@@ -389,8 +383,7 @@ fn dl(
 
 fn backup(tree: &Tree<CtrLeaf>, sync_state: &SyncState) -> Result<()> {
     let root_dir = AppPath::Backup.join(format!(
-        "{}/{}/{}",
-        sync_state.fs_safe_name,
+        "{}/{}",
         sync_state.sync_item,
         chrono::Utc::now().format("%Y%m%d-%H%M%S"),
     ));

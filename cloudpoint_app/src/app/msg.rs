@@ -59,7 +59,7 @@ pub enum UiMsg {
         message: String,
         progress: usize,
     },
-    RefreshDone {
+    Ready {
         titles: Vec<TitleDetails>,
         sync_states: HashMap<SyncItem, SyncState>,
         qty_auto: usize,
