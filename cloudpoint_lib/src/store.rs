@@ -9,13 +9,12 @@ use std::{
     collections::HashSet,
     io::{self, Cursor, Read},
     num::NonZeroUsize,
-    rc::Rc,
     sync::RwLock,
 };
 use uuid::Uuid;
 
 pub struct HttpStore {
-    http_client: Rc<CurlHttpClient>,
+    http_client: CurlHttpClient,
     base_url: String,
     user_key: Uuid,
     upload_dedupe: HashSet<u128>,
@@ -23,7 +22,7 @@ pub struct HttpStore {
 }
 
 impl HttpStore {
-    pub fn new(client: Rc<CurlHttpClient>, base_url: String, user_key: Uuid) -> Self {
+    pub fn new(client: CurlHttpClient, base_url: String, user_key: Uuid) -> Self {
         Self {
             http_client: client,
             base_url,
@@ -157,10 +156,7 @@ mod tests {
     use chunktree::store::{StoreRead, StoreWrite};
     use flate2::{Compression, read::GzEncoder};
     use httpmock::prelude::*;
-    use std::{
-        io::{Cursor, Read},
-        rc::Rc,
-    };
+    use std::io::{Cursor, Read};
     use uuid::Uuid;
 
     #[test]
@@ -176,7 +172,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
-        let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
         let data =
@@ -201,7 +197,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
-        let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
         let data =
@@ -228,7 +224,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
-        let store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let mut buf = Vec::new();
         store
@@ -250,7 +246,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
-        let store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let res = store.get_chunk(0x00);
 
@@ -270,7 +266,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new("0.0.0").unwrap();
-        let mut store = super::HttpStore::new(Rc::new(client), srv.base_url(), Uuid::new_v4());
+        let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
         let data = b"test data";

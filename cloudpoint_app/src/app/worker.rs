@@ -1,14 +1,12 @@
 use super::*;
 use crate::{
-    config::{APP_VER, AppPath},
+    config::AppPath,
     db::{InstallHistoryDb, StateDb, TitleDb},
     link, sync,
 };
 use anyhow::Result;
-use cloudpoint_lib::http::CurlHttpClient;
 use itertools::Itertools;
 use std::{
-    rc::Rc,
     sync::mpsc::{Receiver, Sender},
     time::Instant,
 };
@@ -39,8 +37,6 @@ pub fn worker_thread(
     let mut install_history_db = InstallHistoryDb::open(AppPath::Db)
         .or_else(|_| InstallHistoryDb::new(AppPath::Db))
         .expect("install history db must be available");
-
-    let client = Rc::new(CurlHttpClient::new(&APP_VER).expect("curl client must be available"));
 
     state_db.prune_orphaned()?;
     title_db.prune_orphaned()?;
@@ -89,7 +85,6 @@ pub fn worker_thread(
                     &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
-                    &client,
                     &mut install_history_db,
                 ) {
                     Ok(_) => {
@@ -130,7 +125,6 @@ pub fn worker_thread(
                     &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
-                    &client,
                     &mut install_history_db,
                 ) {
                     Ok(qty) => {

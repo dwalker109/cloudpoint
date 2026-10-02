@@ -9,6 +9,7 @@
 use curl_sys::*;
 use libc::c_void;
 use std::ffi::{CStr, CString};
+use std::sync::{Arc, Mutex};
 use std::{io::Error as IoError, ptr};
 
 #[derive(Debug)]
@@ -18,12 +19,20 @@ pub struct Response {
     pub body: Vec<u8>,
 }
 
-pub struct CurlHttpClient {
-    handle: *mut CURL,
+struct Handle(*mut CURL);
+
+// SAFETY: an easy handle may move between threads provided it is never used
+// from two at once. It is only reachable through the Mutex in CurlHttpClient.
+unsafe impl Send for Handle {}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { curl_easy_cleanup(self.0) };
+    }
 }
 
-// Single-threaded CTR homebrew only.
-unsafe impl Send for CurlHttpClient {}
+#[derive(Clone)]
+pub struct CurlHttpClient(Arc<Mutex<Handle>>);
 
 fn check(code: CURLcode) -> Result<(), IoError> {
     if code == CURLE_OK {
@@ -38,57 +47,35 @@ fn check(code: CURLcode) -> Result<(), IoError> {
     }
 }
 
-impl CurlHttpClient {
-    pub fn new(app_ver: &str) -> Result<Self, IoError> {
-        let handle = unsafe { curl_easy_init() };
-        if handle.is_null() {
-            return Err(IoError::other("libcurl curl_easy_init failed"));
-        }
+fn build_headers(extra: &[(&str, &str)]) -> Result<Slist, IoError> {
+    let mut slist = Slist::new();
 
-        // Options that never change across requests.
-        unsafe {
-            let cainfo_c = CString::new("romfs:/cacert.pem")?;
-            curl_easy_setopt(handle, CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void); // curl copies value so ptr can drop after fn
-
-            let ua_c = CString::new(format!("Cloudpoint/{app_ver}"))?;
-            curl_easy_setopt(handle, CURLOPT_USERAGENT, ua_c.as_ptr() as *const c_void);
-
-            curl_easy_setopt(handle, CURLOPT_TIMEOUT, 30_i64);
-            curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 10_i64);
-            curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1_i64);
-            curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 5_i64);
-
-            curl_easy_setopt(
-                handle,
-                CURLOPT_WRITEFUNCTION,
-                callbacks::write_cb as *const c_void,
-            );
-
-            curl_easy_setopt(
-                handle,
-                CURLOPT_HEADERFUNCTION,
-                callbacks::header_cb as *const c_void,
-            );
-        }
-
-        Ok(Self { handle })
+    for (k, v) in extra {
+        slist.append(&format!("{k}: {v}"))?;
     }
 
+    Ok(slist)
+}
+
+impl Handle {
     fn set_long(&self, opt: CURLoption, val: libc::c_long) -> Result<(), IoError> {
-        check(unsafe { curl_easy_setopt(self.handle, opt, val) })
+        check(unsafe { curl_easy_setopt(self.0, opt, val) })
+            .map_err(|e| IoError::other(format!("{e} (CURLoption {opt})")))
     }
 
     fn set_ptr(&self, opt: CURLoption, val: *const c_void) -> Result<(), IoError> {
-        check(unsafe { curl_easy_setopt(self.handle, opt, val) })
+        check(unsafe { curl_easy_setopt(self.0, opt, val) })
+            .map_err(|e| IoError::other(format!("{e} (CURLoption {opt})")))
     }
 
     fn set_off_t(&self, opt: CURLoption, val: curl_off_t) -> Result<(), IoError> {
-        check(unsafe { curl_easy_setopt(self.handle, opt, val) })
+        check(unsafe { curl_easy_setopt(self.0, opt, val) })
+            .map_err(|e| IoError::other(format!("{e} (CURLoption {opt})")))
     }
 
     fn response_code(&self) -> u32 {
         let mut code: libc::c_long = 0;
-        unsafe { curl_easy_getinfo(self.handle, CURLINFO_RESPONSE_CODE, &mut code) };
+        unsafe { curl_easy_getinfo(self.0, CURLINFO_RESPONSE_CODE, &mut code) };
 
         code as u32
     }
@@ -107,43 +94,68 @@ impl CurlHttpClient {
         Ok(())
     }
 
-    fn build_headers(&self, extra: &[(&str, &str)]) -> Result<Slist, IoError> {
-        let mut slist = Slist::new();
-
-        for (k, v) in extra {
-            slist.append(&format!("{k}: {v}"))?;
-        }
-
-        Ok(slist)
-    }
-
     fn perform(&self, headers: &mut Vec<String>, body: &mut Vec<u8>) -> Result<(), IoError> {
         self.set_ptr(CURLOPT_WRITEDATA, body as *mut Vec<u8> as *mut c_void)?;
         self.set_ptr(
             CURLOPT_HEADERDATA,
             headers as *mut Vec<String> as *mut c_void,
         )?;
-        check(unsafe { curl_easy_perform(self.handle) })
+        check(unsafe { curl_easy_perform(self.0) })
+    }
+}
+
+impl CurlHttpClient {
+    pub fn new(app_ver: &str) -> Result<Self, IoError> {
+        let raw = unsafe { curl_easy_init() };
+        if raw.is_null() {
+            return Err(IoError::other("libcurl curl_easy_init failed"));
+        }
+
+        // Wrap immediately so the handle is freed if anything below fails.
+        let handle = Handle(raw);
+
+        #[cfg(target_os = "horizon")]
+        {
+            let cainfo_c = CString::new("romfs:/cacert.pem")?;
+            handle.set_ptr(CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void)?;
+        }
+
+        let ua_c = CString::new(format!("Cloudpoint/{app_ver}"))?;
+        handle.set_ptr(CURLOPT_USERAGENT, ua_c.as_ptr() as *const c_void)?;
+
+        handle.set_long(CURLOPT_TIMEOUT, 30)?;
+        handle.set_long(CURLOPT_CONNECTTIMEOUT, 10)?;
+        handle.set_long(CURLOPT_FOLLOWLOCATION, 1)?;
+        handle.set_long(CURLOPT_MAXREDIRS, 5)?;
+        handle.set_ptr(CURLOPT_WRITEFUNCTION, callbacks::write_cb as *const c_void)?;
+        handle.set_ptr(
+            CURLOPT_HEADERFUNCTION,
+            callbacks::header_cb as *const c_void,
+        )?;
+
+        Ok(Self(Arc::new(Mutex::new(handle))))
     }
 
     pub fn get(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, IoError> {
         log::debug!("performing libcurl GET to {url}");
 
-        self.reset_request()?;
+        let h = self.0.lock().expect("lock on curl easy handle");
+
+        h.reset_request()?;
 
         let url_c = CString::new(url)?;
-        self.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
-        self.set_long(CURLOPT_HTTPGET, 1)?;
+        h.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
+        h.set_long(CURLOPT_HTTPGET, 1)?;
 
-        let slist = self.build_headers(headers)?;
-        self.set_ptr(CURLOPT_HTTPHEADER, slist.as_ptr() as *const c_void)?;
+        let slist = build_headers(headers)?;
+        h.set_ptr(CURLOPT_HTTPHEADER, slist.as_ptr() as *const c_void)?;
 
         let mut headers = Vec::new();
         let mut body = Vec::new();
-        self.perform(&mut headers, &mut body)?;
+        h.perform(&mut headers, &mut body)?;
 
         Ok(Response {
-            status: self.response_code(),
+            status: h.response_code(),
             headers,
             body,
         })
@@ -152,23 +164,25 @@ impl CurlHttpClient {
     pub fn head(&self, url: &str, headers: &[(&str, &str)]) -> Result<Response, IoError> {
         log::debug!("performing libcurl HEAD to {url}");
 
-        self.reset_request()?;
+        let h = self.0.lock().expect("aquire lock on curl easy handle");
+
+        h.reset_request()?;
 
         let url_c = CString::new(url)?;
         let method = CString::new("HEAD").unwrap();
-        self.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
-        self.set_long(CURLOPT_NOBODY, 1)?;
-        self.set_ptr(CURLOPT_CUSTOMREQUEST, method.as_ptr() as *const c_void)?;
+        h.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
+        h.set_long(CURLOPT_NOBODY, 1)?;
+        h.set_ptr(CURLOPT_CUSTOMREQUEST, method.as_ptr() as *const c_void)?;
 
-        let slist = self.build_headers(headers)?;
-        self.set_ptr(CURLOPT_HTTPHEADER, slist.as_ptr() as *const c_void)?;
+        let slist = build_headers(headers)?;
+        h.set_ptr(CURLOPT_HTTPHEADER, slist.as_ptr() as *const c_void)?;
 
         let mut headers = Vec::new();
         let mut body = Vec::new();
-        self.perform(&mut headers, &mut body)?;
+        h.perform(&mut headers, &mut body)?;
 
         Ok(Response {
-            status: self.response_code(),
+            status: h.response_code(),
             headers,
             body,
         })
@@ -182,40 +196,35 @@ impl CurlHttpClient {
     ) -> Result<Response, IoError> {
         log::debug!("performing libcurl PUT to {url}");
 
-        self.reset_request()?;
+        let h = self.0.lock().expect("aquire lock on curl easy handle");
+        h.reset_request()?;
 
         let url_c = CString::new(url)?;
-        self.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
-        self.set_long(CURLOPT_UPLOAD, 1)?;
-        self.set_off_t(CURLOPT_INFILESIZE_LARGE, data.len() as curl_off_t)?;
+        h.set_ptr(CURLOPT_URL, url_c.as_ptr() as *const c_void)?;
+        h.set_long(CURLOPT_UPLOAD, 1)?;
+        h.set_off_t(CURLOPT_INFILESIZE_LARGE, data.len() as curl_off_t)?;
 
         let mut state = callbacks::ReadState { data, offset: 0 };
-        self.set_ptr(CURLOPT_READFUNCTION, callbacks::read_cb as *const c_void)?;
-        self.set_ptr(
+        h.set_ptr(CURLOPT_READFUNCTION, callbacks::read_cb as *const c_void)?;
+        h.set_ptr(
             CURLOPT_READDATA,
             &mut state as *mut callbacks::ReadState<'_> as *mut c_void,
         )?;
 
-        let mut extra = self.build_headers(headers)?;
+        let mut extra = build_headers(headers)?;
         extra.append(&format!("Content-Length: {}", data.len()))?;
         extra.append("Content-Type: application/octet-stream")?;
-        self.set_ptr(CURLOPT_HTTPHEADER, extra.as_ptr() as *const c_void)?;
+        h.set_ptr(CURLOPT_HTTPHEADER, extra.as_ptr() as *const c_void)?;
 
         let mut headers = Vec::new();
         let mut body = Vec::new();
-        self.perform(&mut headers, &mut body)?;
+        h.perform(&mut headers, &mut body)?;
 
         Ok(Response {
-            status: self.response_code(),
+            status: h.response_code(),
             headers,
             body,
         })
-    }
-}
-
-impl Drop for CurlHttpClient {
-    fn drop(&mut self) {
-        unsafe { curl_easy_cleanup(self.handle) };
     }
 }
 
@@ -351,5 +360,53 @@ mod tests {
         let client = CurlHttpClient::new("0.0.0").unwrap();
         let response = client.put(&srv.url("/test"), b"foobar", &[]).unwrap();
         assert_eq!(response.status, 204);
+    }
+
+    #[test]
+    fn shared_handle_does_not_leak_between_requests() {
+        let srv = MockServer::start();
+
+        for i in 0..2 {
+            srv.mock(|when, then| {
+                when.method("PUT")
+                    .path(format!("/put{i}"))
+                    .header("x-id", format!("t{i}"))
+                    .body(format!("payload{i}"));
+                then.status(204);
+            });
+            srv.mock(|when, then| {
+                when.method("GET")
+                    .path(format!("/get{i}"))
+                    .header_missing("x-id");
+                then.status(200).body(format!("get{i}"));
+            });
+        }
+
+        let client = CurlHttpClient::new("0.0.0").unwrap();
+
+        let threads: Vec<_> = (0..2)
+            .map(|i| {
+                let c = client.clone();
+                let put_url = srv.url(format!("/put{i}"));
+                let get_url = srv.url(format!("/get{i}"));
+                std::thread::spawn(move || {
+                    for _ in 0..10 {
+                        let id = format!("t{i}");
+                        let put = c
+                            .put(&put_url, format!("payload{i}").as_bytes(), &[("x-id", &id)])
+                            .unwrap();
+                        assert_eq!(put.status, 204);
+
+                        let get = c.get(&get_url, &[]).unwrap();
+                        assert_eq!(get.status, 200);
+                        assert_eq!(get.body, format!("get{i}").into_bytes());
+                    }
+                })
+            })
+            .collect();
+
+        for t in threads {
+            t.join().unwrap();
+        }
     }
 }
