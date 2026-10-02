@@ -13,8 +13,13 @@ use std::{
     sync::mpsc::Sender,
 };
 
+mod legacy;
+
+const MAGIC: &[u8; 4] = b"CPDB";
+const CURRENT_VERSION: u16 = 1;
+
 #[derive(Deserialize, Serialize)]
-pub struct StateDb(#[serde[skip]] PathBuf, HashMap<SyncItem, SyncState>);
+pub struct StateDb(#[serde(skip)] PathBuf, HashMap<SyncItem, SyncState>);
 
 impl StateDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
@@ -22,13 +27,29 @@ impl StateDb {
 
         let db_path = root_path.as_ref().join("state.db");
 
-        if let Ok(buf) = fs::read(&db_path) {
-            let mut state_db = postcard::from_bytes::<StateDb>(&buf)?;
-            state_db.0 = db_path;
-
-            Ok(state_db)
-        } else {
+        let Ok(buf) = fs::read(&db_path) else {
             bail!("state db not found")
+        };
+
+        let mut state_db = Self::decode(&buf)?;
+        state_db.0 = db_path;
+
+        Ok(state_db)
+    }
+
+    fn decode(buf: &[u8]) -> Result<Self> {
+        let Some(rest) = buf.strip_prefix(MAGIC) else {
+            log::info!("migrating unversioned (v0) state db");
+            return Ok(postcard::from_bytes::<legacy::StateDbV0>(buf)?.into());
+        };
+
+        let Some((version, payload)) = rest.split_first_chunk::<2>() else {
+            bail!("state db truncated")
+        };
+
+        match u16::from_le_bytes(*version) {
+            1 => Ok(postcard::from_bytes(payload)?),
+            _ => bail!("unsupported state db version"),
         }
     }
 
@@ -170,7 +191,12 @@ impl StateDb {
     fn save(&mut self) -> Result<()> {
         log::debug!("saving state db to disk");
 
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
+        let mut buf = Vec::with_capacity(MAGIC.len() + size_of::<u16>());
+        buf.extend_from_slice(MAGIC);
+        buf.extend_from_slice(&CURRENT_VERSION.to_le_bytes());
+        buf.extend(postcard::to_allocvec(&self)?);
+
+        fs::write(&self.0, buf)?;
 
         Ok(())
     }
