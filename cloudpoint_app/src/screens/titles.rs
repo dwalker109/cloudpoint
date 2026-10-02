@@ -148,7 +148,7 @@ impl BaseScreen for TitlesScreen {
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::RefreshDone {
+            UiMsg::Ready {
                 titles,
                 sync_states,
                 ..

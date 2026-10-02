@@ -1,21 +1,18 @@
+use crate::ctr_title::{
+    infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
+    lookup_savedata_sync_item_for_title,
+};
 use crate::{
     app::{RefreshProgress, UiMsg},
     ctr_title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
 };
-use crate::{
-    ctr_title::{
-        infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_savedata_sync_item_for_title,
-    },
-    db::StateDb,
-};
 use anyhow::{Result, bail};
+use cloudpoint_lib::utils::ellipsis;
 use cloudpoint_lib::{
     ctr::{CtrSmdh, SmdhLanguage},
     sync::{SyncItem, SyncItemStatus, SyncState},
 };
 use itertools::Itertools;
-use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -43,42 +40,33 @@ impl TitleDb {
         }
     }
 
-    pub fn new(
-        root_path: impl AsRef<Path>,
-        state_db: &StateDb,
-        ui_tx: &Sender<UiMsg>,
-    ) -> Result<Self> {
+    pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
         log::debug!("building title db");
 
         let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-        title_db.refresh(state_db, ui_tx)?;
+        title_db.refresh(ui_tx)?;
 
         Ok(title_db)
     }
 
-    pub fn prune_orphaned(&mut self) -> Result<()> {
-        log::debug!("pruning orphaned title db records");
-
-        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
-        self.1.retain(|k, _| current_title_ids.contains(k));
-
-        Ok(())
-    }
-
-    pub fn refresh(&mut self, state_db: &StateDb, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::debug!("adding missing title db records");
+    pub fn refresh(&mut self, ui_tx: &Sender<UiMsg>) -> Result<()> {
+        log::debug!("refreshing title db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
         let total = SD_APP_TITLES.len();
-        let states = state_db.states_hashmap();
 
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
-            if let Err(e) = try {
-                self.add_or_replace_title(*title_id, &states)?;
-            } {
-                self.remove_title(*title_id)?;
-                warn!("error processing title {title_id:016X}: {e}");
-            };
+            match self.handle_title(*title_id) {
+                Ok(_) => log::info!("processed title {title_id:016X}"),
+                Err(e) => match self.1.remove(&title_id) {
+                    Some(_) => {
+                        log::warn!("could not process title {title_id:016X}, was removed: {e}")
+                    }
+                    None => {
+                        log::warn!("could not process title {title_id:016X}, was not added: {e}")
+                    }
+                },
+            }
 
             refresh_progress
                 .message("Refreshing titles")
@@ -86,40 +74,56 @@ impl TitleDb {
                 .send();
         }
 
+        self.prune_orphaned();
+
         Ok(())
     }
 
-    fn add_or_replace_title(
-        &mut self,
-        title_id: u64,
-        states: &HashMap<SyncItem, SyncState>,
-    ) -> Result<()> {
+    pub fn prune_orphaned(&mut self) {
+        log::debug!("pruning orphaned title db records");
+
+        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
+        self.1.retain(|k, _| current_title_ids.contains(k));
+    }
+
+    fn handle_title(&mut self, title_id: u64) -> Result<()> {
         log::debug!("processing {title_id:016X}");
 
-        let Some(title) = SD_APP_TITLES.get(&title_id) else {
-            bail!("cannot find title {title_id:016X}");
+        let (title_id, product_code) = match SD_APP_TITLES.get(&title_id) {
+            Some(title) => (title.title_id, title.product_code.clone()),
+            None => bail!("cannot find title {title_id:016X}"),
         };
 
-        let title_id = title.title_id;
-        let product_code = &title.product_code;
-        let smdh = title_smdh(title_id)?;
+        let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id)
+            .or_else(|| lookup_gba_sync_item_for_title(title_id));
 
-        let title = TitleDetails::new(title_id, &product_code, &smdh);
+        let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
+            .or_else(|| infer_extdata_sync_item_for_title(title_id));
 
-        if title.savedata_status(&states) != SyncItemStatus::Unavailable
-            || title.extdata_status(&states) != SyncItemStatus::Unavailable
-        {
-            log::info!("added {title_id:016X}, has save or extdata");
-            self.1.insert(title_id, title);
-        } else {
-            log::info!("ignored {title_id:016X}, has no save or extdata");
+        if let (None, None) = (savedata_sync_item, extdata_sync_item) {
+            bail!("no savedata/gba savedata/extdata for title {title_id:016X}")
+        };
+
+        match self.1.get_mut(&title_id) {
+            Some(title) => {
+                title.savedata_sync_item = savedata_sync_item;
+                title.extdata_sync_item = extdata_sync_item;
+            }
+            None => {
+                let smdh = title_smdh(title_id)?;
+
+                let title = TitleDetails {
+                    title_id,
+                    product_code,
+                    title_short: smdh.title_short(SmdhLanguage::English),
+                    title_publisher: smdh.title_publisher(SmdhLanguage::English),
+                    savedata_sync_item,
+                    extdata_sync_item,
+                };
+
+                self.1.insert(title_id, title);
+            }
         }
-
-        Ok(())
-    }
-
-    fn remove_title(&mut self, title_id: u64) -> Result<()> {
-        self.1.remove(&title_id);
 
         Ok(())
     }
@@ -128,7 +132,11 @@ impl TitleDb {
         self.1.get_mut(&title_id)
     }
 
-    pub fn total_titles(&self) -> usize {
+    pub fn titles(&self) -> impl Iterator<Item = &TitleDetails> {
+        self.1.values()
+    }
+
+    pub fn titles_qty(&self) -> usize {
         self.1.len()
     }
 
@@ -138,6 +146,21 @@ impl TitleDb {
             .sorted_by_key(|t| t.title_short.to_lowercase())
             .cloned()
             .collect()
+    }
+
+    pub fn sync_state_label(&self, sync_state: &SyncState) -> String {
+        let (mut t, mut p) = (Vec::new(), Vec::new());
+
+        for title in self
+            .1
+            .values()
+            .filter(|t| sync_state.via_title_ids.contains(&t.title_id))
+        {
+            t.push(title.title_short.clone());
+            p.push(title.title_publisher.clone());
+        }
+
+        ellipsis(&format!("{} ({})", t.join("/"), p.join("/")), 35)
     }
 
     fn save(&mut self) -> Result<()> {

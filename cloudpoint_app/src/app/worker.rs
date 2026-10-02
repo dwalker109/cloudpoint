@@ -20,30 +20,34 @@ pub fn worker_thread(
     modal_tx.send(OpenModalMsg::Connect).ok();
     sync::connect(&shutdown_rx, &ui_tx)?;
 
-    let mut state_db = StateDb::open(AppPath::Db)
-        .or_else(|_| {
-            modal_tx.send(OpenModalMsg::Refresh).ok();
-            StateDb::new(AppPath::Db, &ui_tx)
-        })
-        .expect("state db must be available");
+    let (mut title_db, mut state_db) =
+        match (TitleDb::open(AppPath::Db), StateDb::open(AppPath::Db)) {
+            (Ok(title_db), Ok(state_db)) => (title_db, state_db),
+            _ => {
+                modal_tx.send(OpenModalMsg::Refresh).ok();
+                let title_db =
+                    TitleDb::new(AppPath::Db, &ui_tx).expect("title db must be available");
 
-    let mut title_db = TitleDb::open(AppPath::Db)
-        .or_else(|_| {
-            modal_tx.send(OpenModalMsg::Refresh).ok();
-            TitleDb::new(AppPath::Db, &state_db, &ui_tx)
-        })
-        .expect("title db must be available");
+                modal_tx.send(OpenModalMsg::Refresh).ok();
+                let state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)
+                    .expect("state db must be available");
+
+                (title_db, state_db)
+            }
+        };
 
     let mut install_history_db = InstallHistoryDb::open(AppPath::Db)
         .or_else(|_| InstallHistoryDb::new(AppPath::Db))
         .expect("install history db must be available");
 
-    state_db.prune_orphaned()?;
-    title_db.prune_orphaned()?;
+    let client = Rc::new(CurlHttpClient::new(&APP_VER).expect("curl client must be available"));
+
+    title_db.prune_orphaned();
+    state_db.prune_orphaned();
     // install_db is *not* pruned, we want that to survive title and OS reinstalls
 
     ui_tx
-        .send(UiMsg::RefreshDone {
+        .send(UiMsg::Ready {
             titles: title_db.titles_sorted_vec(),
             sync_states: state_db.states_hashmap(),
             qty_auto: state_db.qty_auto(),
@@ -54,10 +58,10 @@ pub fn worker_thread(
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                state_db.refresh(true, &ui_tx)?;
-                title_db.refresh(&state_db, &ui_tx)?;
+                title_db.refresh(&ui_tx)?;
+                state_db.refresh(true, &title_db, &ui_tx)?;
                 ui_tx
-                    .send(UiMsg::RefreshDone {
+                    .send(UiMsg::Ready {
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
@@ -67,7 +71,7 @@ pub fn worker_thread(
             Ok(TaskMsg::Toggle(title_id)) => {
                 state_db.toggle_auto_sync_for_title(title_id)?;
                 ui_tx
-                    .send(UiMsg::RefreshDone {
+                    .send(UiMsg::Ready {
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
@@ -78,10 +82,11 @@ pub fn worker_thread(
                 let started_at = Instant::now();
 
                 let mut ordered_states = state_db.states_mut().collect_vec();
-                ordered_states.sort_by(|l, r| l.title_short.cmp(&r.title_short));
+                ordered_states.sort_by(|l, r| l.sync_item.cmp(&r.sync_item));
 
                 match sync::run(
                     ordered_states.into_iter().filter(|s| s.auto_enabled),
+                    &title_db,
                     &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
@@ -122,6 +127,7 @@ pub fn worker_thread(
                     state_db
                         .states_mut()
                         .filter(|s| s.via_title_ids.contains(&title_id)),
+                    &title_db,
                     &shutdown_rx,
                     ui_tx.clone(),
                     modal_tx.clone(),
@@ -160,7 +166,7 @@ pub fn worker_thread(
                     }
                 };
                 ui_tx
-                    .send(UiMsg::RefreshDone {
+                    .send(UiMsg::Ready {
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),

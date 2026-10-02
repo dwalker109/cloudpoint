@@ -1,17 +1,13 @@
 use crate::{
     app::{RefreshProgress, UiMsg},
     config::USER_KEY,
-    ctr_fs::smdh,
-    ctr_title::{
-        SD_APP_TITLES, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
-        lookup_gba_sync_item_for_title, lookup_savedata_sync_item_for_title, title_smdh,
-    },
+    db::{TitleDb, TitleDetails},
 };
 use anyhow::{Result, bail};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::mpsc::Sender,
@@ -36,45 +32,38 @@ impl StateDb {
         }
     }
 
-    pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
+    pub fn new(
+        root_path: impl AsRef<Path>,
+        title_db: &TitleDb,
+        ui_tx: &Sender<UiMsg>,
+    ) -> Result<Self> {
         log::debug!("building new state db");
 
         let db_path = root_path.as_ref().join("state.db");
 
         let mut state_db = Self(db_path, HashMap::new());
-        state_db.refresh(true, ui_tx)?;
+        state_db.refresh(true, title_db, ui_tx)?;
 
         Ok(state_db)
     }
 
-    pub fn prune_orphaned(&mut self) -> Result<()> {
-        log::debug!("pruning orphaned state db records");
-
-        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
-
-        for state in self.1.values_mut() {
-            state.via_title_ids = state
-                .via_title_ids
-                .intersection(&current_title_ids)
-                .copied()
-                .collect();
-        }
-
-        self.1.retain(|_, s| !s.via_title_ids.is_empty());
-
-        Ok(())
-    }
-
-    pub fn refresh(&mut self, auto_enabled: bool, ui_tx: &Sender<UiMsg>) -> Result<()> {
-        log::debug!("adding missing state db records");
+    pub fn refresh(
+        &mut self,
+        auto_enabled: bool,
+        title_db: &TitleDb,
+        ui_tx: &Sender<UiMsg>,
+    ) -> Result<()> {
+        log::debug!("refreshing state db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
-        let total = SD_APP_TITLES.len();
+        let total = title_db.titles_qty();
 
-        for (i, (&title_id, _)) in SD_APP_TITLES.iter().enumerate() {
-            if let Err(e) = self.process_sync_items_for_title(title_id, auto_enabled) {
-                log::warn!("error processing sync state(s) for {title_id:016X}: {e}");
-            };
+        for s in self.1.values_mut() {
+            s.via_title_ids.clear();
+        }
+
+        for (i, title) in title_db.titles().enumerate() {
+            self.process_sync_items_for_title(&title, auto_enabled);
 
             refresh_progress
                 .message("Refreshing sync items")
@@ -82,70 +71,47 @@ impl StateDb {
                 .send();
         }
 
+        self.prune_orphaned();
+
         Ok(())
     }
 
-    pub fn process_sync_items_for_title(
-        &mut self,
-        title_id: u64,
-        auto_enabled: bool,
-    ) -> Result<()> {
-        log::debug!("processing refresh for title {title_id:016X}");
+    pub fn process_sync_items_for_title(&mut self, title: &TitleDetails, auto_enabled: bool) {
+        log::debug!(
+            "processing refresh for title {title_id:016X}",
+            title_id = title.title_id
+        );
 
-        let mut process = |sync_item| -> Result<()> {
-            if let Some(existing_state) = self.1.get_mut(&sync_item) {
-                if let Err(e) = smdh(sync_item) {
-                    log::info!("purging {sync_item}: smdh not accessible");
-                    self.1.remove(&sync_item);
-                    bail!(e);
-                }
-
-                if existing_state.via_title_ids.insert(title_id) {
-                    log::info!("updating {sync_item} reached via {title_id:016X}");
-
-                    existing_state.auto_enabled = auto_enabled;
-                } else {
+        for sync_item in [title.savedata_sync_item, title.extdata_sync_item]
+            .iter()
+            .flatten()
+        {
+            match self.1.get_mut(sync_item) {
+                Some(sync_state) => {
                     log::info!(
-                        "skipping {sync_item} discovered via {title_id:016X}, already tracked"
+                        "updating {sync_item} reached via {title_id:016X}",
+                        title_id = title.title_id
+                    );
+                    sync_state.via_title_ids.insert(title.title_id);
+                }
+                None => {
+                    log::info!(
+                        "adding {sync_item} discovered via {title_id:016X}",
+                        title_id = title.title_id
+                    );
+
+                    self.1.insert(
+                        *sync_item,
+                        SyncState::new(*sync_item, title.title_id, *USER_KEY, auto_enabled),
                     );
                 }
-
-                return Ok(());
-            }
-
-            log::info!("adding {sync_item} discovered via {title_id:016X}");
-
-            self.1.insert(
-                sync_item,
-                SyncState::new(
-                    sync_item,
-                    title_id,
-                    *USER_KEY,
-                    &title_smdh(title_id)?,
-                    auto_enabled,
-                ),
-            );
-
-            Ok(())
-        };
-
-        if let Some(sync_item) = lookup_savedata_sync_item_for_title(title_id)
-            .or_else(|| lookup_gba_sync_item_for_title(title_id))
-        {
-            if let Err(e) = process(sync_item) {
-                log::warn!("{sync_item} not enabled due to error: {e}");
             }
         }
+    }
 
-        if let Some(sync_item) = lookup_extdata_sync_item_for_title(title_id)
-            .or_else(|| infer_extdata_sync_item_for_title(title_id))
-        {
-            if let Err(e) = process(sync_item) {
-                log::warn!("{sync_item} not enabled due to error: {e}");
-            }
-        }
-
-        Ok(())
+    pub fn prune_orphaned(&mut self) {
+        log::debug!("pruning orphaned state db records");
+        self.1.retain(|_, s| !s.via_title_ids.is_empty());
     }
 
     pub fn toggle_auto_sync_for_title(&mut self, title_id: u64) -> Result<()> {

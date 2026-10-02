@@ -1,5 +1,4 @@
 #![feature(oneshot_channel)]
-#![feature(try_blocks)]
 #![feature(string_from_utf8_lossy_owned)]
 #![feature(io_const_error)]
 
