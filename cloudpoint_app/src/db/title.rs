@@ -14,6 +14,7 @@ use cloudpoint_lib::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -22,7 +23,11 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub struct TitleDb(#[serde[skip]] PathBuf, HashMap<u64, TitleDetails>);
+pub struct TitleDb(
+    #[serde[skip]] PathBuf,
+    HashMap<u64, TitleDetails>,
+    BTreeSet<u64>,
+);
 
 impl TitleDb {
     pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
@@ -34,6 +39,10 @@ impl TitleDb {
             let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
             title_db.0 = db_path;
 
+            if title_db.2 != SD_APP_TITLES.keys().copied().collect() {
+                bail!("title db is stale");
+            }
+
             Ok(title_db)
         } else {
             bail!("title db not found")
@@ -43,13 +52,18 @@ impl TitleDb {
     pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
         log::debug!("building title db");
 
-        let mut title_db = Self(root_path.as_ref().join("title.db"), HashMap::new());
-        title_db.refresh(ui_tx)?;
+        let mut title_db = Self(
+            root_path.as_ref().join("title.db"),
+            HashMap::new(),
+            SD_APP_TITLES.keys().copied().collect(),
+        );
+
+        title_db.refresh(ui_tx);
 
         Ok(title_db)
     }
 
-    pub fn refresh(&mut self, ui_tx: &Sender<UiMsg>) -> Result<()> {
+    pub fn refresh(&mut self, ui_tx: &Sender<UiMsg>) {
         log::debug!("refreshing title db records");
 
         let mut refresh_progress = RefreshProgress::new(ui_tx.clone());
@@ -76,7 +90,7 @@ impl TitleDb {
 
         self.prune_orphaned();
 
-        Ok(())
+        self.2 = SD_APP_TITLES.keys().copied().collect();
     }
 
     pub fn prune_orphaned(&mut self) {

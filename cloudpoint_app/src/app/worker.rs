@@ -23,6 +23,23 @@ pub fn worker_thread(
     let (mut title_db, mut state_db) =
         match (TitleDb::open(AppPath::Db), StateDb::open(AppPath::Db)) {
             (Ok(title_db), Ok(state_db)) => (title_db, state_db),
+            (Ok(title_db), Err(_)) => {
+                modal_tx.send(OpenModalMsg::Refresh).ok();
+                let state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)
+                    .expect("state db must be available");
+
+                (title_db, state_db)
+            }
+            (Err(_), Ok(mut state_db)) => {
+                modal_tx.send(OpenModalMsg::Refresh).ok();
+                let title_db =
+                    TitleDb::new(AppPath::Db, &ui_tx).expect("title db must be available");
+
+                modal_tx.send(OpenModalMsg::Refresh).ok();
+                state_db.refresh(true, &title_db, &ui_tx);
+
+                (title_db, state_db)
+            }
             _ => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
                 let title_db =
@@ -58,8 +75,8 @@ pub fn worker_thread(
         match task_rx.recv() {
             Ok(TaskMsg::Refresh) => {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                title_db.refresh(&ui_tx)?;
-                state_db.refresh(true, &title_db, &ui_tx)?;
+                title_db.refresh(&ui_tx);
+                state_db.refresh(true, &title_db, &ui_tx);
                 ui_tx
                     .send(UiMsg::Ready {
                         titles: title_db.titles_sorted_vec(),
