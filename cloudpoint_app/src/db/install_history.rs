@@ -60,6 +60,12 @@ impl InstallHistoryDb {
         );
     }
 
+    pub fn prune_orphaned(&mut self) {
+        log::debug!(
+            "install history db prune is a no-op, as it must survive title and OS reinstalls"
+        );
+    }
+
     fn save(&mut self) -> Result<()> {
         log::debug!("saving install history db to disk");
 
