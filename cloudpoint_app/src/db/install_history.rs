@@ -45,19 +45,16 @@ impl InstallHistoryDb {
         log::debug!("cached_mtime is {:?}", cached_mtime);
 
         match (latest_mtime, cached_mtime) {
-            (Ok(_), None) => InstallStatus::Updated,
-            (Ok(latest), Some(cached)) if latest != cached => InstallStatus::Updated,
-            (Ok(latest), Some(cached)) if latest == cached => InstallStatus::Unchanged,
-            _ => InstallStatus::Unknown,
+            (_, None) => InstallStatus::Updated,
+            (latest, Some(cached)) if latest != cached => InstallStatus::Updated,
+            (latest, Some(cached)) if latest == cached => InstallStatus::Unchanged,
+            _ => unreachable!("install status cannot be unknown"),
         }
     }
 
     pub fn touch(&mut self, title_id: u64, sync_item: SyncItem) {
-        self.1.insert(
-            (title_id, sync_item),
-            get_installed_at_for_title(title_id)
-                .expect("install mtime should be available for title"),
-        );
+        self.1
+            .insert((title_id, sync_item), get_installed_at_for_title(title_id));
     }
 
     pub fn prune_orphaned(&mut self) {
@@ -83,7 +80,6 @@ impl Drop for InstallHistoryDb {
 }
 
 pub enum InstallStatus {
-    Unknown,
     Unchanged,
     Updated,
 }

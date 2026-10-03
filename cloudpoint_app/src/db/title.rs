@@ -1,5 +1,5 @@
 use crate::ctr_title::{
-    infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
+    SD_APP_TITLES_HASH, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
     lookup_savedata_sync_item_for_title,
 };
 use crate::{
@@ -16,7 +16,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::mpsc::Sender,
@@ -39,8 +39,8 @@ impl TitleDb {
             let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
             title_db.0 = db_path;
 
-            if title_db.2 != SD_APP_TITLES.keys().copied().collect() {
-                bail!("title db is stale");
+            if title_db.2 != *SD_APP_TITLES_HASH {
+                log::info!("title db is stale, should recreate");
             }
 
             Ok(title_db)
@@ -55,7 +55,7 @@ impl TitleDb {
         let mut title_db = Self(
             root_path.as_ref().join("title.db"),
             HashMap::new(),
-            SD_APP_TITLES.keys().copied().collect(),
+            BTreeSet::new(),
         );
 
         title_db.refresh(ui_tx);
@@ -90,14 +90,13 @@ impl TitleDb {
 
         self.prune_orphaned();
 
-        self.2 = SD_APP_TITLES.keys().copied().collect();
+        self.2 = SD_APP_TITLES_HASH.clone();
     }
 
     pub fn prune_orphaned(&mut self) {
         log::debug!("pruning orphaned title db records");
 
-        let current_title_ids = SD_APP_TITLES.keys().copied().collect::<HashSet<_>>();
-        self.1.retain(|k, _| current_title_ids.contains(k));
+        self.1.retain(|k, _| SD_APP_TITLES_HASH.contains(k));
     }
 
     fn handle_title(&mut self, title_id: u64) -> Result<()> {

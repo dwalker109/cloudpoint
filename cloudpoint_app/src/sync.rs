@@ -167,11 +167,6 @@ fn run_one(
             InstallStatus::Unchanged => {
                 log::debug!("via_title_id {title_id:016X}: unchanged tmd mtime, leave sync meta");
             }
-            InstallStatus::Unknown => {
-                log::warn!(
-                    "via_title_id {title_id:016X}: unknown tmd mtime, probably shared extdata, leave sync meta"
-                );
-            }
         }
     }
 
