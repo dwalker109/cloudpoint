@@ -10,8 +10,7 @@ use ctru::services::{
 use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
 use serde::Deserialize;
 use std::{
-    collections::HashMap,
-    ffi::CString,
+    collections::{BTreeSet, HashMap},
     fs::{read_dir, read_to_string},
     path::PathBuf,
     sync::LazyLock,
@@ -64,6 +63,9 @@ pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| 
 
     applications
 });
+
+pub static SD_APP_TITLES_HASH: LazyLock<BTreeSet<u64>> =
+    LazyLock::new(|| SD_APP_TITLES.keys().copied().collect());
 
 static SD_TMD_ROOTS: LazyLock<Vec<PathBuf>> = LazyLock::new(|| {
     let mut roots = Vec::new();
@@ -148,22 +150,22 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
         .ok()
 }
 
-pub fn get_installed_at_for_title(title_id: u64) -> Result<u64> {
+pub fn get_installed_at_for_title(title_id: u64) -> u64 {
     let mut latest = 0;
 
     for root in &*SD_TMD_ROOTS {
-        let tmd_path = CString::new(format!(
+        let tmd_path = format!(
             "{}/title/00040000/{:08x}/content/00000000.tmd",
             root.display(),
             title_id as u32
-        ))?;
+        );
 
-        if let Ok(mtime) = ffi::ctr_archive_get_mtime(tmd_path) {
+        if let Ok(mtime) = ffi::ctr_archive_get_mtime(&tmd_path) {
             latest = latest.max(mtime);
         }
     }
 
-    Ok(latest)
+    latest
 }
 
 mod ffi {
@@ -214,10 +216,10 @@ mod ffi {
         Ok(extdata_id)
     }
 
-    pub(super) fn ctr_archive_get_mtime(path: CString) -> Result<u64> {
+    pub(super) fn ctr_archive_get_mtime(path: &str) -> Result<u64> {
         let mut mtime: u64 = 0;
 
-        let res = unsafe { archive_getmtime(path.as_ptr(), &mut mtime) };
+        let res = unsafe { archive_getmtime(CString::new(path)?.as_ptr(), &mut mtime) };
 
         if R_FAILED(res) {
             bail!("could not retreive mtime for {:?}", path);
