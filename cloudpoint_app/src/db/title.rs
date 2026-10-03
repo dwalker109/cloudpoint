@@ -91,6 +91,9 @@ impl TitleDb {
         self.prune_orphaned();
 
         self.2 = SD_APP_TITLES.keys().copied().collect();
+
+        self.save()
+            .expect("should be able to save title db after refresh");
     }
 
     pub fn prune_orphaned(&mut self) {
