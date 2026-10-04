@@ -1,5 +1,8 @@
 use super::*;
-use crate::{db, link, sync};
+use crate::{
+    db::{self, COMMIT_MSG},
+    link, sync,
+};
 use anyhow::Result;
 use itertools::Itertools;
 use std::{
@@ -39,6 +42,8 @@ pub fn worker_thread(
                         qty_auto: state_db.qty_auto(),
                     })
                     .ok();
+                title_db.commit().expect(COMMIT_MSG);
+                state_db.commit().expect(COMMIT_MSG);
             }
             Ok(TaskMsg::Toggle(title_id)) => {
                 state_db.toggle_auto_sync_for_title(title_id)?;
@@ -49,6 +54,7 @@ pub fn worker_thread(
                         qty_auto: state_db.qty_auto(),
                     })
                     .ok();
+                state_db.commit().expect(COMMIT_MSG);
             }
             Ok(TaskMsg::SyncAuto) => {
                 let started_at = Instant::now();
@@ -93,6 +99,8 @@ pub fn worker_thread(
                             .ok();
                     }
                 };
+                install_history_db.commit().expect(COMMIT_MSG);
+                state_db.commit().expect(COMMIT_MSG);
             }
             Ok(TaskMsg::SyncTargeted(title_id)) => {
                 match sync::run(
@@ -137,13 +145,8 @@ pub fn worker_thread(
                             .ok();
                     }
                 };
-                ui_tx
-                    .send(UiMsg::Ready {
-                        titles: title_db.titles_sorted_vec(),
-                        sync_states: state_db.states_hashmap(),
-                        qty_auto: state_db.qty_auto(),
-                    })
-                    .ok();
+                install_history_db.commit().expect(COMMIT_MSG);
+                state_db.commit().expect(COMMIT_MSG);
             }
             Ok(TaskMsg::LinkHost) => {
                 if let Err(e) = link::host(&ui_tx, &modal_tx) {

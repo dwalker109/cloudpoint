@@ -87,7 +87,7 @@ impl StateDb {
                 .send();
         }
 
-        self.prune_orphaned();
+        self.1.retain(|_, s| !s.via_title_ids.is_empty());
     }
 
     pub fn process_sync_items_for_title(&mut self, title: &TitleDetails, auto_enabled: bool) {
@@ -121,11 +121,6 @@ impl StateDb {
                 }
             }
         }
-    }
-
-    pub fn prune_orphaned(&mut self) {
-        log::debug!("pruning orphaned state db records");
-        self.1.retain(|_, s| !s.via_title_ids.is_empty());
     }
 
     pub fn toggle_auto_sync_for_title(&mut self, title_id: u64) -> Result<()> {
@@ -188,7 +183,7 @@ impl StateDb {
         self.states().map(|s| (s.sync_item, s.clone())).collect()
     }
 
-    fn save(&mut self) -> Result<()> {
+    pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving state db to disk");
 
         let mut buf = Vec::with_capacity(MAGIC.len() + size_of::<u16>());
@@ -199,12 +194,5 @@ impl StateDb {
         fs::write(&self.0, buf)?;
 
         Ok(())
-    }
-}
-
-impl Drop for StateDb {
-    fn drop(&mut self) {
-        self.save()
-            .expect("should be able to save state db on shutdown")
     }
 }
