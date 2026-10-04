@@ -39,10 +39,6 @@ impl TitleDb {
             let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
             title_db.0 = db_path;
 
-            if title_db.2 != *SD_APP_TITLES_HASH {
-                log::info!("title db is stale, should recreate");
-            }
-
             Ok(title_db)
         } else {
             bail!("title db not found")
@@ -88,15 +84,8 @@ impl TitleDb {
                 .send();
         }
 
-        self.prune_orphaned();
-
-        self.2 = SD_APP_TITLES_HASH.clone();
-    }
-
-    pub fn prune_orphaned(&mut self) {
-        log::debug!("pruning orphaned title db records");
-
         self.1.retain(|k, _| SD_APP_TITLES_HASH.contains(k));
+        self.2 = SD_APP_TITLES_HASH.clone();
     }
 
     fn handle_title(&mut self, title_id: u64) -> Result<()> {
@@ -141,6 +130,10 @@ impl TitleDb {
         Ok(())
     }
 
+    pub fn is_stale(&self) -> bool {
+        self.2 != *SD_APP_TITLES_HASH
+    }
+
     pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
         self.1.get_mut(&title_id)
     }
@@ -176,19 +169,12 @@ impl TitleDb {
         ellipsis(&format!("{} ({})", t.join("/"), p.join("/")), 35)
     }
 
-    fn save(&mut self) -> Result<()> {
+    pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving title db to disk");
 
         fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
-    }
-}
-
-impl Drop for TitleDb {
-    fn drop(&mut self) {
-        self.save()
-            .expect("should be able to save title db on shutdown")
     }
 }
 

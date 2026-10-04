@@ -57,25 +57,12 @@ impl InstallHistoryDb {
             .insert((title_id, sync_item), get_installed_at_for_title(title_id));
     }
 
-    pub fn prune_orphaned(&mut self) {
-        log::debug!(
-            "install history db prune is a no-op, as it must survive title and OS reinstalls"
-        );
-    }
-
-    fn save(&mut self) -> Result<()> {
+    pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving install history db to disk");
 
         fs::write(&self.0, postcard::to_allocvec(&self)?)?;
 
         Ok(())
-    }
-}
-
-impl Drop for InstallHistoryDb {
-    fn drop(&mut self) {
-        self.save()
-            .expect("should be able to save install history db on shutdown")
     }
 }
 

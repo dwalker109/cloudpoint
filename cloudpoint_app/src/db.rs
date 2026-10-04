@@ -13,45 +13,72 @@ mod install_history;
 mod state;
 mod title;
 
+pub static COMMIT_MSG: &'static str = "should commit db to sd card";
+
 pub fn load(
     ui_tx: &Sender<UiMsg>,
     modal_tx: &Sender<OpenModalMsg>,
 ) -> anyhow::Result<(TitleDb, StateDb, InstallHistoryDb)> {
-    let (mut title_db, mut state_db) =
-        match (TitleDb::open(AppPath::Db), StateDb::open(AppPath::Db)) {
-            (Ok(title_db), Ok(state_db)) => (title_db, state_db),
-            (Ok(title_db), Err(_)) => {
+    let (title_db, state_db) = match (TitleDb::open(AppPath::Db), StateDb::open(AppPath::Db)) {
+        (Ok(mut title_db), Ok(mut state_db)) => {
+            if title_db.is_stale() {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                let state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)?;
-
-                (title_db, state_db)
-            }
-            (Err(_), Ok(mut state_db)) => {
-                modal_tx.send(OpenModalMsg::Refresh).ok();
-                let title_db = TitleDb::new(AppPath::Db, &ui_tx)?;
+                title_db.refresh(&ui_tx);
+                title_db.commit()?;
 
                 modal_tx.send(OpenModalMsg::Refresh).ok();
                 state_db.refresh(true, &title_db, &ui_tx);
-
-                (title_db, state_db)
+                state_db.commit()?;
             }
-            (Err(_), Err(_)) => {
-                modal_tx.send(OpenModalMsg::Refresh).ok();
-                let title_db = TitleDb::new(AppPath::Db, &ui_tx)?;
 
+            (title_db, state_db)
+        }
+        (Ok(mut title_db), Err(_)) => {
+            if title_db.is_stale() {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
-                let state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)?;
-
-                (title_db, state_db)
+                title_db.refresh(&ui_tx);
+                title_db.commit()?;
             }
-        };
 
-    let mut install_history_db =
-        InstallHistoryDb::open(AppPath::Db).or_else(|_| InstallHistoryDb::new(AppPath::Db))?;
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            let mut state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)?;
+            state_db.commit()?;
 
-    title_db.prune_orphaned();
-    state_db.prune_orphaned();
-    install_history_db.prune_orphaned();
+            (title_db, state_db)
+        }
+        (Err(_), Ok(mut state_db)) => {
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            let mut title_db = TitleDb::new(AppPath::Db, &ui_tx)?;
+            title_db.commit()?;
+
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            state_db.refresh(true, &title_db, &ui_tx);
+            state_db.commit()?;
+
+            (title_db, state_db)
+        }
+        (Err(_), Err(_)) => {
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            let mut title_db = TitleDb::new(AppPath::Db, &ui_tx)?;
+            title_db.commit()?;
+
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+            let mut state_db = StateDb::new(AppPath::Db, &title_db, &ui_tx)?;
+            state_db.commit()?;
+
+            (title_db, state_db)
+        }
+    };
+
+    let install_history_db = match InstallHistoryDb::open(AppPath::Db) {
+        Ok(install_history_db) => install_history_db,
+        Err(_) => {
+            let mut install_history_db = InstallHistoryDb::new(AppPath::Db)?;
+            install_history_db.commit()?;
+
+            install_history_db
+        }
+    };
 
     Ok((title_db, state_db, install_history_db))
 }
