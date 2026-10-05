@@ -1,3 +1,4 @@
+use crate::config::AppPath;
 use crate::ctr_title::{
     SD_APP_TITLES_HASH, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
     lookup_savedata_sync_item_for_title,
@@ -6,7 +7,7 @@ use crate::{
     app::{RefreshProgress, UiMsg},
     ctr_title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use cloudpoint_lib::utils::ellipsis;
 use cloudpoint_lib::{
     ctr::{CtrSmdh, SmdhLanguage},
@@ -15,45 +16,49 @@ use cloudpoint_lib::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-    sync::mpsc::Sender,
-};
+use std::sync::LazyLock;
+use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc::Sender};
+
+mod legacy;
+
+const CURRENT_VERSION: u16 = 1;
+static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("title.db"));
 
 #[derive(Serialize, Deserialize)]
-pub struct TitleDb(
-    #[serde[skip]] PathBuf,
-    HashMap<u64, TitleDetails>,
-    BTreeSet<u64>,
-);
+pub struct TitleDb(HashMap<u64, TitleDetails>, BTreeSet<u64>);
 
 impl TitleDb {
-    pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+    pub fn open() -> Result<Self> {
         log::debug!("loading title db from disk");
 
-        let db_path = root_path.as_ref().join("title.db");
+        Ok(Self::decode(
+            &fs::read(&*PATH).context("title db not found")?,
+        )?)
+    }
 
-        if let Ok(buf) = fs::read(&db_path) {
-            let mut title_db = postcard::from_bytes::<TitleDb>(&buf)?;
-            title_db.0 = db_path;
-
-            Ok(title_db)
-        } else {
-            bail!("title db not found")
+    fn decode(buf: &[u8]) -> Result<Self> {
+        match buf.split_first_chunk::<6>() {
+            Some((head, rest)) if head[..4] == super::MAGIC => {
+                match u16::from_le_bytes(head[4..].try_into()?) {
+                    CURRENT_VERSION => Ok(postcard::from_bytes(rest)?),
+                    0 => Ok(postcard::from_bytes::<legacy::TitleDbV0>(rest)?.into()),
+                    v => bail!("cannot decode title db version {v}"),
+                }
+            }
+            _ => Ok(postcard::from_bytes::<legacy::TitleDbV0>(buf)?.into()),
         }
     }
 
-    pub fn new(root_path: impl AsRef<Path>, ui_tx: &Sender<UiMsg>) -> Result<Self> {
-        log::debug!("building title db");
+    pub fn commit(&mut self) -> Result<()> {
+        log::debug!("saving title db to disk");
 
-        let mut title_db = Self(
-            root_path.as_ref().join("title.db"),
-            HashMap::new(),
-            BTreeSet::new(),
-        );
+        super::write_to_disk(&*PATH, CURRENT_VERSION, &self)
+    }
 
+    pub fn new(ui_tx: &Sender<UiMsg>) -> Result<Self> {
+        log::debug!("building new title db");
+
+        let mut title_db = Self(HashMap::new(), BTreeSet::new());
         title_db.refresh(ui_tx);
 
         Ok(title_db)
@@ -68,7 +73,7 @@ impl TitleDb {
         for (i, title_id) in SD_APP_TITLES.keys().enumerate() {
             match self.handle_title(*title_id) {
                 Ok(_) => log::info!("processed title {title_id:016X}"),
-                Err(e) => match self.1.remove(&title_id) {
+                Err(e) => match self.0.remove(&title_id) {
                     Some(_) => {
                         log::warn!("could not process title {title_id:016X}, was removed: {e}")
                     }
@@ -84,8 +89,8 @@ impl TitleDb {
                 .send();
         }
 
-        self.1.retain(|k, _| SD_APP_TITLES_HASH.contains(k));
-        self.2 = SD_APP_TITLES_HASH.clone();
+        self.0.retain(|k, _| SD_APP_TITLES_HASH.contains(k));
+        self.1 = SD_APP_TITLES_HASH.clone();
     }
 
     fn handle_title(&mut self, title_id: u64) -> Result<()> {
@@ -106,7 +111,7 @@ impl TitleDb {
             bail!("no savedata/gba savedata/extdata for title {title_id:016X}")
         };
 
-        match self.1.get_mut(&title_id) {
+        match self.0.get_mut(&title_id) {
             Some(title) => {
                 title.savedata_sync_item = savedata_sync_item;
                 title.extdata_sync_item = extdata_sync_item;
@@ -123,7 +128,7 @@ impl TitleDb {
                     extdata_sync_item,
                 };
 
-                self.1.insert(title_id, title);
+                self.0.insert(title_id, title);
             }
         }
 
@@ -131,23 +136,23 @@ impl TitleDb {
     }
 
     pub fn is_stale(&self) -> bool {
-        self.2 != *SD_APP_TITLES_HASH
+        self.1 != *SD_APP_TITLES_HASH
     }
 
     pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
-        self.1.get_mut(&title_id)
+        self.0.get_mut(&title_id)
     }
 
     pub fn titles(&self) -> impl Iterator<Item = &TitleDetails> {
-        self.1.values()
+        self.0.values()
     }
 
     pub fn titles_qty(&self) -> usize {
-        self.1.len()
+        self.0.len()
     }
 
     pub fn titles_sorted_vec(&self) -> Vec<TitleDetails> {
-        self.1
+        self.0
             .values()
             .sorted_by_key(|t| t.title_short.to_lowercase())
             .cloned()
@@ -158,7 +163,7 @@ impl TitleDb {
         let (mut t, mut p) = (Vec::new(), Vec::new());
 
         for title in self
-            .1
+            .0
             .values()
             .filter(|t| sync_state.via_title_ids.contains(&t.title_id))
         {
@@ -167,14 +172,6 @@ impl TitleDb {
         }
 
         ellipsis(&format!("{} ({})", t.join("/"), p.join("/")), 35)
-    }
-
-    pub fn commit(&mut self) -> Result<()> {
-        log::debug!("saving title db to disk");
-
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
-
-        Ok(())
     }
 }
 

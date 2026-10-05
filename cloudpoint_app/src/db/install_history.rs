@@ -1,45 +1,56 @@
-use anyhow::{Result, bail};
+use crate::{config::AppPath, ctr_title::get_installed_at_for_title};
+use anyhow::{Context, Result, bail};
 use cloudpoint_lib::sync::SyncItem;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs, path::PathBuf, sync::LazyLock};
 
-use crate::ctr_title::get_installed_at_for_title;
+mod legacy;
+
+const CURRENT_VERSION: u16 = 1;
+static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("install_history.db"));
 
 #[derive(Deserialize, Serialize)]
-pub struct InstallHistoryDb(#[serde[skip]] PathBuf, HashMap<(u64, SyncItem), u64>);
+pub struct InstallHistoryDb(HashMap<(u64, SyncItem), u64>);
 
 impl InstallHistoryDb {
-    pub fn open(root_path: impl AsRef<Path>) -> Result<Self> {
+    pub fn open() -> Result<Self> {
         log::debug!("loading install history db from disk");
 
-        let db_path = root_path.as_ref().join("install_history.db");
+        Ok(Self::decode(
+            &fs::read(&*PATH).context("install history db not found")?,
+        )?)
+    }
 
-        if let Ok(buf) = fs::read(&db_path) {
-            let mut install_db = postcard::from_bytes::<InstallHistoryDb>(&buf)?;
-            install_db.0 = db_path;
-
-            Ok(install_db)
-        } else {
-            bail!("install history db not found")
+    fn decode(buf: &[u8]) -> Result<Self> {
+        match buf.split_first_chunk::<6>() {
+            Some((head, rest)) if head[..4] == super::MAGIC => {
+                match u16::from_le_bytes(head[4..].try_into()?) {
+                    CURRENT_VERSION => Ok(postcard::from_bytes(rest)?),
+                    0 => Ok(postcard::from_bytes::<legacy::InstallHistoryDbV0>(rest)?.into()),
+                    v => bail!("cannot decode install history db version {v}"),
+                }
+            }
+            _ => Ok(postcard::from_bytes::<legacy::InstallHistoryDbV0>(buf)?.into()),
         }
     }
 
-    pub fn new(root_path: impl AsRef<Path>) -> Result<Self> {
+    pub fn commit(&mut self) -> Result<()> {
+        log::debug!("saving install history db to disk");
+
+        super::write_to_disk(&*PATH, CURRENT_VERSION, &self)
+    }
+
+    pub fn new() -> Result<Self> {
         log::debug!("building install history db");
 
-        let db_path = root_path.as_ref().join("install_history.db");
-        let install_db = Self(db_path, HashMap::new());
+        let install_db = Self(HashMap::new());
 
         Ok(install_db)
     }
 
     pub fn check(&self, title_id: u64, sync_item: SyncItem) -> InstallStatus {
         let latest_mtime = &get_installed_at_for_title(title_id);
-        let cached_mtime = self.1.get(&(title_id, sync_item));
+        let cached_mtime = self.0.get(&(title_id, sync_item));
 
         log::debug!("latest_mtime is {:?}", latest_mtime);
         log::debug!("cached_mtime is {:?}", cached_mtime);
@@ -53,16 +64,8 @@ impl InstallHistoryDb {
     }
 
     pub fn touch(&mut self, title_id: u64, sync_item: SyncItem) {
-        self.1
+        self.0
             .insert((title_id, sync_item), get_installed_at_for_title(title_id));
-    }
-
-    pub fn commit(&mut self) -> Result<()> {
-        log::debug!("saving install history db to disk");
-
-        fs::write(&self.0, postcard::to_allocvec(&self)?)?;
-
-        Ok(())
     }
 }
 
