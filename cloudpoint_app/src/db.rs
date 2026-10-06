@@ -16,7 +16,6 @@ mod state;
 mod title;
 
 pub static COMMIT_MSG: &'static str = "should commit db to sd card";
-const MAGIC: [u8; 4] = *b"CPDB";
 
 pub fn load(
     ui_tx: &Sender<UiMsg>,
@@ -84,6 +83,17 @@ pub fn load(
     };
 
     Ok((title_db, state_db, install_history_db))
+}
+
+const MAGIC: [u8; 4] = *b"CPDB";
+
+fn decode_parts(buf: &[u8]) -> Result<(u16, &[u8])> {
+    Ok(match buf.split_first_chunk::<6>() {
+        Some((head, rest)) if head[..4] == MAGIC => {
+            (u16::from_le_bytes(head[4..].try_into()?), rest)
+        }
+        _ => (0, buf),
+    })
 }
 
 fn write_to_disk(path: impl AsRef<Path>, ver: u16, db: &impl Serialize) -> Result<()> {

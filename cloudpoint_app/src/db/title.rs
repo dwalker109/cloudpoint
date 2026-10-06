@@ -37,16 +37,13 @@ impl TitleDb {
     }
 
     fn decode(buf: &[u8]) -> Result<Self> {
-        match buf.split_first_chunk::<6>() {
-            Some((head, rest)) if head[..4] == super::MAGIC => {
-                match u16::from_le_bytes(head[4..].try_into()?) {
-                    CURRENT_VERSION => Ok(postcard::from_bytes(rest)?),
-                    0 => Ok(postcard::from_bytes::<legacy::TitleDbV0>(rest)?.into()),
-                    v => bail!("cannot decode title db version {v}"),
-                }
-            }
-            _ => Ok(postcard::from_bytes::<legacy::TitleDbV0>(buf)?.into()),
-        }
+        let (ver, data) = super::decode_parts(buf)?;
+
+        Ok(match ver {
+            CURRENT_VERSION => postcard::from_bytes(data)?,
+            0 => postcard::from_bytes::<legacy::TitleDbV0>(data)?.into(),
+            v => bail!("cannot decode title db version {v}"),
+        })
     }
 
     pub fn commit(&mut self) -> Result<()> {
