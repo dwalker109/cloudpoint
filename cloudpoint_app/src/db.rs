@@ -15,8 +15,6 @@ mod install_history;
 mod state;
 mod title;
 
-pub static COMMIT_MSG: &'static str = "should commit db to sd card";
-
 pub fn load(
     ui_tx: &Sender<UiMsg>,
     modal_tx: &Sender<OpenModalMsg>,

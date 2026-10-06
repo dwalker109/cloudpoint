@@ -1,14 +1,13 @@
 use super::*;
-use crate::{
-    db::{self, COMMIT_MSG},
-    link, sync,
-};
+use crate::{db, link, sync};
 use anyhow::Result;
 use itertools::Itertools;
 use std::{
     sync::mpsc::{Receiver, Sender},
     time::Instant,
 };
+
+static COMMIT_MSG: &'static str = "should commit db to sd card";
 
 pub fn worker_thread(
     task_rx: Receiver<TaskMsg>,
