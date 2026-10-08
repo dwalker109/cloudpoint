@@ -2,6 +2,8 @@
 
 > Bringing modern cloud save to 3DS.
 
+![Cloudpoint banner](.github/cp_banner.png)
+
 Cloudpoint allows you to sync all of your saves (and extdata) between all of your 3DS & 2DS devices, 
 via a central server. Transfer progress between consoles effortlessly, the way you're probably used 
 to from more modern systems. Or PS Vita.
@@ -44,7 +46,8 @@ Please join the [Discord](https://discord.gg/fkaXcnWt3V) and help me build a com
 ## Warranty, Support & License
 
 > [!CAUTION]
-> **No warranty is offered or implied.** Great care has been taken to avoid data loss but you must keep backups of important saves yourself. I can't stress this enough; Cloudpoint is brand new. 
+> **No warranty is offered or implied.** Great care has been taken to avoid data loss but you must keep
+backups of important saves yourself. 
 
 Bug reports are welcome and enouraged, via GitHub Issues.
 
@@ -52,8 +55,12 @@ MIT licensed.
 
 ## Fair Use
 
-There are no stated limits on the size and freqency of your save activity. 3DS saves are tiny and I'm not expecting
-there to be issues. However, I reserve the right to deny access to any obviously malicious actors without warning.
+There are no stated limits on the size and freqency of your save activity when using the public
+instance. 3DS saves are tiny and I'm not expecting there to be issues. However, I reserve the right to
+deny access to any obviously malicious actors without warning. 
+
+While in practice many old saves are retained, there is not presently any UI available to *revert* to an
+old one. I also make no guarantee about how many old saves exist - I can't keep everything for ever.
 
 ## Quickstart
 
@@ -113,12 +120,12 @@ the UI. We *do* know when you last synced a save, so we use that in the UI inste
 
 - Time travel; move between server save versions at your leisure.
 - Website access to manage (and export) your saves
-- Android client for all you emulation fans. You can install Cloudpoint onto your emulator and use it already, 
-  but a native app might make it a little easier.
+- Android client for all you emulation fans. You can install Cloudpoint onto your emulator and use it
+  already, but a native app might make it a little easier.
 
 ## Credits
 
 - [devkitPro](https://devkitpro.org/) makes all of this possible
 - [Rust3DS](https://github.com/rust3ds) packages it all up so I can actually use it
-- [Checkpoint](https://github.com/BernardoGiordano/Checkpoint) is a wonderful source of inspiration for this while thing, 
-  plus a brilliant help when trying to figure out how to do something
+- [Checkpoint](https://github.com/BernardoGiordano/Checkpoint) is a wonderful source of inspiration for
+  this while thing, plus a brilliant help when trying to figure out how to do something
