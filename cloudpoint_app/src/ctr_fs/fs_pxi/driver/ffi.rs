@@ -9,14 +9,14 @@ use std::{
     os::raw::c_void,
 };
 
-use crate::ctr_pxi::FsPxi;
+use crate::pxi::PxiSession;
 
 pub(super) fn pxi_open_archive(path: FS_Path) -> Result<FSPXI_Archive, IoError> {
     let mut archive_handle: FSPXI_Archive = 0;
 
     let res = unsafe {
         FSPXI_OpenArchive(
-            FsPxi::handle()?,
+            PxiSession::handle()?,
             &mut archive_handle,
             ARCHIVE_SAVEDATA_AND_CONTENT,
             path,
@@ -38,7 +38,7 @@ pub(super) fn pxi_open_archive(path: FS_Path) -> Result<FSPXI_Archive, IoError> 
 }
 
 pub(super) fn pxi_close_archive(archive_handle: FSPXI_Archive) -> Result<(), IoError> {
-    let res = unsafe { FSPXI_CloseArchive(FsPxi::handle()?, archive_handle) };
+    let res = unsafe { FSPXI_CloseArchive(PxiSession::handle()?, archive_handle) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
@@ -69,7 +69,7 @@ pub(super) fn pxi_open_file(
 
     let res = unsafe {
         FSPXI_OpenFile(
-            FsPxi::handle()?,
+            PxiSession::handle()?,
             &mut file_handle,
             archive_handle,
             agb_path,
@@ -94,7 +94,7 @@ pub(super) fn pxi_open_file(
 }
 
 pub(super) fn pxi_close_file(file_handle: FSPXI_File) -> Result<(), IoError> {
-    let res = unsafe { FSPXI_CloseFile(FsPxi::handle()?, file_handle) };
+    let res = unsafe { FSPXI_CloseFile(PxiSession::handle()?, file_handle) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
@@ -112,7 +112,7 @@ pub(super) fn pxi_close_file(file_handle: FSPXI_File) -> Result<(), IoError> {
 
 pub(super) fn pxi_get_file_size(file_handle: FSPXI_File) -> Result<u64, IoError> {
     let mut size: u64 = 0;
-    let res = unsafe { FSPXI_GetFileSize(FsPxi::handle()?, file_handle, &mut size) };
+    let res = unsafe { FSPXI_GetFileSize(PxiSession::handle()?, file_handle, &mut size) };
 
     if R_FAILED(res) {
         return Err(IoError::new(
@@ -137,7 +137,7 @@ pub(super) fn pxi_read_file(
 
     let res = unsafe {
         FSPXI_ReadFile(
-            FsPxi::handle()?,
+            PxiSession::handle()?,
             file_handle,
             &mut bytes_read,
             offset,
@@ -185,7 +185,7 @@ pub(super) fn pxi_write_file(
 
     let res = unsafe {
         FSPXI_WriteFile(
-            FsPxi::handle()?,
+            PxiSession::handle()?,
             file_handle,
             &mut bytes_written,
             offset,
@@ -230,7 +230,7 @@ pub(super) fn pxi_calc_savegame_mac(
 
     let res = unsafe {
         FSPXI_CalcSavegameMAC(
-            FsPxi::handle()?,
+            PxiSession::handle()?,
             file_handle,
             hash.as_ptr() as *const _,
             hash.len() as u32,

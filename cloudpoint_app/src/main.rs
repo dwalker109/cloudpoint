@@ -2,32 +2,29 @@
 #![feature(string_from_utf8_lossy_owned)]
 #![feature(io_const_error)]
 
-use crate::ctr_nwm::ForceWlan;
-use anyhow::Result;
-
 mod app;
-pub mod app_logger;
-pub mod config;
-pub mod ctr_cfgi;
+mod app_logger;
+mod cfgi;
+mod cfgu;
+mod config;
 mod ctr_fs;
-pub mod ctr_ndmu;
-pub mod ctr_nwm;
-mod ctr_os;
-mod ctr_pxi;
-pub mod ctr_title;
-pub mod db;
-pub mod gfx;
+mod db;
+mod gfx;
 mod link;
-pub mod screens;
+mod ndmu;
+mod nwm;
+mod pxi;
+mod screens;
 mod setup;
 mod sync;
+mod title;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     ctru::set_panic_hook(false);
 
     let _logger = app_logger::AppLogger::new()?;
-    let _new_mode = ctr_os::NewMode::new()?;
-    let _wlan = ForceWlan::new()?;
+    let _new_mode = cfgu::NewMode::new()?;
+    let _wlan = nwm::ForceWlan::new()?;
     let _sdmc = setup::sdmc()?;
     let _ctr_svc = setup::ambient_ctr_services()?;
 

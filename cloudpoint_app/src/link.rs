@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     app::{OpenModalMsg, UiMsg},
+    cfgi::{format_friend_code_seed, get_friend_code_seed},
     config::{USER_KEY, backup_user_key, persist_user_key},
-    ctr_cfgi::{format_friend_code_seed, get_friend_code_seed},
 };
 
 #[derive(Eq, PartialEq, Copy, Clone)]

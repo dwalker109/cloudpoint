@@ -1,5 +1,5 @@
 use crate::{
-    ctr_cfgi::format_friend_code_seed,
+    cfgi::format_friend_code_seed,
     link::{LinkState, SharePermission},
     screens::shared::{dialog_lower, dialog_upper},
 };
