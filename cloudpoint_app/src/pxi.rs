@@ -4,9 +4,9 @@ use std::{arch::asm, io, sync::OnceLock};
 
 static SESSION: OnceLock<Handle> = OnceLock::new();
 
-pub struct FsPxi;
+pub struct PxiSession;
 
-impl FsPxi {
+impl PxiSession {
     pub fn new() -> io::Result<Self> {
         if SESSION.get().is_some() {
             log::info!("PxiFS0 session is already initialised");

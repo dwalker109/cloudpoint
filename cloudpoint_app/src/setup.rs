@@ -1,7 +1,7 @@
 use crate::{
     app::{OpenModalMsg, TaskMsg, UiMsg, worker_thread},
     config::AppPath,
-    ctr_pxi::FsPxi,
+    pxi::PxiSession,
 };
 use anyhow::{Context, Result};
 use ctru::services::{am::Am, gfx::Gfx, romfs::RomFS, soc::Soc};
@@ -25,7 +25,7 @@ pub fn sdmc() -> Result<()> {
     Ok(())
 }
 
-pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx, FsPxi)> {
+pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx, PxiSession)> {
     log::debug!("initialising ambient ctr services");
 
     Ok((
@@ -33,7 +33,7 @@ pub fn ambient_ctr_services() -> Result<(Am, RomFS, Soc, Gfx, FsPxi)> {
         RomFS::new()?,
         Soc::new()?,
         Gfx::new()?,
-        FsPxi::new()?,
+        PxiSession::new()?,
     ))
 }
 

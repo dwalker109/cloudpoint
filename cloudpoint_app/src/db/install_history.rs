@@ -1,4 +1,4 @@
-use crate::{config::AppPath, ctr_title::get_installed_at_for_title};
+use crate::{config::AppPath, title::get_installed_at_for_title};
 use anyhow::{Context, Result, bail};
 use cloudpoint_lib::sync::SyncItem;
 use serde::{Deserialize, Serialize};

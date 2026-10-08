@@ -1,4 +1,4 @@
-use crate::ctr_title::SD_APP_TITLES;
+use crate::title::SD_APP_TITLES;
 use anyhow::Result;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};

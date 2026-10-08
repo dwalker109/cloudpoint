@@ -1,16 +1,16 @@
 use crate::config::AppPath;
-use crate::ctr_title::{
+use crate::title::{
     SD_APP_TITLES_HASH, infer_extdata_sync_item_for_title, lookup_extdata_sync_item_for_title,
     lookup_savedata_sync_item_for_title,
 };
 use crate::{
     app::{RefreshProgress, UiMsg},
-    ctr_title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
+    title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
 };
 use anyhow::{Context, Result, bail};
 use cloudpoint_lib::utils::ellipsis;
 use cloudpoint_lib::{
-    ctr::{CtrSmdh, SmdhLanguage},
+    ctr::SmdhLanguage,
     sync::{SyncItem, SyncItemStatus, SyncState},
 };
 use itertools::Itertools;
@@ -136,10 +136,6 @@ impl TitleDb {
         self.1 != *SD_APP_TITLES_HASH
     }
 
-    pub fn title_mut(&mut self, title_id: u64) -> Option<&mut TitleDetails> {
-        self.0.get_mut(&title_id)
-    }
-
     pub fn titles(&self) -> impl Iterator<Item = &TitleDetails> {
         self.0.values()
     }
@@ -183,26 +179,6 @@ pub struct TitleDetails {
 }
 
 impl TitleDetails {
-    pub fn new(title_id: u64, product_code: &str, smdh: &CtrSmdh) -> Self {
-        let savedata_sync_item = lookup_savedata_sync_item_for_title(title_id)
-            .or_else(|| lookup_gba_sync_item_for_title(title_id));
-        let extdata_sync_item = lookup_extdata_sync_item_for_title(title_id)
-            .or_else(|| infer_extdata_sync_item_for_title(title_id));
-
-        Self {
-            title_id,
-            product_code: product_code.to_string(),
-            title_short: smdh.title_short(SmdhLanguage::English),
-            title_publisher: smdh.title_publisher(SmdhLanguage::English),
-            savedata_sync_item,
-            extdata_sync_item,
-        }
-    }
-
-    pub fn smdh(&self) -> Result<CtrSmdh> {
-        Ok(title_smdh(self.title_id)?)
-    }
-
     pub fn savedata_status(&self, states: &HashMap<SyncItem, SyncState>) -> SyncItemStatus {
         Self::sync_item_status(&self.savedata_sync_item, states)
     }

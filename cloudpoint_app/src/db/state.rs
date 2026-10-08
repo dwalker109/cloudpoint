@@ -147,20 +147,8 @@ impl StateDb {
         Ok(())
     }
 
-    pub fn qty_total(&self) -> usize {
-        self.0.len()
-    }
-
     pub fn qty_auto(&self) -> usize {
         self.0.iter().filter(|s| s.1.auto_enabled).count()
-    }
-
-    pub fn state(&self, sync_item: &SyncItem) -> Option<&SyncState> {
-        self.0.get(sync_item)
-    }
-
-    pub fn states(&self) -> impl Iterator<Item = &SyncState> {
-        self.0.values()
     }
 
     pub fn states_mut(&mut self) -> impl Iterator<Item = &mut SyncState> {
