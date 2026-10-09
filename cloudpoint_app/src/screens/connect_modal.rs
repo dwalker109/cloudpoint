@@ -1,20 +1,20 @@
 use super::*;
 use crate::screens::shared::{dialog_lower, dialog_upper, modal_spinner};
 
-pub enum ConnectStatus {
+enum Status {
     Running,
     Delayed,
     Failed(String),
 }
 
 pub struct ConnectModalScreen {
-    status: ConnectStatus,
+    status: Status,
 }
 
 impl ConnectModalScreen {
     pub fn new() -> Self {
         Self {
-            status: ConnectStatus::Running,
+            status: Status::Running,
         }
     }
 }
@@ -24,15 +24,15 @@ impl Screen for ConnectModalScreen {
         dialog_upper(ctx);
 
         let message_1 = match self.status {
-            ConnectStatus::Running => "Connecting",
-            ConnectStatus::Delayed => "Still connecting",
-            ConnectStatus::Failed(_) => "Failed to connect",
+            Status::Running => "Connecting",
+            Status::Delayed => "Still connecting",
+            Status::Failed(_) => "Failed to connect",
         };
 
         let message_2 = match &self.status {
-            ConnectStatus::Running => "Please wait",
-            ConnectStatus::Delayed => "This is taking longer than expected",
-            ConnectStatus::Failed(msg) => &msg,
+            Status::Running => "Please wait",
+            Status::Delayed => "This is taking longer than expected",
+            Status::Failed(msg) => &msg,
         };
 
         ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, message_1);
@@ -43,18 +43,15 @@ impl Screen for ConnectModalScreen {
         dialog_lower(ctx);
 
         match self.status {
-            ConnectStatus::Running | ConnectStatus::Delayed => {
+            Status::Running | Status::Delayed => {
                 modal_spinner(ctx, BOT_W / 2.0 - 15.0, BOT_H / 2.0 - 15.0, 1.5, ACCENT);
             }
-            ConnectStatus::Failed(..) => {
+            Status::Failed(..) => {
                 ctx.text_centered(0.0, BOT_H / 2.0 - 10.0, BOT_W, 1.0, ACCENT, "\u{E009}");
             }
         }
 
-        if matches!(
-            self.status,
-            ConnectStatus::Delayed | ConnectStatus::Failed(..)
-        ) {
+        if matches!(self.status, Status::Delayed | Status::Failed(..)) {
             ctx.text_centered(
                 0.0,
                 185.0,
@@ -70,12 +67,12 @@ impl Screen for ConnectModalScreen {
 impl ModalScreen for ConnectModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
-            UiMsg::ConnectDelayed => self.status = ConnectStatus::Delayed,
+            UiMsg::ConnectDelayed => self.status = Status::Delayed,
             UiMsg::ConnectDone => {
                 return ScreenCommand::CloseModal;
             }
             UiMsg::ConnectFailed { reason } => {
-                self.status = ConnectStatus::Failed(reason.clone());
+                self.status = Status::Failed(reason.clone());
             }
             _ => {}
         }

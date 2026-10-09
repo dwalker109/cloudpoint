@@ -11,6 +11,7 @@ pub use shutdown_modal::ShutdownModalScreen;
 pub use sync::SyncScreen;
 pub use sync_modal::SyncModalScreen;
 pub use titles::TitlesScreen;
+pub use updater_modal::UpdaterModalScreen;
 
 mod conflict_modal;
 mod connect_modal;
@@ -24,6 +25,7 @@ mod shutdown_modal;
 mod sync;
 mod sync_modal;
 mod titles;
+mod updater_modal;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenId {

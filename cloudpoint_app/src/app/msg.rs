@@ -3,7 +3,10 @@ use crate::{
     link::{LinkState, SharePermission},
 };
 use chrono::{DateTime, Utc};
-use cloudpoint_lib::sync::{SyncItem, SyncState};
+use cloudpoint_lib::{
+    preflight::{ClientUpdate, Connect},
+    sync::{SyncItem, SyncState},
+};
 use std::{
     collections::HashMap,
     sync::{mpsc::Sender, oneshot},
@@ -16,6 +19,8 @@ pub enum TaskMsg {
     Refresh,
     LinkHost,
     LinkClient,
+    UpdateStart(ClientUpdate),
+    UpdateSkip(ClientUpdate),
 }
 
 pub enum OpenModalMsg {
@@ -38,6 +43,7 @@ pub enum OpenModalMsg {
         fc: u64,
         quit_tx: Sender<()>,
     },
+    SelfUpdate(ClientUpdate),
 }
 
 pub enum UiMsg {
@@ -63,6 +69,7 @@ pub enum UiMsg {
         titles: Vec<TitleDetails>,
         sync_states: HashMap<SyncItem, SyncState>,
         qty_auto: usize,
+        connect: Connect,
     },
     LinkHostConfirm {
         friend_code: String,
@@ -74,9 +81,11 @@ pub enum UiMsg {
         reply_tx: Sender<SharePermission>,
         state: LinkState,
     },
-    LinkUpdate {
+    LinkProgress {
         state: LinkState,
     },
+    UpdateDone,
+    UpdateFailed,
 }
 
 pub enum ConflictWinner {

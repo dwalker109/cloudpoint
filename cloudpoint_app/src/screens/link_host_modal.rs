@@ -92,7 +92,7 @@ impl ModalScreen for LinkHostModalScreen {
                 self.friend_code = friend_code.clone();
                 self.reply_tx = Some(reply_tx.clone());
             }
-            UiMsg::LinkUpdate { state } => {
+            UiMsg::LinkProgress { state } => {
                 self.state = *state;
             }
             _ => {}

@@ -1,3 +1,4 @@
+use crate::{handlers, services::updater::client_app};
 use axum::{
     Router,
     http::StatusCode,
@@ -7,11 +8,10 @@ use axum::{
 use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 
-use crate::handlers;
-
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) db_pool: PgPool,
+    pub(crate) app_updater: client_app::Updater,
 }
 
 pub struct AppError(anyhow::Error);
@@ -66,6 +66,7 @@ pub fn make(app_state: AppState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::updater::UpdaterMode;
     use axum::{
         body::Body,
         http::{Request, StatusCode},
@@ -74,9 +75,16 @@ mod tests {
     use sqlx::Pool;
     use tower::ServiceExt;
 
+    fn test_app(db_pool: Pool<sqlx::Postgres>) -> Router {
+        super::make(AppState {
+            db_pool,
+            app_updater: client_app::Updater::new(UpdaterMode::Disabled),
+        })
+    }
+
     #[sqlx::test]
     async fn hello_world(db_pool: Pool<sqlx::Postgres>) {
-        let app = super::make(AppState { db_pool });
+        let app = test_app(db_pool);
 
         let response = app
             .oneshot(Request::get("/").body(Body::empty()).unwrap())

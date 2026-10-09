@@ -4,7 +4,7 @@ version = "1.1.1"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.6.1", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
 axum = "0.8"
 tower-http = { version = "0.6.11", features = ["trace"] }
 tracing = "0.1.44"
@@ -12,6 +12,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"] }
 dialoguer = { version = "0.12.0", default-features = false }
+reqwest = { version = "0.13.5", features = ["json"] }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -21,6 +22,7 @@ flate2 = { workspace = true }
 chunktree = { workspace = true }
 postcard = { workspace = true }
 cloudpoint_lib = { workspace = true }
+semver = { workspace = true }
 
 [dev-dependencies]
 tower = "0"
