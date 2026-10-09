@@ -21,7 +21,6 @@ use crate::ctr_fs::{CtrArchive, smdh};
 pub struct CtrAmTitle {
     pub title_id: u64,
     pub product_code: String,
-    pub version: u16,
 }
 
 impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
@@ -29,7 +28,6 @@ impl<'a> From<&ctru::services::am::Title<'a>> for CtrAmTitle {
         Self {
             title_id: value.id(),
             product_code: value.product_code().trim_end_matches('\0').to_string(),
-            version: value.version(),
         }
     }
 }

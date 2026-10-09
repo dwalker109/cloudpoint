@@ -4,14 +4,14 @@ default:
 test:
     DATABASE_URL="postgres://postgres:postgres@127.0.0.1:6666" cargo test -p cloudpoint_lib -p cloudpoint_server
 
-build:
+build: set-hbl-ver
     cargo 3ds build --release
 
-run ip:
+run ip: set-hbl-ver
     cargo 3ds run -a {{ ip }} --release
 
 [working-directory('cloudpoint_app/cia')]
-cia major minor micro: build
+cia major minor micro: build (set-ver major minor micro)
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
@@ -27,7 +27,7 @@ cia major minor micro: build
         -ca banner.bcwav \
         -o banner.bnr
     ./makerom -f cia -v \
-        -ver $(just ver {{ major }} {{ minor }} {{ micro }}) \
+        -ver $(just get-ver) \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint.elf \
         -DROMFS_PATH="../romfs" \
@@ -37,14 +37,23 @@ cia major minor micro: build
         -logo logo.bcma.lz \
         -o cloudpoint.cia
 
-ver major minor micro:
+[working-directory('cloudpoint_app/romfs')]
+set-ver major minor micro:
     @[ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
     @[ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
     @[ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
-    @echo $(( ({{ major }} << 10) | ({{ minor }} << 4) | {{ micro }} ))
+    @echo "{{ major }}.{{ minor }}.{{ micro }}" > "version.txt"
 
-deploy:
-    scp cloudpoint_app/cia/cloudpoint.cia root@62.238.18.193:/mnt/data
+[working-directory('cloudpoint_app/romfs')]
+set-hbl-ver:
+    @echo "0.0.0.hbl" > "version.txt"
+
+[working-directory('cloudpoint_app/romfs')]
+get-ver:
+    #!/usr/bin/env bash
+    set -eu
+    IFS=. read -r major minor micro < "version.txt"
+    echo $(( (major << 10) | (minor << 4) | micro ))
 
 [working-directory('cloudpoint_app/src/gfx/c2d')]
 citro2d:
