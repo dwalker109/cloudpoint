@@ -3,7 +3,7 @@ use crate::{
     screens::{
         BaseScreen, ConflictModalScreen, ConnectModalScreen, ErrorModalScreen,
         LinkClientModalScreen, LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen,
-        ScreenCommand, ScreenId, ShutdownModalScreen, SyncScreen, TitlesScreen,
+        ScreenCommand, ScreenId, ShutdownModalScreen, SyncScreen, TitlesScreen, UpdaterModalScreen,
     },
     setup,
 };
@@ -14,6 +14,7 @@ pub use msg::*;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, Sender, channel},
+    thread::JoinHandle,
 };
 pub use worker::worker_thread;
 
@@ -24,13 +25,14 @@ pub struct App {
     screens: HashMap<ScreenId, Box<dyn BaseScreen>>,
     active_screen: ScreenId,
     modal_stack: Vec<Box<dyn ModalScreen>>,
-    _task_tx: Sender<TaskMsg>,
+    task_tx: Sender<TaskMsg>,
     _shutdown_tx: Sender<()>,
     ui_rx: Receiver<UiMsg>,
     modal_rx: Receiver<OpenModalMsg>,
 }
 
 impl App {
+    /// Set up comms channels, start the worker and enter the libctru main_loop.
     pub fn run() -> Result<()> {
         let apt = Apt::new()?;
         let mut hid = Hid::new()?;
@@ -40,7 +42,7 @@ impl App {
         let (ui_tx, ui_rx) = channel::<UiMsg>();
         let (modal_tx, modal_rx) = channel::<OpenModalMsg>();
 
-        let handle = setup::start_worker(task_rx, shutdown_rx, ui_tx, modal_tx)?;
+        let handle = setup::start_worker(task_rx, shutdown_rx, ui_tx, modal_tx);
 
         let mut app = App {
             screens: HashMap::from([
@@ -59,7 +61,7 @@ impl App {
             ]),
             active_screen: ScreenId::Sync,
             modal_stack: Vec::with_capacity(4),
-            _task_tx: task_tx,
+            task_tx,
             _shutdown_tx: shutdown_tx,
             ui_rx,
             modal_rx,
@@ -68,7 +70,7 @@ impl App {
         let mut render = Render::new();
         let mut cmd_buffer = Vec::with_capacity(8);
 
-        log::info!("entering main_loop");
+        log::debug!("entering main_loop");
 
         'main: while apt.main_loop() {
             hid.scan_input();
@@ -152,6 +154,9 @@ impl App {
                     OpenModalMsg::LinkClient { fc, quit_tx } => app
                         .modal_stack
                         .push(Box::new(LinkClientModalScreen::new(fc, quit_tx))),
+                    OpenModalMsg::SelfUpdate(client_update) => app.modal_stack.push(Box::new(
+                        UpdaterModalScreen::new(app.task_tx.clone(), client_update),
+                    )),
                 }
             }
 
@@ -161,22 +166,27 @@ impl App {
             );
         }
 
-        log::info!("exited main_loop, shutting down");
+        log::debug!("exited main_loop");
 
-        // Dropping the app is important since it:
-        // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
-        // * drops task_tx (allowing running worker task to finish, but causes error the next time task_rx is polled, exiting cleanly)
-        //
-        // All of this means that the handle will join when asked, allowing a clean shutdown instead of just killing the
-        // worker at a potentially bad point (like halfway through a file write).
-        log::debug!("about to drop app and await worker exit");
-        drop(app);
-        match handle.join() {
-            Ok(Ok(_)) => log::debug!("app exited with clean worker join, normal exit"),
-            Ok(Err(e)) => log::debug!("app exited with clean worker join, maybe normal exit: {e}"),
-            Err(_) => log::warn!("app exited and could not join worker, abnormal"),
-        }
+        Self::shutdown(app, handle);
 
         Ok(())
+    }
+
+    /// Controlled shutdown of the app once the libctru main_loop has exited.
+    /// App is dropped, which leads to desirable channel closure when owned
+    /// items drop too:
+    ///
+    /// - `modal_stack` (causing reply_tx channels to close, causing the blocked
+    /// reply_rx channels to disconnect and exit)
+    /// - `_task_tx` (allowing any running worker task to finish, but signals
+    /// a disconnect on next poll of task_rx, exiting cleanly).
+    ///
+    /// All of this means that the handle will then join when asked, allowing
+    /// a clean shutdown instead of just killing the worker at a potentially
+    /// bad point (like halfway through a file write).
+    fn shutdown(app: App, handle: JoinHandle<()>) {
+        drop(app);
+        handle.join().expect("worker thread should join on exit");
     }
 }

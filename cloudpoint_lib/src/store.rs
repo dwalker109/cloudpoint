@@ -159,6 +159,8 @@ mod tests {
     use std::io::{Cursor, Read};
     use uuid::Uuid;
 
+    const APP_VER: semver::Version = semver::Version::new(0, 0, 0);
+
     #[test]
     fn can_put_chunk() {
         let srv = MockServer::start();
@@ -171,7 +173,7 @@ mod tests {
             then.status(201);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
@@ -196,7 +198,7 @@ mod tests {
             then.status(400);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;
@@ -223,7 +225,7 @@ mod tests {
             });
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let mut buf = Vec::new();
@@ -245,7 +247,7 @@ mod tests {
             then.status(404);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let res = store.get_chunk(0x00);
@@ -265,7 +267,7 @@ mod tests {
             when.method("PUT");
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let mut store = super::HttpStore::new(client.clone(), srv.base_url(), Uuid::new_v4());
 
         let hash = 123;

@@ -75,7 +75,7 @@ pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()
             }
             Ok(Some((buf, ..))) if buf[0] == CTRL_FIN_OK => {
                 state = LinkState::Succeeded;
-                ui_tx.send(UiMsg::LinkUpdate { state }).ok();
+                ui_tx.send(UiMsg::LinkProgress { state }).ok();
                 break;
             }
             Ok(Some((buf, ..))) if buf[0] == CTRL_FIN_ERR => {
@@ -100,7 +100,7 @@ pub fn host(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<()
                     pkt[9..25].copy_from_slice(USER_KEY.as_bytes());
                     uds.send_packet(&pkt, client_node, 1, SendFlags::Default)?;
                     state = LinkState::WaitingClient((NodeID::None, *USER_KEY));
-                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
+                    ui_tx.send(UiMsg::LinkProgress { state }).ok();
                 }
                 SharePermission::Deny => {
                     uds.eject_client(client_node)?;
@@ -191,13 +191,13 @@ pub fn client(ui_tx: &Sender<UiMsg>, modal_tx: &Sender<OpenModalMsg>) -> Result<
                     backup_user_key()?;
                     persist_user_key(new_user_key)?;
                     state = LinkState::Succeeded;
-                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
+                    ui_tx.send(UiMsg::LinkProgress { state }).ok();
                     uds.send_packet(&[CTRL_FIN_OK], client_node, CHANNEL, SendFlags::Default)?;
                     break;
                 }
                 SharePermission::Deny => {
                     state = LinkState::Failed;
-                    ui_tx.send(UiMsg::LinkUpdate { state }).ok();
+                    ui_tx.send(UiMsg::LinkProgress { state }).ok();
                     uds.send_packet(&[CTRL_FIN_ERR], client_node, CHANNEL, SendFlags::Default)?;
                     break;
                 }

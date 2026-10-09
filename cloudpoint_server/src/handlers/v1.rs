@@ -1,6 +1,7 @@
 use crate::{
     app::{AppError, AppState},
     hex_u128::HexU128,
+    postcard::Postcard,
     services::{chunk, version},
 };
 use axum::{
@@ -13,26 +14,42 @@ use axum::{
     },
     response::IntoResponse,
 };
-use tracing::{debug, warn};
+use cloudpoint_lib::preflight::Connect;
+use semver::Version as SemVer;
+use tracing::warn;
 use uuid::Uuid;
 
-pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppError> {
+pub async fn preflight_get(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
     let Some(ua) = headers.get("User-Agent") else {
         warn!(headers = format!("{headers:?}"), "no User-Agent header");
+
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Some((app, ver)) = ua.to_str()?.split_once('/') else {
+    let Some((_, ver)) = ua.to_str()?.split_once('/') else {
         warn!(
             headers = format!("{headers:?}"),
             "malformed User-Agent header"
         );
+
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    debug!(app, ver, "received preflight");
+    let Ok(_app_version) = SemVer::parse(ver) else {
+        warn!(ver, "malformed client app_ver in User-Agent header");
 
-    Ok(StatusCode::OK.into_response())
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    };
+
+    Ok(Postcard(Connect {
+        srv_ver: SemVer::parse(env!("CARGO_PKG_VERSION"))?,
+        app_update: state.app_updater.get().await,
+        srv_update: None,
+    })
+    .into_response())
 }
 
 pub async fn chunk_head(

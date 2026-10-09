@@ -1,9 +1,9 @@
 use super::*;
-use crate::{db, link, sync};
-use anyhow::Result;
+use crate::{cia, db, link, sync};
+use anyhow::{Result, bail};
 use itertools::Itertools;
 use std::{
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::{self, Receiver, Sender},
     time::Instant,
 };
 
@@ -15,8 +15,7 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    modal_tx.send(OpenModalMsg::Connect).ok();
-    sync::connect(&shutdown_rx, &ui_tx)?;
+    let connect = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
 
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
 
@@ -25,8 +24,15 @@ pub fn worker_thread(
             titles: title_db.titles_sorted_vec(),
             sync_states: state_db.states_hashmap(),
             qty_auto: state_db.qty_auto(),
+            connect: connect.clone(),
         })
         .ok();
+
+    if let Some(client_update) = &connect.app_update {
+        modal_tx
+            .send(OpenModalMsg::SelfUpdate(client_update.clone()))
+            .ok();
+    }
 
     loop {
         match task_rx.recv() {
@@ -39,6 +45,7 @@ pub fn worker_thread(
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
+                        connect: connect.clone(),
                     })
                     .ok();
                 title_db.commit().expect(COMMIT_MSG);
@@ -51,6 +58,7 @@ pub fn worker_thread(
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
+                        connect: connect.clone(),
                     })
                     .ok();
                 state_db.commit().expect(COMMIT_MSG);
@@ -151,7 +159,7 @@ pub fn worker_thread(
                 if let Err(e) = link::host(&ui_tx, &modal_tx) {
                     log::error!("errored during user key share as host: {e}");
                     ui_tx
-                        .send(UiMsg::LinkUpdate {
+                        .send(UiMsg::LinkProgress {
                             state: link::LinkState::Failed,
                         })
                         .ok();
@@ -161,15 +169,31 @@ pub fn worker_thread(
                 if let Err(e) = link::client(&ui_tx, &modal_tx) {
                     log::error!("errored during user key share as client: {e}");
                     ui_tx
-                        .send(UiMsg::LinkUpdate {
+                        .send(UiMsg::LinkProgress {
                             state: link::LinkState::Failed,
                         })
                         .ok();
                 }
             }
-            Err(e) => {
-                log::info!("worker thread exiting, this is probably normal: {e}");
+            Ok(TaskMsg::UpdateStart(update)) => {
+                let msg = match cia::self_update(&update) {
+                    Ok(_) => UiMsg::UpdateDone,
+                    Err(e) => {
+                        log::error!("self update failed: {e}");
+                        UiMsg::UpdateFailed
+                    }
+                };
+                ui_tx.send(msg).ok();
+            }
+            Ok(TaskMsg::UpdateSkip(update)) => {
+                log::info!("update {} was skipped", update.version);
+            }
+            Err(e) if e == mpsc::RecvError => {
+                log::info!("worker thread task channel shutting down: {e}");
                 break;
+            }
+            Err(e) => {
+                bail!("worker thread task channel error: {e} ")
             }
         }
     }

@@ -3,18 +3,21 @@ use crate::{
     app::TaskMsg,
     config::{APP_VER, USER_KEY},
 };
+use cloudpoint_lib::preflight::Connect;
 use std::sync::mpsc::Sender;
 
 pub struct SyncScreen {
     task_tx: Sender<TaskMsg>,
     status_text: String,
+    connect: Connect,
 }
 
 impl SyncScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
         Self {
             task_tx,
-            status_text: String::with_capacity(256),
+            status_text: "0 items enabled across 0 titles".into(),
+            connect: Connect::default(),
         }
     }
 }
@@ -25,13 +28,25 @@ impl Screen for SyncScreen {
 
         ctx.text_centered(0.0, 100.0, TOP_W, 1.0, ACCENT, "Ready");
         ctx.text_centered(0.0, 140.0, TOP_W, 0.7, BLACK, &self.status_text);
-        ctx.text(
-            10.0,
-            TOP_H - 20.0,
-            0.4,
-            ACCENT_TRANS,
-            &format!("Ver {}", *APP_VER),
-        );
+        if let Some(app_update) = &self.connect.app_update {
+            ctx.text(
+                10.0,
+                TOP_H - 35.0,
+                0.4,
+                ATTENTION,
+                &format!("{} available to install", app_update.version),
+            );
+        }
+        if self.connect.srv_update.is_some() {
+            ctx.text(
+                280.0,
+                TOP_H - 35.0,
+                0.4,
+                ATTENTION,
+                "Server update available",
+            );
+        }
+        ctx.text(10.0, TOP_H - 20.0, 0.4, ACCENT_TRANS, &APP_VER.to_string());
         ctx.text(
             315.0,
             TOP_H - 20.0,
@@ -56,10 +71,14 @@ impl BaseScreen for SyncScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::Ready {
-                qty_auto, titles, ..
+                qty_auto,
+                titles,
+                connect,
+                ..
             } => {
                 self.status_text =
                     format!("{qty_auto} items enabled across {} titles", titles.len());
+                self.connect = connect.clone();
             }
             _ => {}
         }

@@ -93,7 +93,7 @@ impl ModalScreen for LinkClientModalScreen {
                 self.new_user_key = new_user_key.clone();
                 self.reply_tx = Some(reply_tx.clone());
             }
-            UiMsg::LinkUpdate { state } => {
+            UiMsg::LinkProgress { state } => {
                 self.state = *state;
             }
             _ => {}

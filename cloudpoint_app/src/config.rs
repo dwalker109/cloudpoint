@@ -1,6 +1,6 @@
-use crate::title::SD_APP_TITLES;
 use anyhow::Result;
 use chrono::Utc;
+use ctru_sys::envIsHomebrew;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -8,6 +8,12 @@ use std::{
     sync::LazyLock,
 };
 use uuid::Uuid;
+
+pub static APP_VER: LazyLock<semver::Version> = LazyLock::new(|| {
+    semver::Version::parse(env!("APP_VER")).expect("app version should be valid semver")
+});
+
+pub static IS_3DSX: LazyLock<bool> = LazyLock::new(|| unsafe { envIsHomebrew() });
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -74,20 +80,6 @@ pub fn backup_user_key() -> Result<()> {
 
     Ok(())
 }
-
-pub static APP_VER: LazyLock<String> = LazyLock::new(|| {
-    let version = SD_APP_TITLES
-        .iter()
-        .find(|&(title_id, _)| *title_id == 0x000400000FF00100)
-        .map(|(_, title)| title.version)
-        .unwrap_or_default();
-
-    let major = version >> 10;
-    let minor = (version >> 4) & 0x3F;
-    let patch = version & 0xF;
-
-    format!("{major}.{minor}.{patch}")
-});
 
 #[derive(Debug)]
 pub enum AppPath {

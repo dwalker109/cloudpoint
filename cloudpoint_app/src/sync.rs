@@ -1,6 +1,6 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
-    config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
+    config::{APP_VER, AppPath, IS_3DSX, USER_KEY, USER_SETTINGS},
     ctr_fs::{CtrArchive, CtrLeaf},
     db::{InstallHistoryDb, InstallStatus, TitleDb},
     ndmu::KeepAwake,
@@ -16,6 +16,7 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::CtrMeta,
     http::CurlHttpClient,
+    preflight::Connect,
     store::HttpStore,
     sync::{SyncAction, SyncState},
     version::{RemoteVersionMeta, get_version, put_version},
@@ -34,10 +35,15 @@ use std::{
 };
 
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
-    LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
+    LazyLock::new(|| CurlHttpClient::new(&*APP_VER).expect("should init shared libcurl client"));
 
-pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> {
+pub fn connect(
+    shutdown_rx: &Receiver<()>,
+    ui_tx: &Sender<UiMsg>,
+    modal_tx: &Sender<OpenModalMsg>,
+) -> Result<Connect> {
     log::info!("connecting to server");
+    modal_tx.send(OpenModalMsg::Connect).ok();
 
     let ac = Ac::new()?;
     let timeout = Instant::now();
@@ -46,8 +52,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
 
     loop {
         if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
-            log::info!("aborting during connect due to app shutdown");
-            return Ok(());
+            bail!("aborting during connect due to app shutdown");
         }
 
         if timeout.elapsed() > Duration::from_secs(10) {
@@ -63,27 +68,34 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
             continue;
         }
 
-        match HTTP_CLIENT.get(url, &[]) {
+        return match HTTP_CLIENT.get(url, &[]) {
             Ok(res) if res.status == 200 => {
                 log::info!(
                     "connected to server, took {} seconds",
                     timeout.elapsed().as_secs()
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
-                break;
+
+                if *IS_3DSX {
+                    log::info!("running from .3dsx, no updates will be signalled");
+                    Ok(Connect::default())
+                } else {
+                    log::info!("installed via .cia, updates will be signalled if available");
+                    Ok(postcard::from_bytes(&res.body).unwrap_or_default())
+                }
             }
             Ok(res) => {
-                log::warn!(
-                    "connected to server but received status code {}, took {} seconds",
-                    res.status,
-                    timeout.elapsed().as_secs()
-                );
                 ui_tx
                     .send(UiMsg::ConnectFailed {
                         reason: String::from_utf8_lossy_owned(res.body),
                     })
                     .ok();
-                break;
+
+                bail!(
+                    "connected to server but received status code {}, took {} seconds, cannot proceed",
+                    res.status,
+                    timeout.elapsed().as_secs()
+                );
             }
             Err(e) => {
                 log::warn!("failing to connect to server (will retry): {e}");
@@ -91,10 +103,8 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
                 std::thread::sleep(delay);
                 continue;
             }
-        }
+        };
     }
-
-    Ok(())
 }
 
 pub fn run<'a>(

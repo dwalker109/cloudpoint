@@ -5,6 +5,7 @@ mod app;
 mod app_logger;
 mod cfgi;
 mod cfgu;
+mod cia;
 mod config;
 mod ctr_fs;
 mod db;
