@@ -3,5 +3,6 @@ pub mod ctr;
 pub mod http;
 pub mod store;
 pub mod sync;
+pub mod upgrade;
 pub mod utils;
 pub mod version;

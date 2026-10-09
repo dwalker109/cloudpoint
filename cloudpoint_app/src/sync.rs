@@ -18,6 +18,7 @@ use cloudpoint_lib::{
     http::CurlHttpClient,
     store::HttpStore,
     sync::{SyncAction, SyncState},
+    upgrade::UpgradeHint,
     version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
@@ -36,7 +37,7 @@ use std::{
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
     LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
 
-pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> {
+pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Option<UpgradeHint>> {
     log::info!("connecting to server");
 
     let ac = Ac::new()?;
@@ -46,8 +47,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
 
     loop {
         if let Err(mpsc::TryRecvError::Disconnected) = shutdown_rx.try_recv() {
-            log::info!("aborting during connect due to app shutdown");
-            return Ok(());
+            bail!("aborting during connect due to app shutdown");
         }
 
         if timeout.elapsed() > Duration::from_secs(10) {
@@ -63,14 +63,17 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
             continue;
         }
 
-        match HTTP_CLIENT.get(url, &[]) {
+        return match HTTP_CLIENT.get(url, &[]) {
             Ok(res) if res.status == 200 => {
                 log::info!(
                     "connected to server, took {} seconds",
                     timeout.elapsed().as_secs()
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
-                break;
+
+                let upgrade_hint: UpgradeHint = serde_json::from_slice(&res.body)?;
+
+                Ok(Connected::Ready)
             }
             Ok(res) => {
                 log::warn!(
@@ -83,7 +86,8 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
                         reason: String::from_utf8_lossy_owned(res.body),
                     })
                     .ok();
-                break;
+
+                Ok(Connected::Ready)
             }
             Err(e) => {
                 log::warn!("failing to connect to server (will retry): {e}");
@@ -91,10 +95,8 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<()> 
                 std::thread::sleep(delay);
                 continue;
             }
-        }
+        };
     }
-
-    Ok(())
 }
 
 pub fn run<'a>(
