@@ -23,7 +23,7 @@ use cloudpoint_lib::{
 use ctru::services::ac::Ac;
 use std::{
     fs::{self, File},
-    io::{self, BufWriter},
+    io::{self, BufWriter, Write},
     path::PathBuf,
     sync::{
         LazyLock,
@@ -394,8 +394,10 @@ fn backup(tree: &Tree<CtrLeaf>, sync_state: &SyncState) -> Result<()> {
         );
 
         fs::create_dir_all(dst_path.parent().expect("file has parent directory"))?;
-        let mut writer = BufWriter::new(File::create(dst_path)?);
-        io::copy(&mut leaf.data(tree.context())?, &mut writer)?;
+
+        let mut w = BufWriter::with_capacity(256 * 1024, File::create(dst_path)?);
+        io::copy(&mut leaf.data(tree.context())?, &mut w)?;
+        w.flush()?;
     }
 
     log::info!("backup complete");
