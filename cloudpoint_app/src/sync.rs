@@ -16,9 +16,9 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::CtrMeta,
     http::CurlHttpClient,
-s    store::HttpStore,
-    sync::{SyncAction, SyncState},
     preflight::Connect,
+    store::HttpStore,
+    sync::{SyncAction, SyncState},
     version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
@@ -37,8 +37,13 @@ use std::{
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
     LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
 
-pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Option<Connect>> {
+pub fn connect(
+    shutdown_rx: &Receiver<()>,
+    ui_tx: &Sender<UiMsg>,
+    modal_tx: &Sender<OpenModalMsg>,
+) -> Result<Connect> {
     log::info!("connecting to server");
+    modal_tx.send(OpenModalMsg::Connect).ok();
 
     let ac = Ac::new()?;
     let timeout = Instant::now();
@@ -71,23 +76,20 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Opti
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
 
-                let upgrade_hint: Connect = serde_json::from_slice(&res.body)?;
-
-                Ok(Connected::Ready)
+                Ok(toml::from_slice(&res.body)?)
             }
             Ok(res) => {
-                log::warn!(
-                    "connected to server but received status code {}, took {} seconds",
-                    res.status,
-                    timeout.elapsed().as_secs()
-                );
                 ui_tx
                     .send(UiMsg::ConnectFailed {
                         reason: String::from_utf8_lossy_owned(res.body),
                     })
                     .ok();
 
-                Ok(Connected::Ready)
+                bail!(
+                    "connected to server but received status code {}, took {} seconds",
+                    res.status,
+                    timeout.elapsed().as_secs()
+                );
             }
             Err(e) => {
                 log::warn!("failing to connect to server (will retry): {e}");
