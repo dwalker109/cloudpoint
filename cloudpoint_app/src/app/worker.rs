@@ -15,8 +15,7 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    modal_tx.send(OpenModalMsg::Connect).ok();
-    sync::connect(&shutdown_rx, &ui_tx)?;
+    let connect = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
 
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
 
