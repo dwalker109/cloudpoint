@@ -16,9 +16,9 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::CtrMeta,
     http::CurlHttpClient,
-    store::HttpStore,
+s    store::HttpStore,
     sync::{SyncAction, SyncState},
-    upgrade::UpgradeHint,
+    preflight::Connect,
     version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
@@ -37,7 +37,7 @@ use std::{
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
     LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
 
-pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Option<UpgradeHint>> {
+pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Option<Connect>> {
     log::info!("connecting to server");
 
     let ac = Ac::new()?;
@@ -71,7 +71,7 @@ pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Opti
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
 
-                let upgrade_hint: UpgradeHint = serde_json::from_slice(&res.body)?;
+                let upgrade_hint: Connect = serde_json::from_slice(&res.body)?;
 
                 Ok(Connected::Ready)
             }
