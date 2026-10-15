@@ -40,7 +40,7 @@ impl App {
         let (ui_tx, ui_rx) = channel::<UiMsg>();
         let (modal_tx, modal_rx) = channel::<OpenModalMsg>();
 
-        let handle = setup::start_worker(task_rx, shutdown_rx, ui_tx, modal_tx)?;
+        let handle = setup::start_worker(task_rx, shutdown_rx, ui_tx, modal_tx);
 
         let mut app = App {
             screens: HashMap::from([
@@ -169,13 +169,8 @@ impl App {
         //
         // All of this means that the handle will join when asked, allowing a clean shutdown instead of just killing the
         // worker at a potentially bad point (like halfway through a file write).
-        log::debug!("about to drop app and await worker exit");
         drop(app);
-        match handle.join() {
-            Ok(Ok(_)) => log::debug!("app exited with clean worker join, normal exit"),
-            Ok(Err(e)) => log::debug!("app exited with clean worker join, maybe normal exit: {e}"),
-            Err(_) => log::warn!("app exited and could not join worker, abnormal"),
-        }
+        handle.join().expect("worker thread should join on exit");
 
         Ok(())
     }
