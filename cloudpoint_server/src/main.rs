@@ -7,6 +7,7 @@ use std::{path::PathBuf, time::Duration};
 mod app;
 mod handlers;
 mod hex_u128;
+mod postcard;
 mod services;
 
 mod util {
