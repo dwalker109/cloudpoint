@@ -76,7 +76,8 @@ pub fn connect(
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
 
-                Ok(postcard::from_bytes(&res.body)?)
+                // Ok(postcard::from_bytes(&res.body)?)
+                Ok(Connect::Ready)
             }
             Ok(res) => {
                 ui_tx

@@ -42,11 +42,16 @@ pub fn start_worker(
     shutdown_rx: Receiver<()>,
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
-) -> Result<JoinHandle<Result<()>>> {
+) -> JoinHandle<()> {
     log::debug!("starting worker thread");
 
-    let handle = std::thread::Builder::new()
+    std::thread::Builder::new()
         .stack_size(256 * 1024)
-        .spawn(move || worker_thread(task_rx, shutdown_rx, ui_tx, modal_tx))?;
-    Ok(handle)
+        .spawn(move || {
+            match worker_thread(task_rx, shutdown_rx, ui_tx, modal_tx) {
+                Ok(_) => log::info!("worker exited cleanly"),
+                Err(e) => log::error!("worker exited abnormally: {e}"),
+            };
+        })
+        .expect("worker thread should be able to spawn")
 }
