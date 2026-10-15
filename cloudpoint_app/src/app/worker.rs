@@ -167,7 +167,7 @@ pub fn worker_thread(
                 }
             }
             Err(e) if e == mpsc::RecvError => {
-                log::info!("worker thread task channel shutdown: {e}");
+                log::info!("worker thread task channel shutting down: {e}");
                 break;
             }
             Err(e) => {

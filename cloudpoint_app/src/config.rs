@@ -75,7 +75,10 @@ pub fn backup_user_key() -> Result<()> {
 }
 
 pub static APP_VER: LazyLock<String> = LazyLock::new(|| {
-    fs::read_to_string("romfs:/version.txt").expect("should read version from romfs")
+    fs::read_to_string("romfs:/version.txt")
+        .expect("should read version from romfs")
+        .trim()
+        .to_string()
 });
 
 #[derive(Debug)]

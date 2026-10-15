@@ -161,7 +161,7 @@ impl App {
             );
         }
 
-        log::info!("exited main_loop, shutting down");
+        log::info!("main_loop shutting down");
 
         // Dropping the app is important since it:
         // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
