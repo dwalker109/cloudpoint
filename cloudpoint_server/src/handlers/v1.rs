@@ -1,6 +1,7 @@
 use crate::{
     app::{AppError, AppState},
     hex_u128::HexU128,
+    postcard::Postcard,
     services::{chunk, version},
 };
 use axum::{
@@ -13,12 +14,14 @@ use axum::{
     },
     response::IntoResponse,
 };
+use cloudpoint_lib::preflight::Connect;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
 pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppError> {
     let Some(ua) = headers.get("User-Agent") else {
         warn!(headers = format!("{headers:?}"), "no User-Agent header");
+
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
@@ -27,12 +30,13 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
             headers = format!("{headers:?}"),
             "malformed User-Agent header"
         );
+
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
     debug!(app, ver, "received preflight");
 
-    Ok(StatusCode::OK.into_response())
+    Ok(Postcard(Connect::Ready).into_response())
 }
 
 pub async fn chunk_head(
