@@ -105,7 +105,7 @@ impl Handle {
 }
 
 impl CurlHttpClient {
-    pub fn new(app_ver: &str) -> Result<Self, IoError> {
+    pub fn new(app_ver: &semver::Version) -> Result<Self, IoError> {
         let raw = unsafe { curl_easy_init() };
         if raw.is_null() {
             return Err(IoError::other("libcurl curl_easy_init failed"));
@@ -318,6 +318,8 @@ mod tests {
     use super::*;
     use httpmock::prelude::*;
 
+    const APP_VER: semver::Version = semver::Version::new(0, 0, 0);
+
     #[test]
     fn http_get_success() {
         let srv = MockServer::start();
@@ -326,7 +328,7 @@ mod tests {
             then.status(200).body(&[123]);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let response = client.get(&srv.url("/test"), &[]).unwrap();
         assert_eq!(response.status, 200);
         assert_eq!(response.body, &[123]);
@@ -340,7 +342,7 @@ mod tests {
             then.status(200);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let response = client.head(&srv.url("/test"), &[]).unwrap();
         assert_eq!(response.status, 200);
     }
@@ -357,7 +359,7 @@ mod tests {
             });
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let response = client.put(&srv.url("/test"), b"foobar", &[]).unwrap();
         assert_eq!(response.status, 204);
     }
@@ -382,7 +384,7 @@ mod tests {
             });
         }
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
 
         let threads: Vec<_> = (0..2)
             .map(|i| {

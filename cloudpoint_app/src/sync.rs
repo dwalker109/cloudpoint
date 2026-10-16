@@ -35,7 +35,7 @@ use std::{
 };
 
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
-    LazyLock::new(|| CurlHttpClient::new(&APP_VER).expect("should init shared libcurl client"));
+    LazyLock::new(|| CurlHttpClient::new(&*APP_VER).expect("should init shared libcurl client"));
 
 pub fn connect(
     shutdown_rx: &Receiver<()>,
