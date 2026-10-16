@@ -21,6 +21,7 @@ flate2 = { workspace = true }
 chunktree = { workspace = true }
 postcard = { workspace = true }
 cloudpoint_lib = { workspace = true }
+semver = { workspace = true }
 
 [dev-dependencies]
 tower = "0"

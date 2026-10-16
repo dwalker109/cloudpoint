@@ -92,14 +92,14 @@ pub fn put_version<T: Leaf, K: Serialize + DeserializeOwned>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use super::*;
     use chunktree::tree::{MemLeaf, Tree};
     use httpmock::prelude::*;
     use serde::Serialize;
+    use std::collections::BTreeSet;
     use uuid::uuid;
 
+    const APP_VER: semver::Version = semver::Version::new(0, 0, 0);
     const USER_KEY: Uuid = uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8");
     const SYNC_ITEM_ID: u64 = 0x000400001234ABCD;
     const FINGERPRINT: u128 = 0x1234567890abcdef;
@@ -141,7 +141,7 @@ mod tests {
             );
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = RemoteVersionMeta::latest(
             &client,
             &srv.base_url(),
@@ -163,7 +163,7 @@ mod tests {
             then.status(204);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = RemoteVersionMeta::latest(
             &client,
             &srv.base_url(),
@@ -197,7 +197,7 @@ mod tests {
             then.status(200).body(version);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -220,7 +220,7 @@ mod tests {
                 .body(postcard::to_allocvec(b"invalid postcard bytes").unwrap());
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -240,7 +240,7 @@ mod tests {
             then.status(404);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = get_version::<MemLeaf, ()>(
             &client,
             &srv.base_url(),
@@ -271,7 +271,7 @@ mod tests {
             then.status(201);
         });
 
-        let client = CurlHttpClient::new("0.0.0").unwrap();
+        let client = CurlHttpClient::new(&APP_VER).unwrap();
         let res = put_version(
             &client,
             &srv.base_url(),

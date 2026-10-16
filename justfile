@@ -4,14 +4,29 @@ default:
 test:
     DATABASE_URL="postgres://postgres:postgres@127.0.0.1:6666" cargo test -p cloudpoint_lib -p cloudpoint_server
 
-build: set-hbl-ver
-    cargo 3ds build --release
+build app_ver="0.0.0-hbl":
+    APP_VER={{ app_ver }} cargo 3ds build --release
 
-run ip: set-hbl-ver
-    cargo 3ds run -a {{ ip }} --release
+
+run ip app_ver="0.0.0-hbl":
+    APP_VER={{ app_ver }} cargo 3ds run -a {{ ip }} --release
+
+[private]
+check-ver major minor micro:
+    #!/usr/bin/env bash
+    set -eu
+    for v in {{ major }} {{ minor }} {{ micro }}; do
+        [[ $v =~ ^(0|[1-9][0-9]*)$ ]] || {
+            echo "error: '$v' must be an integer without zero padding" >&2
+            exit 1
+        }
+    done
+    [ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
+    [ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
+    [ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
 
 [working-directory('cloudpoint_app/cia')]
-cia major minor micro: build (set-ver major minor micro)
+cia major minor micro: (check-ver major minor micro) (build major + "." + minor + "." + micro)
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
@@ -27,7 +42,7 @@ cia major minor micro: build (set-ver major minor micro)
         -ca banner.bcwav \
         -o banner.bnr
     ./makerom -f cia -v \
-        -ver $(just get-ver) \
+        -ver $(( ({{ major }} << 10) | ({{ minor }} << 4) | {{ micro }} )) \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint.elf \
         -DROMFS_PATH="../romfs" \
@@ -36,24 +51,6 @@ cia major minor micro: build (set-ver major minor micro)
         -banner banner.bnr \
         -logo logo.bcma.lz \
         -o cloudpoint.cia
-
-[working-directory('cloudpoint_app/romfs')]
-set-ver major minor micro:
-    @[ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
-    @[ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
-    @[ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
-    @echo "{{ major }}.{{ minor }}.{{ micro }}" > "version.txt"
-
-[working-directory('cloudpoint_app/romfs')]
-set-hbl-ver:
-    @echo "0.0.0.hbl" > "version.txt"
-
-[working-directory('cloudpoint_app/romfs')]
-get-ver:
-    #!/usr/bin/env bash
-    set -eu
-    IFS=. read -r major minor micro < "version.txt"
-    echo $(( (major << 10) | (minor << 4) | micro ))
 
 [working-directory('cloudpoint_app/src/gfx/c2d')]
 citro2d:

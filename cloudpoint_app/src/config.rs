@@ -8,6 +8,10 @@ use std::{
 };
 use uuid::Uuid;
 
+pub static APP_VER: LazyLock<semver::Version> = LazyLock::new(|| {
+    semver::Version::parse(env!("APP_VER")).expect("app version should be valid semver")
+});
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
     pub base_url: String,
@@ -73,13 +77,6 @@ pub fn backup_user_key() -> Result<()> {
 
     Ok(())
 }
-
-pub static APP_VER: LazyLock<String> = LazyLock::new(|| {
-    fs::read_to_string("romfs:/version.txt")
-        .expect("should read version from romfs")
-        .trim()
-        .to_string()
-});
 
 #[derive(Debug)]
 pub enum AppPath {
