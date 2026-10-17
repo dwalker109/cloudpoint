@@ -36,30 +36,19 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Ok(app_ver) = semver::Version::parse(ver) else {
+    let Ok(app_version) = semver::Version::parse(ver) else {
         warn!(ver, "malformed client app_ver in User-Agent header");
 
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let server_ver = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
+    let app_version_msv = semver::Version::new(0, 1, 0);
+    let srv_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
 
-    let res = match app_ver.major.cmp(&server_ver.major) {
-        Ordering::Less => Postcard(Update::Client {
-            to_version: app_ver,
-            url: String::default(),
-            required: true,
-        })
-        .into_response(),
-
-        Ordering::Greater => Postcard(Update::Server {
-            to_version: server_ver,
-            required: true,
-        })
-        .into_response(),
-
-        Ordering::Equal => StatusCode::OK.into_response(),
-        // TODO! offer optional updates
+    let app_update = match app_version.cmp(&app_version_msv) {
+        Ordering::Less => todo!(),
+        Ordering::Equal => todo!(),
+        Ordering::Greater => todo!(),
     };
 
     Ok(res)
