@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 pub enum Connect {
     Ready,
     ClientUpdate {
-        to_version: String,
-        url: String,
+        to_version: semver::Version,
         required: bool,
+        url: String,
     },
     ServerUpdate {
-        to_version: String,
+        to_version: semver::Version,
         required: bool,
     },
 }

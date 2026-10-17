@@ -4,6 +4,7 @@ use crate::{
     postcard::Postcard,
     services::{chunk, version},
 };
+use anyhow::anyhow;
 use axum::{
     Json,
     body::Bytes,
@@ -25,7 +26,7 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Some((app, ver)) = ua.to_str()?.split_once('/') else {
+    let Some((_, ver)) = ua.to_str()?.split_once('/') else {
         warn!(
             headers = format!("{headers:?}"),
             "malformed User-Agent header"
@@ -34,9 +35,29 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    debug!(app, ver, "received preflight");
+    let Ok(app_ver) = semver::Version::parse(ver) else {
+        warn!(ver, "malformed client app_ver in User-Agent header");
 
-    Ok(Postcard(Connect::Ready).into_response())
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    };
+
+    let server_ver = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
+
+    let connect = match app_ver.major.cmp(&server_ver.major) {
+        std::cmp::Ordering::Less => Connect::ClientUpdate {
+            to_version: todo!(),
+            url: todo!(),
+            required: true,
+        },
+        std::cmp::Ordering::Greater => Connect::ServerUpdate {
+            to_version: todo!(),
+            required: true,
+        },
+        std::cmp::Ordering::Equal => Connect::Ready,
+        // TODO! offer optional updates
+    };
+
+    Ok(Postcard(connect).into_response())
 }
 
 pub async fn chunk_head(
