@@ -1,7 +1,7 @@
 use super::*;
 use crate::screens::shared::{dialog_lower, dialog_upper, modal_spinner};
 
-pub enum ConnectStatus {
+enum ConnectStatus {
     Running,
     Delayed,
     Failed(String),

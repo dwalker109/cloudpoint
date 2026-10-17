@@ -1,10 +1,11 @@
+use std::cmp::Ordering;
+
 use crate::{
     app::{AppError, AppState},
     hex_u128::HexU128,
     postcard::Postcard,
     services::{chunk, version},
 };
-use anyhow::anyhow;
 use axum::{
     Json,
     body::Bytes,
@@ -15,8 +16,8 @@ use axum::{
     },
     response::IntoResponse,
 };
-use cloudpoint_lib::preflight::Connect;
-use tracing::{debug, warn};
+use cloudpoint_lib::preflight::Update;
+use tracing::warn;
 use uuid::Uuid;
 
 pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppError> {
@@ -43,21 +44,25 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
 
     let server_ver = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
 
-    let connect = match app_ver.major.cmp(&server_ver.major) {
-        std::cmp::Ordering::Less => Connect::ClientUpdate {
-            to_version: todo!(),
-            url: todo!(),
+    let res = match app_ver.major.cmp(&server_ver.major) {
+        Ordering::Less => Postcard(Update::Client {
+            to_version: app_ver,
+            url: String::default(),
             required: true,
-        },
-        std::cmp::Ordering::Greater => Connect::ServerUpdate {
-            to_version: todo!(),
+        })
+        .into_response(),
+
+        Ordering::Greater => Postcard(Update::Server {
+            to_version: server_ver,
             required: true,
-        },
-        std::cmp::Ordering::Equal => Connect::Ready,
+        })
+        .into_response(),
+
+        Ordering::Equal => StatusCode::OK.into_response(),
         // TODO! offer optional updates
     };
 
-    Ok(Postcard(connect).into_response())
+    Ok(res)
 }
 
 pub async fn chunk_head(

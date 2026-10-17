@@ -3,7 +3,10 @@ use crate::{
     link::{LinkState, SharePermission},
 };
 use chrono::{DateTime, Utc};
-use cloudpoint_lib::sync::{SyncItem, SyncState};
+use cloudpoint_lib::{
+    preflight::Update,
+    sync::{SyncItem, SyncState},
+};
 use std::{
     collections::HashMap,
     sync::{mpsc::Sender, oneshot},
@@ -20,6 +23,7 @@ pub enum TaskMsg {
 
 pub enum OpenModalMsg {
     Connect,
+    Updater(Update),
     Refresh,
     ResolveConflict {
         title_label: String,

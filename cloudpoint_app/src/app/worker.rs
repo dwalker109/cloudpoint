@@ -1,6 +1,8 @@
 use super::*;
-use crate::{db, link, sync};
+use crate::{config::IS_HBL, db, link, sync};
 use anyhow::{Result, bail};
+use cloudpoint_lib::preflight::Update;
+use ctru_sys::envIsHomebrew;
 use itertools::Itertools;
 use std::{
     sync::mpsc::{self, Receiver, Sender},
@@ -15,7 +17,7 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
+    let update = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
 
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
 
@@ -26,6 +28,20 @@ pub fn worker_thread(
             qty_auto: state_db.qty_auto(),
         })
         .ok();
+
+    match update {
+        _ if *IS_HBL => log::info!("launched via hbl, skipping update checks"),
+        None => log::info!("no updates available"),
+        Some(Update::Client {
+            to_version,
+            required,
+            url,
+        }) => todo!(),
+        Some(Update::Server {
+            to_version,
+            required,
+        }) => todo!(),
+    }
 
     loop {
         match task_rx.recv() {
