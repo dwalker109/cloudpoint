@@ -14,7 +14,7 @@ impl SyncScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
         Self {
             task_tx,
-            status_text: String::with_capacity(256),
+            status_text: "0 items enabled across 0 titles".into(),
         }
     }
 }
