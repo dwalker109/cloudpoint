@@ -44,7 +44,6 @@ pub fn connect(
 ) -> Result<Connect> {
     log::info!("connecting to server");
     modal_tx.send(OpenModalMsg::Connect).ok();
-    std::sync::LazyLock::force(&crate::title::SD_APP_TITLES);
 
     let ac = Ac::new()?;
     let timeout = Instant::now();

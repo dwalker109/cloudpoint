@@ -14,6 +14,7 @@ pub use msg::*;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, Sender, channel},
+    thread::JoinHandle,
 };
 pub use worker::worker_thread;
 
@@ -31,6 +32,7 @@ pub struct App {
 }
 
 impl App {
+    /// Set up comms channels, start the worker and enter the libctru main_loop.
     pub fn run() -> Result<()> {
         let apt = Apt::new()?;
         let mut hid = Hid::new()?;
@@ -68,7 +70,7 @@ impl App {
         let mut render = Render::new();
         let mut cmd_buffer = Vec::with_capacity(8);
 
-        log::info!("entering main_loop");
+        log::debug!("entering main_loop");
 
         'main: while apt.main_loop() {
             hid.scan_input();
@@ -161,17 +163,27 @@ impl App {
             );
         }
 
-        log::info!("main_loop shutting down");
+        log::debug!("exited main_loop");
 
-        // Dropping the app is important since it:
-        // * drops modals (causing reply_tx channels to close, causing the blocked reply_rx channels to error and exit)
-        // * drops task_tx (allowing running worker task to finish, but causes error the next time task_rx is polled, exiting cleanly)
-        //
-        // All of this means that the handle will join when asked, allowing a clean shutdown instead of just killing the
-        // worker at a potentially bad point (like halfway through a file write).
-        drop(app);
-        handle.join().expect("worker thread should join on exit");
+        Self::shutdown(app, handle);
 
         Ok(())
+    }
+
+    /// Controlled shutdown of the app once the libctru main_loop has exited.
+    /// App is dropped, which leads to desirable channel closure when owned
+    /// items drop too:
+    ///
+    /// - `modal_stack` (causing reply_tx channels to close, causing the blocked
+    /// reply_rx channels to disconnect and exit)
+    /// - `_task_tx` (allowing any running worker task to finish, but signals
+    /// a disconnect on next poll of task_rx, exiting cleanly).
+    ///
+    /// All of this means that the handle will then join when asked, allowing
+    /// a clean shutdown instead of just killing the worker at a potentially
+    /// bad point (like halfway through a file write).
+    fn shutdown(app: App, handle: JoinHandle<()>) {
+        drop(app);
+        handle.join().expect("worker thread should join on exit");
     }
 }
