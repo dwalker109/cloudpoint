@@ -16,7 +16,7 @@ use chunktree::{
 use cloudpoint_lib::{
     ctr::CtrMeta,
     http::CurlHttpClient,
-    preflight::Connect,
+    preflight::Update,
     store::HttpStore,
     sync::{SyncAction, SyncState},
     version::{RemoteVersionMeta, get_version, put_version},
@@ -41,7 +41,7 @@ pub fn connect(
     shutdown_rx: &Receiver<()>,
     ui_tx: &Sender<UiMsg>,
     modal_tx: &Sender<OpenModalMsg>,
-) -> Result<Connect> {
+) -> Result<Option<Update>> {
     log::info!("connecting to server");
     modal_tx.send(OpenModalMsg::Connect).ok();
 
@@ -76,8 +76,11 @@ pub fn connect(
                 );
                 ui_tx.send(UiMsg::ConnectDone).ok();
 
-                // Ok(postcard::from_bytes(&res.body)?)
-                Ok(Connect::Ready)
+                if res.body.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(postcard::from_bytes(&res.body)?))
+                }
             }
             Ok(res) => {
                 ui_tx
@@ -87,7 +90,7 @@ pub fn connect(
                     .ok();
 
                 bail!(
-                    "connected to server but received status code {}, took {} seconds",
+                    "connected to server but received status code {}, took {} seconds, cannot proceed",
                     res.status,
                     timeout.elapsed().as_secs()
                 );

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use ctru_sys::envIsHomebrew;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -11,6 +12,8 @@ use uuid::Uuid;
 pub static APP_VER: LazyLock<semver::Version> = LazyLock::new(|| {
     semver::Version::parse(env!("APP_VER")).expect("app version should be valid semver")
 });
+
+pub static IS_HBL: LazyLock<bool> = LazyLock::new(|| unsafe { envIsHomebrew() });
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
