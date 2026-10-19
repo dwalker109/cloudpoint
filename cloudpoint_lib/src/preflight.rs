@@ -13,3 +13,13 @@ pub struct Update {
     pub url: String,
     pub required: bool,
 }
+
+impl Default for Connect {
+    fn default() -> Self {
+        Self {
+            srv_ver: semver::Version::new(0, 0, 0),
+            app_update: None,
+            srv_update: None,
+        }
+    }
+}
