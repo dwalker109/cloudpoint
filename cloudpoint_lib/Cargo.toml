@@ -5,7 +5,6 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
-itertools = { workspace = true }
 curl-sys = { workspace = true }
 libc = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
