@@ -4,7 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use cloudpoint_lib::{
-    preflight::Update,
+    preflight::{ClientUpdate, ServerUpdate},
     sync::{SyncItem, SyncState},
 };
 use std::{

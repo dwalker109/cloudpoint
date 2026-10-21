@@ -1,8 +1,7 @@
 use super::*;
 use crate::{config::IS_HBL, db, link, sync};
 use anyhow::{Result, bail};
-use cloudpoint_lib::preflight::Update;
-use ctru_sys::envIsHomebrew;
+use cloudpoint_lib::preflight::{ClientUpdate, ServerUpdate};
 use itertools::Itertools;
 use std::{
     sync::mpsc::{self, Receiver, Sender},

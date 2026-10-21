@@ -1,20 +1,13 @@
-use cloudpoint_lib::preflight::Update;
-
 use super::*;
 use crate::screens::shared::{dialog_lower, dialog_upper, modal_spinner};
-
-pub enum ConnectStatus {
-    Running,
-    Delayed,
-    Failed(String),
-}
+use cloudpoint_lib::preflight::ClientUpdate;
 
 pub struct UpdaterModalScreen {
-    update: Update,
+    update: ClientUpdate,
 }
 
 impl UpdaterModalScreen {
-    pub fn new(update: Update) -> Self {
+    pub fn new(update: ClientUpdate) -> Self {
         Self { update }
     }
 }
@@ -23,24 +16,13 @@ impl Screen for UpdaterModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
 
-        let message_1 = match self.update {
-            Update::Client { to_version, .. } => {
-                format!("Application version {to_version} is available to install")
-            }
-            Update::Server { to_version, .. } => {
-                format!("Server version {to_version} is available to install")
-            }
-        };
-
-        let message_2 = match self.update {
-            Update::Client { required, .. } => match required {
-                true => "You must install this update to continue",
-                false => "You may skip this update if you want to",
-            },
-            Update::Server { required, .. } => match required {
-                true => "Please update your server and try again",
-                false => "We recommend you update your server when convenient",
-            },
+        let message_1 = format!(
+            "Application version {} is available to install",
+            self.update.version
+        );
+        let message_2 = match self.update.required {
+            true => "You must install this update to continue",
+            false => "You may skip this update if you want to",
         };
 
         ctx.text_centered(0.0, 105.0, TOP_W, 0.6, BLACK, &message_1);

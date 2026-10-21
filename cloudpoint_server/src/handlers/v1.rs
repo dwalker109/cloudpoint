@@ -16,7 +16,7 @@ use axum::{
     },
     response::IntoResponse,
 };
-use cloudpoint_lib::preflight::Update;
+use cloudpoint_lib::preflight::Connect;
 use tracing::warn;
 use uuid::Uuid;
 
