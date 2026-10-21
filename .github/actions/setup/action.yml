@@ -16,6 +16,13 @@ runs:
       shell: bash
       run: apt-get update && apt-get install -y openssh-client
 
+    - name: Trust GitHub SSH host keys
+      shell: bash
+      run: |
+        mkdir -p /etc/ssh
+        ssh-keyscan -t ed25519,ecdsa,rsa github.com >> /etc/ssh/ssh_known_hosts
+        ssh-keygen -lf /etc/ssh/ssh_known_hosts
+
     - name: Set up SSH for private deps
       if: ${{ inputs.ssh-private-key != '' }}
       uses: webfactory/ssh-agent@v0.9.0
