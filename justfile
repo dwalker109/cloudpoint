@@ -97,6 +97,12 @@ pack-img:
         -o src/gfx/img/bindings.rs
     sed -i 's/img_\([a-z_]*\)_idx/IMG_\U\1/g' src/gfx/img/bindings.rs
 
+[working-directory('cloudpoint_app/romfs')]
+update-cacert:
+    curl --remote-name https://curl.se/ca/cacert.pem \
+        --etag-compare cacert.etag.txt \
+        --etag-save cacert.etag.txt
+
 docker-release-server:
     #!/usr/bin/env bash
     set -euo pipefail
