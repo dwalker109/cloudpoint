@@ -13,8 +13,8 @@ impl SyncModalScreen {
         Self {
             task_running: true,
             progress: 0,
-            upper_1: String::new(),
-            upper_2: String::new(),
+            upper_1: "Getting ready".into(),
+            upper_2: "Please wait".into(),
         }
     }
 }
