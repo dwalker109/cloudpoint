@@ -26,6 +26,7 @@ pub const GREY: u32 = 0xFFCCCCCC;
 pub const DARK_GREY: u32 = 0xFF888888;
 pub const ACCENT: u32 = 0xFFF986DB;
 pub const ACCENT_TRANS: u32 = 0xAAF986DB;
+pub const ATTENTION: u32 = 0xFF0000FF;
 
 pub struct Render {
     upper_screen: *mut C3D_RenderTarget,

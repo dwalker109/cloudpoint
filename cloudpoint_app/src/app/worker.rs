@@ -1,7 +1,6 @@
 use super::*;
 use crate::{config::IS_HBL, db, link, sync};
 use anyhow::{Result, bail};
-use cloudpoint_lib::preflight::{ClientUpdate, ServerUpdate};
 use itertools::Itertools;
 use std::{
     sync::mpsc::{self, Receiver, Sender},
@@ -16,7 +15,7 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    let update = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
+    let connect = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
 
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
 
@@ -25,22 +24,9 @@ pub fn worker_thread(
             titles: title_db.titles_sorted_vec(),
             sync_states: state_db.states_hashmap(),
             qty_auto: state_db.qty_auto(),
+            connect: connect.clone(),
         })
         .ok();
-
-    match update {
-        _ if *IS_HBL => log::info!("launched via hbl, skipping update checks"),
-        None => log::info!("no updates available"),
-        Some(Update::Client {
-            to_version,
-            required,
-            url,
-        }) => todo!(),
-        Some(Update::Server {
-            to_version,
-            required,
-        }) => todo!(),
-    }
 
     loop {
         match task_rx.recv() {
@@ -53,6 +39,7 @@ pub fn worker_thread(
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
+                        connect: connect.clone(),
                     })
                     .ok();
                 title_db.commit().expect(COMMIT_MSG);
@@ -65,6 +52,7 @@ pub fn worker_thread(
                         titles: title_db.titles_sorted_vec(),
                         sync_states: state_db.states_hashmap(),
                         qty_auto: state_db.qty_auto(),
+                        connect: connect.clone(),
                     })
                     .ok();
                 state_db.commit().expect(COMMIT_MSG);

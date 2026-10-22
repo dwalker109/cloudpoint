@@ -1,20 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Connect {
     pub srv_ver: semver::Version,
     pub app_update: Option<ClientUpdate>,
     pub srv_update: Option<ServerUpdate>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ClientUpdate {
     pub version: semver::Version,
     pub url: String,
     pub required: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ServerUpdate {
     pub version: semver::Version,
     pub url: String,

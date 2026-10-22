@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use crate::{
     app::{AppError, AppState},
     hex_u128::HexU128,
@@ -16,7 +14,8 @@ use axum::{
     },
     response::IntoResponse,
 };
-use cloudpoint_lib::preflight::Connect;
+use cloudpoint_lib::preflight::{ClientUpdate, Connect, ServerUpdate};
+use semver::Version as SemVer;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -36,22 +35,29 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Ok(app_version) = semver::Version::parse(ver) else {
+    let Ok(_app_version) = SemVer::parse(ver) else {
         warn!(ver, "malformed client app_ver in User-Agent header");
 
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let app_version_msv = semver::Version::new(0, 1, 0);
-    let srv_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
+    // let app_version_msv = semver::Version::new(0, 1, 0);
+    // let srv_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
 
-    let app_update = match app_version.cmp(&app_version_msv) {
-        Ordering::Less => todo!(),
-        Ordering::Equal => todo!(),
-        Ordering::Greater => todo!(),
-    };
-
-    Ok(res)
+    Ok(Postcard(Connect {
+        srv_ver: SemVer::parse(env!("CARGO_PKG_VERSION"))?,
+        app_update: Some(ClientUpdate {
+            version: SemVer::new(0, 10, 0),
+            url: "https://github.com/dwalker109/blah".into(),
+            required: false,
+        }),
+        srv_update: Some(ServerUpdate {
+            version: SemVer::new(1, 2, 3),
+            url: "whatever".to_string(),
+            required: false,
+        }),
+    })
+    .into_response())
 }
 
 pub async fn chunk_head(

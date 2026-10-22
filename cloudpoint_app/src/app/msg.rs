@@ -4,7 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use cloudpoint_lib::{
-    preflight::{ClientUpdate, ServerUpdate},
+    preflight::{ClientUpdate, Connect, ServerUpdate},
     sync::{SyncItem, SyncState},
 };
 use std::{
@@ -23,7 +23,6 @@ pub enum TaskMsg {
 
 pub enum OpenModalMsg {
     Connect,
-    Updater(Update),
     Refresh,
     ResolveConflict {
         title_label: String,
@@ -67,6 +66,7 @@ pub enum UiMsg {
         titles: Vec<TitleDetails>,
         sync_states: HashMap<SyncItem, SyncState>,
         qty_auto: usize,
+        connect: Connect,
     },
     LinkHostConfirm {
         friend_code: String,

@@ -11,7 +11,7 @@ pub use shutdown_modal::ShutdownModalScreen;
 pub use sync::SyncScreen;
 pub use sync_modal::SyncModalScreen;
 pub use titles::TitlesScreen;
-pub use updater_modal::UpdaterModalScreen;
+// pub use updater_modal::UpdaterModalScreen;
 
 mod conflict_modal;
 mod connect_modal;
