@@ -1,4 +1,4 @@
-use crate::app::AppState;
+use crate::{app::AppState, services::app_update::AppUpdater};
 use clap::Parser;
 use dialoguer::Confirm;
 use sqlx::postgres::PgPoolOptions;
@@ -63,7 +63,14 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Serve => {
             let listener = tokio::net::TcpListener::bind("0.0.0.0:6776").await?;
-            axum::serve(listener, app::make(AppState { db_pool })).await?;
+            axum::serve(
+                listener,
+                app::make(AppState {
+                    db_pool,
+                    app_updater: AppUpdater::new(),
+                }),
+            )
+            .await?;
         }
     }
 

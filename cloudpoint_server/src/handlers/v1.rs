@@ -19,7 +19,10 @@ use semver::Version as SemVer;
 use tracing::warn;
 use uuid::Uuid;
 
-pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppError> {
+pub async fn preflight_get(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
     let Some(ua) = headers.get("User-Agent") else {
         warn!(headers = format!("{headers:?}"), "no User-Agent header");
 
@@ -41,16 +44,9 @@ pub async fn preflight_get(headers: HeaderMap) -> Result<impl IntoResponse, AppE
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    // let app_version_msv = semver::Version::new(0, 1, 0);
-    // let srv_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
-
     Ok(Postcard(Connect {
         srv_ver: SemVer::parse(env!("CARGO_PKG_VERSION"))?,
-        app_update: Some(ClientUpdate {
-            version: SemVer::new(0, 10, 0),
-            url: "https://github.com/dwalker109/blah".into(),
-            required: false,
-        }),
+        app_update: state.app_updater.get().await,
         srv_update: Some(ServerUpdate {
             version: SemVer::new(1, 2, 3),
             url: "whatever".to_string(),
