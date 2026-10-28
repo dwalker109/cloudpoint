@@ -15,6 +15,8 @@ impl RefreshModalScreen {
     }
 }
 
+impl ModalScreen for RefreshModalScreen {}
+
 impl Screen for RefreshModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -36,9 +38,7 @@ impl Screen for RefreshModalScreen {
             ACCENT,
         );
     }
-}
 
-impl ModalScreen for RefreshModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::RefreshProgress { message, progress } => {
@@ -51,10 +51,6 @@ impl ModalScreen for RefreshModalScreen {
             _ => {}
         }
 
-        ScreenCommand::Noop
-    }
-
-    fn handle_input(&mut self, _keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
         ScreenCommand::Noop
     }
 }

@@ -31,6 +31,8 @@ impl ConflictModalScreen {
     }
 }
 
+impl ModalScreen for ConflictModalScreen {}
+
 impl Screen for ConflictModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -115,9 +117,7 @@ impl Screen for ConflictModalScreen {
             "Skip & decide next time",
         );
     }
-}
 
-impl ModalScreen for ConflictModalScreen {
     fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
         ScreenCommand::Noop
     }
