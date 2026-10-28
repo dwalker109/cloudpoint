@@ -13,7 +13,7 @@ pub static APP_VER: LazyLock<semver::Version> = LazyLock::new(|| {
     semver::Version::parse(env!("APP_VER")).expect("app version should be valid semver")
 });
 
-pub static IS_3DSX: LazyLock<bool> = LazyLock::new(|| unsafe { envIsHomebrew() });
+pub static RUNNING_VIA_HBL: LazyLock<bool> = LazyLock::new(|| unsafe { envIsHomebrew() });
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {

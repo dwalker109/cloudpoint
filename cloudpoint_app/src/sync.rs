@@ -1,6 +1,6 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
-    config::{APP_VER, AppPath, IS_3DSX, USER_KEY, USER_SETTINGS},
+    config::{APP_VER, AppPath, USER_KEY, USER_SETTINGS},
     ctr_fs::{CtrArchive, CtrLeaf},
     db::{InstallHistoryDb, InstallStatus, TitleDb},
     ndmu::KeepAwake,
@@ -37,13 +37,8 @@ use std::{
 static HTTP_CLIENT: LazyLock<CurlHttpClient> =
     LazyLock::new(|| CurlHttpClient::new(&*APP_VER).expect("should init shared libcurl client"));
 
-pub fn connect(
-    shutdown_rx: &Receiver<()>,
-    ui_tx: &Sender<UiMsg>,
-    modal_tx: &Sender<OpenModalMsg>,
-) -> Result<Connect> {
+pub fn connect(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Connect> {
     log::info!("connecting to server");
-    modal_tx.send(OpenModalMsg::Connect).ok();
 
     let ac = Ac::new()?;
     let timeout = Instant::now();
@@ -74,15 +69,8 @@ pub fn connect(
                     "connected to server, took {} seconds",
                     timeout.elapsed().as_secs()
                 );
-                ui_tx.send(UiMsg::ConnectDone).ok();
 
-                if *IS_3DSX {
-                    log::info!("running from .3dsx, no updates will be signalled");
-                    Ok(Connect::default())
-                } else {
-                    log::info!("installed via .cia, updates will be signalled if available");
-                    Ok(postcard::from_bytes(&res.body).unwrap_or_default())
-                }
+                Ok(postcard::from_bytes(&res.body).unwrap_or_default())
             }
             Ok(res) => {
                 ui_tx

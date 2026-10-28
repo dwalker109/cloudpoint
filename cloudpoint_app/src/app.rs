@@ -1,9 +1,9 @@
 use crate::{
     gfx::Render,
     screens::{
-        BaseScreen, ConflictModalScreen, ConnectModalScreen, ErrorModalScreen,
-        LinkClientModalScreen, LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen,
-        ScreenCommand, ScreenId, ShutdownModalScreen, SyncScreen, TitlesScreen, UpdaterModalScreen,
+        BaseScreen, ConflictModalScreen, ConnectScreen, ErrorModalScreen, LinkClientModalScreen,
+        LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
+        ShutdownModalScreen, SyncScreen, TitlesScreen, UpdaterModalScreen,
     },
     setup,
 };
@@ -47,6 +47,10 @@ impl App {
         let mut app = App {
             screens: HashMap::from([
                 (
+                    ScreenId::Connect,
+                    Box::new(ConnectScreen::new()) as Box<dyn BaseScreen>,
+                ),
+                (
                     ScreenId::Sync,
                     Box::new(SyncScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
@@ -59,8 +63,8 @@ impl App {
                     Box::new(LinkScreen::new(task_tx.clone())) as Box<dyn BaseScreen>,
                 ),
             ]),
-            active_screen: ScreenId::Sync,
-            modal_stack: Vec::with_capacity(4),
+            active_screen: ScreenId::Connect,
+            modal_stack: Vec::with_capacity(8),
             task_tx,
             _shutdown_tx: shutdown_tx,
             ui_rx,
@@ -125,9 +129,6 @@ impl App {
 
             if let Ok(msg) = app.modal_rx.try_recv() {
                 match msg {
-                    OpenModalMsg::Connect => {
-                        app.modal_stack.push(Box::new(ConnectModalScreen::new()));
-                    }
                     OpenModalMsg::Refresh => {
                         app.modal_stack.push(Box::new(RefreshModalScreen::new()));
                     }

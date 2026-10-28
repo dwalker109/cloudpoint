@@ -10,6 +10,11 @@ pub fn header(ctx: &DrawContext, cur_screen: ScreenId) {
     ctx.img(IMG_LINK, 178.0 + 64.0, 0.0, 1.0);
 
     match cur_screen {
+        ScreenId::Connect => {
+            ctx.rect(178.0 - 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
+            ctx.rect(178.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
+            ctx.rect(178.0 + 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
+        }
         ScreenId::Titles => {
             ctx.rect(178.0, 0.0, 32.0, 32.0, ACCENT_TRANS);
             ctx.rect(178.0 + 64.0, 0.0, 32.0, 32.0, ACCENT_TRANS);

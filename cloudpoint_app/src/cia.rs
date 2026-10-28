@@ -28,9 +28,10 @@ struct SelfUpdate<'a>(&'a [u8], Handle);
 
 impl<'a> SelfUpdate<'a> {
     pub fn install(data: &[u8]) -> Result<()> {
-        let su = SelfUpdate(data, ffi::start_cia_install()?);
+        let mut su = SelfUpdate(data, ffi::start_cia_install()?);
         ffi::write_cia_install(su.0, su.1)?;
         ffi::finish_cia_install(su.1)?;
+        su.1 = 0;
 
         Ok(())
     }
@@ -39,6 +40,7 @@ impl<'a> SelfUpdate<'a> {
 impl<'a> Drop for SelfUpdate<'a> {
     fn drop(&mut self) {
         if self.1 != 0 {
+            log::debug!("CIA install dropped with a held file handle");
             ffi::cancel_cia_install(self.1);
         }
     }
@@ -53,6 +55,8 @@ mod ffi {
     use std::os::raw::c_void;
 
     pub(super) fn start_cia_install() -> Result<Handle> {
+        log::debug!("starting CIA install for self update");
+
         let mut h: Handle = 0;
         let res = unsafe { AM_StartCiaInstall(MEDIATYPE_SD, &mut h) };
 
@@ -64,6 +68,11 @@ mod ffi {
     }
 
     pub(super) fn write_cia_install(cia: &[u8], h: Handle) -> Result<()> {
+        log::debug!(
+            "writing {} bytes for CIA install via file handle {h}",
+            cia.len()
+        );
+
         let mut bytes_written = 0;
         let res = unsafe {
             FSFILE_Write(
@@ -84,6 +93,8 @@ mod ffi {
     }
 
     pub(super) fn finish_cia_install(h: Handle) -> Result<()> {
+        log::debug!("finishing/committing CIA install via file handle {h}");
+
         let res = unsafe { AM_FinishCiaInstall(h) };
 
         if R_FAILED(res) {
@@ -94,6 +105,8 @@ mod ffi {
     }
 
     pub(super) fn cancel_cia_install(h: Handle) {
+        log::debug!("cancelling CIA install via file handle {h}");
+
         let res = unsafe { AM_CancelCIAInstall(h) };
 
         if R_FAILED(res) {
