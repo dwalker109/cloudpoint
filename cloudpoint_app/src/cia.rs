@@ -1,40 +1,47 @@
 use crate::config::APP_VER;
 use anyhow::{Result, bail};
 use cloudpoint_lib::{http::CurlHttpClient, preflight::ClientUpdate};
+use ctru_sys::Handle;
 use sha2::Digest;
 
 pub fn self_update(update: &ClientUpdate) -> Result<()> {
-    let cia = CurlHttpClient::new(&*APP_VER)?.get(&update.url, &[])?;
+    let req = CurlHttpClient::new(&*APP_VER)?.get(&update.url, &[])?;
 
-    if cia.status != 200 {
+    if req.status != 200 {
         bail!("could not download CIA file");
     }
 
     let su_sha256 = hex::decode(update.digest.strip_prefix("sha256:").unwrap_or_default())?;
 
     let mut hasher = sha2::Sha256::new();
-    hasher.update(&cia.body);
+    hasher.update(&req.body);
     let dl_sha256 = hasher.finalize();
 
     if su_sha256.as_slice() != dl_sha256.as_slice() {
         bail!("downloaded CIA is invalid");
     }
 
-    let handle = ffi::start_cia_install()?;
+    SelfUpdate::install(&req.body)
+}
 
-    if let Err(e) = ffi::write_cia_install(&cia.body, handle) {
-        ffi::cancel_cia_install(handle);
+struct SelfUpdate<'a>(&'a [u8], Handle);
 
-        return Err(e);
+impl<'a> SelfUpdate<'a> {
+    pub fn install(data: &[u8]) -> Result<()> {
+        let su = SelfUpdate(data, ffi::start_cia_install()?);
+        ffi::write_cia_install(su.0, su.1)?;
+        ffi::finish_cia_install(su.1)?;
+
+        Ok(())
     }
+}
 
-    if let Err(e) = ffi::finish_cia_install(handle) {
-        ffi::cancel_cia_install(handle);
-
-        return Err(e);
+impl<'a> Drop for SelfUpdate<'a> {
+    fn drop(&mut self) {
+        if self.1 != 0 {
+            ffi::cancel_cia_install(self.1);
+        }
     }
-
-    Ok(())
 }
 
 mod ffi {
