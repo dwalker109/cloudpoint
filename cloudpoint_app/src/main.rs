@@ -5,18 +5,17 @@ mod app;
 mod app_logger;
 mod cfgi;
 mod cfgu;
-mod cia;
 mod config;
 mod ctr_fs;
 mod db;
 mod gfx;
 mod link;
 mod ndmu;
+mod net;
 mod nwm;
 mod pxi;
 mod screens;
 mod setup;
-mod sync;
 mod title;
 
 fn main() -> anyhow::Result<()> {
