@@ -11,6 +11,14 @@ pub fn self_update(update: &ClientUpdate) -> Result<()> {
         bail!("could not download CIA file");
     }
 
+    if req.body.len() != update.size {
+        bail!(
+            "downloaded CIA is the wrong size ({} received, expected {})",
+            req.body.len(),
+            update.size
+        );
+    }
+
     let su_sha256 = hex::decode(update.digest.strip_prefix("sha256:").unwrap_or_default())?;
 
     let mut hasher = sha2::Sha256::new();

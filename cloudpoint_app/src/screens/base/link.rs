@@ -15,6 +15,12 @@ impl LinkScreen {
     }
 }
 
+impl BaseScreen for LinkScreen {
+    fn id(&self) -> ScreenId {
+        ScreenId::Link
+    }
+}
+
 impl Screen for LinkScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         super::shared::header(ctx, self.id());
@@ -71,16 +77,6 @@ impl Screen for LinkScreen {
         );
 
         ctx.img(IMG_HELP_QR, 70.0, 60.0, 0.75);
-    }
-}
-
-impl BaseScreen for LinkScreen {
-    fn id(&self) -> ScreenId {
-        ScreenId::Link
-    }
-
-    fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
-        ScreenCommand::Noop
     }
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {

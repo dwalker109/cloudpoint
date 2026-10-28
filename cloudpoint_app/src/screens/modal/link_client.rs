@@ -27,6 +27,8 @@ impl LinkClientModalScreen {
     }
 }
 
+impl ModalScreen for LinkClientModalScreen {}
+
 impl Screen for LinkClientModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -79,9 +81,7 @@ impl Screen for LinkClientModalScreen {
             LinkState::WaitingHost(..) => unreachable!(),
         }
     }
-}
 
-impl ModalScreen for LinkClientModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::LinkClientConfirm {

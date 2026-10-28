@@ -40,17 +40,19 @@ pub async fn preflight_get(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Ok(app_version) = SemVer::parse(ver) else {
-        warn!(ver, "malformed client app_ver in User-Agent header");
+    let Ok(client_app_ver) = SemVer::parse(ver) else {
+        warn!(ver, "malformed client_app_ver in User-Agent header");
 
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let app_update = state.app_updater.get().await.map(|mut u| {
-        u.required = app_version < MIN_APP_VER;
-
-        u
-    });
+    let app_update = match state.app_updater.get().await {
+        Some(mut u) if u.version > client_app_ver => {
+            u.required = client_app_ver < MIN_APP_VER;
+            Some(u)
+        }
+        _ => None,
+    };
 
     Ok(Postcard(Connect {
         srv_ver: SemVer::parse(env!("CARGO_PKG_VERSION"))?,

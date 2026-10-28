@@ -19,6 +19,8 @@ impl SyncModalScreen {
     }
 }
 
+impl ModalScreen for SyncModalScreen {}
+
 impl Screen for SyncModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -56,9 +58,7 @@ impl Screen for SyncModalScreen {
             ctx.text_centered(0.0, 110.0, BOT_W, 0.6, ACCENT, "\u{E000} Continue");
         }
     }
-}
 
-impl ModalScreen for SyncModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::SyncProgress {

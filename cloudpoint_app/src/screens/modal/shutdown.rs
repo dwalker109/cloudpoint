@@ -10,6 +10,8 @@ impl ShutdownModalScreen {
     }
 }
 
+impl ModalScreen for ShutdownModalScreen {}
+
 impl Screen for ShutdownModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -28,15 +30,5 @@ impl Screen for ShutdownModalScreen {
             ACCENT,
             "Please do not touch \u{E078}",
         );
-    }
-}
-
-impl ModalScreen for ShutdownModalScreen {
-    fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
-        ScreenCommand::Noop
-    }
-
-    fn handle_input(&mut self, _keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
-        ScreenCommand::Noop
     }
 }

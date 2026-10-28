@@ -3,7 +3,7 @@ use crate::{
     screens::{
         BaseScreen, ConflictModalScreen, ConnectScreen, ErrorModalScreen, LinkClientModalScreen,
         LinkHostModalScreen, LinkScreen, ModalScreen, RefreshModalScreen, ScreenCommand, ScreenId,
-        ShutdownModalScreen, SyncScreen, TitlesScreen, UpdaterModalScreen,
+        ShutdownModalScreen, SyncScreen, TitlesScreen, UpdateModalScreen,
     },
     setup,
 };
@@ -156,7 +156,7 @@ impl App {
                         .modal_stack
                         .push(Box::new(LinkClientModalScreen::new(fc, quit_tx))),
                     OpenModalMsg::SelfUpdate(client_update) => app.modal_stack.push(Box::new(
-                        UpdaterModalScreen::new(app.task_tx.clone(), client_update),
+                        UpdateModalScreen::new(app.task_tx.clone(), client_update),
                     )),
                 }
             }

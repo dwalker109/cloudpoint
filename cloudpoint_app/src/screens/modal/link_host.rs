@@ -23,6 +23,8 @@ impl LinkHostModalScreen {
     }
 }
 
+impl ModalScreen for LinkHostModalScreen {}
+
 impl Screen for LinkHostModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -78,9 +80,7 @@ impl Screen for LinkHostModalScreen {
             }
         }
     }
-}
 
-impl ModalScreen for LinkHostModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::LinkHostConfirm {

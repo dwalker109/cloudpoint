@@ -22,6 +22,12 @@ impl SyncScreen {
     }
 }
 
+impl BaseScreen for SyncScreen {
+    fn id(&self) -> ScreenId {
+        ScreenId::Sync
+    }
+}
+
 impl Screen for SyncScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         super::shared::header(ctx, self.id());
@@ -60,12 +66,6 @@ impl Screen for SyncScreen {
         ctx.rect(0.0, 0.0, BOT_W, BOT_H, ACCENT);
         ctx.text_centered(0.0, 90.0, BOT_W, 0.9, WHITE, "\u{E000} Auto Sync");
         ctx.text_centered(0.0, 130.0, BOT_W, 0.9, WHITE, "\u{E002} Refresh");
-    }
-}
-
-impl BaseScreen for SyncScreen {
-    fn id(&self) -> ScreenId {
-        ScreenId::Sync
     }
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {

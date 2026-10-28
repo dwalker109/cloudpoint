@@ -18,6 +18,8 @@ impl ErrorModalScreen {
     }
 }
 
+impl ModalScreen for ErrorModalScreen {}
+
 impl Screen for ErrorModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
@@ -30,12 +32,6 @@ impl Screen for ErrorModalScreen {
         dialog_lower(ctx);
 
         ctx.text_centered(0.0, 110.0, BOT_W, 0.7, ACCENT, &"\u{E000} Continue");
-    }
-}
-
-impl ModalScreen for ErrorModalScreen {
-    fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
-        ScreenCommand::Noop
     }
 
     fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {

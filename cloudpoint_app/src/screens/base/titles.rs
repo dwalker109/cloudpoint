@@ -12,6 +12,8 @@ pub struct TitlesScreen {
     show_from: usize,
 }
 
+const PAGE_SIZE: usize = 12;
+
 impl TitlesScreen {
     pub fn new(task_tx: Sender<TaskMsg>) -> Self {
         Self {
@@ -34,9 +36,21 @@ impl TitlesScreen {
     fn max_idx(&self) -> usize {
         self.titles.len().saturating_sub(1)
     }
+
+    fn clamp_viewport(&mut self) {
+        if self.selected_idx < self.show_from {
+            self.show_from = self.selected_idx;
+        } else if self.selected_idx >= self.show_from + PAGE_SIZE {
+            self.show_from = self.selected_idx + 1 - PAGE_SIZE;
+        }
+    }
 }
 
-const PAGE_SIZE: usize = 12;
+impl BaseScreen for TitlesScreen {
+    fn id(&self) -> ScreenId {
+        ScreenId::Titles
+    }
+}
 
 impl Screen for TitlesScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
@@ -139,12 +153,6 @@ impl Screen for TitlesScreen {
             "\u{E003} Toggle auto sync for this title".into(),
         );
     }
-}
-
-impl BaseScreen for TitlesScreen {
-    fn id(&self) -> ScreenId {
-        ScreenId::Titles
-    }
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
@@ -200,15 +208,5 @@ impl BaseScreen for TitlesScreen {
         self.clamp_viewport();
 
         ScreenCommand::Noop
-    }
-}
-
-impl TitlesScreen {
-    fn clamp_viewport(&mut self) {
-        if self.selected_idx < self.show_from {
-            self.show_from = self.selected_idx;
-        } else if self.selected_idx >= self.show_from + PAGE_SIZE {
-            self.show_from = self.selected_idx + 1 - PAGE_SIZE;
-        }
     }
 }

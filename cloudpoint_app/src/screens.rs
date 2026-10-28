@@ -1,31 +1,43 @@
 use crate::{app::UiMsg, gfx::*};
-pub use conflict_modal::ConflictModalScreen;
-pub use connect::ConnectScreen;
 use ctru::prelude::KeyPad;
-pub use error_modal::ErrorModalScreen;
-pub use link::LinkScreen;
-pub use link_client_modal::LinkClientModalScreen;
-pub use link_host_modal::LinkHostModalScreen;
-pub use refresh_modal::RefreshModalScreen;
-pub use shutdown_modal::ShutdownModalScreen;
-pub use sync::SyncScreen;
-pub use sync_modal::SyncModalScreen;
-pub use titles::TitlesScreen;
-pub use updater_modal::UpdaterModalScreen;
 
-mod conflict_modal;
-mod connect;
-mod error_modal;
-mod link;
-mod link_client_modal;
-mod link_host_modal;
-mod refresh_modal;
+pub use base::connect::ConnectScreen;
+pub use base::link::LinkScreen;
+pub use base::sync::SyncScreen;
+pub use base::titles::TitlesScreen;
+
+pub use modal::conflict::ConflictModalScreen;
+pub use modal::error::ErrorModalScreen;
+pub use modal::link_client::LinkClientModalScreen;
+pub use modal::link_host::LinkHostModalScreen;
+pub use modal::refresh::RefreshModalScreen;
+pub use modal::shutdown::ShutdownModalScreen;
+pub use modal::sync::SyncModalScreen;
+pub use modal::update::UpdateModalScreen;
+
+mod base {
+    use super::*;
+
+    pub(super) mod connect;
+    pub(super) mod link;
+    pub(super) mod sync;
+    pub(super) mod titles;
+}
+
+mod modal {
+    use super::*;
+
+    pub(super) mod conflict;
+    pub(super) mod error;
+    pub(super) mod link_client;
+    pub(super) mod link_host;
+    pub(super) mod refresh;
+    pub(super) mod shutdown;
+    pub(super) mod sync;
+    pub(super) mod update;
+}
+
 mod shared;
-mod shutdown_modal;
-mod sync;
-mod sync_modal;
-mod titles;
-mod updater_modal;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenId {
@@ -45,16 +57,20 @@ pub enum ScreenCommand {
 
 pub trait Screen {
     fn draw_upper(&self, ctx: &DrawContext);
+
     fn draw_lower(&self, ctx: &DrawContext);
+
+    fn handle_msg(&mut self, _msg: &UiMsg) -> ScreenCommand {
+        ScreenCommand::Noop
+    }
+
+    fn handle_input(&mut self, _keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
+        ScreenCommand::Noop
+    }
 }
 
 pub trait BaseScreen: Screen {
     fn id(&self) -> ScreenId;
-    fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand;
-    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand;
 }
 
-pub trait ModalScreen: Screen {
-    fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand;
-    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand;
-}
+pub trait ModalScreen: Screen {}

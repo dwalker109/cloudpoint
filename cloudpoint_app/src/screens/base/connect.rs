@@ -19,6 +19,12 @@ impl ConnectScreen {
     }
 }
 
+impl BaseScreen for ConnectScreen {
+    fn id(&self) -> ScreenId {
+        ScreenId::Connect
+    }
+}
+
 impl Screen for ConnectScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         super::shared::header(ctx, self.id());
@@ -59,12 +65,6 @@ impl Screen for ConnectScreen {
                 "\u{E044} then \u{E002} to exit",
             );
         }
-    }
-}
-
-impl BaseScreen for ConnectScreen {
-    fn id(&self) -> ScreenId {
-        ScreenId::Connect
     }
 
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {

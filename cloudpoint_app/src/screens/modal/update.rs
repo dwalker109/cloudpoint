@@ -14,13 +14,13 @@ enum Status {
     Failed,
 }
 
-pub struct UpdaterModalScreen {
+pub struct UpdateModalScreen {
     task_tx: Sender<TaskMsg>,
     update: ClientUpdate,
     status: Status,
 }
 
-impl UpdaterModalScreen {
+impl UpdateModalScreen {
     pub fn new(task_tx: Sender<TaskMsg>, update: ClientUpdate) -> Self {
         Self {
             task_tx,
@@ -30,7 +30,9 @@ impl UpdaterModalScreen {
     }
 }
 
-impl Screen for UpdaterModalScreen {
+impl ModalScreen for UpdateModalScreen {}
+
+impl Screen for UpdateModalScreen {
     fn draw_upper(&self, ctx: &DrawContext) {
         dialog_upper(ctx);
 
@@ -39,7 +41,7 @@ impl Screen for UpdaterModalScreen {
                 "A new app version is available to install",
                 match self.update.required {
                     true => "You must install this update to continue",
-                    false => "You may skip this update if you want to",
+                    false => "You may postpone this update if you want to",
                 },
             ),
             Status::Updating => (
@@ -66,7 +68,7 @@ impl Screen for UpdaterModalScreen {
         match self.status {
             Status::Waiting if !self.update.required => {
                 msg(MID - 20.0, "\u{E000} Install");
-                msg(MID + 10.0, "\u{E001} Skip");
+                msg(MID + 10.0, "\u{E001} Postpone");
             }
             Status::Waiting => {
                 msg(MID - 20.0, "\u{E000} Install");
@@ -91,9 +93,7 @@ impl Screen for UpdaterModalScreen {
             }
         }
     }
-}
 
-impl ModalScreen for UpdaterModalScreen {
     fn handle_msg(&mut self, msg: &UiMsg) -> ScreenCommand {
         match msg {
             UiMsg::UpdateDone => self.status = Status::Done,
