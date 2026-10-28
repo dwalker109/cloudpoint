@@ -1,11 +1,11 @@
-use crate::config::APP_VER;
+use crate::net::HTTP_CLIENT;
 use anyhow::{Result, bail};
-use cloudpoint_lib::{http::CurlHttpClient, preflight::ClientUpdate};
+use cloudpoint_lib::preflight::ClientUpdate;
 use ctru_sys::Handle;
 use sha2::Digest;
 
-pub fn self_update(update: &ClientUpdate) -> Result<()> {
-    let req = CurlHttpClient::new(&*APP_VER)?.get(&update.url, &[])?;
+pub fn run(update: &ClientUpdate) -> Result<()> {
+    let req = HTTP_CLIENT.get(&update.url, &[])?;
 
     if req.status != 200 {
         bail!("could not download CIA file");

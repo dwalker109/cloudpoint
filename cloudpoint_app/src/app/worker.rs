@@ -1,5 +1,9 @@
 use super::*;
-use crate::{cia, config::RUNNING_VIA_HBL, db, link, sync};
+use crate::{
+    config::RUNNING_VIA_HBL,
+    db, link,
+    net::{self, self_update, sync},
+};
 use anyhow::{Result, bail};
 use itertools::Itertools;
 use std::{
@@ -16,7 +20,7 @@ pub fn worker_thread(
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
-    let connect = sync::connect(&shutdown_rx, &ui_tx)?;
+    let connect = net::connect::run(&shutdown_rx, &ui_tx)?;
 
     if let Some(client_update) = &connect.app_update
         && !*RUNNING_VIA_HBL
@@ -179,7 +183,7 @@ pub fn worker_thread(
                 }
             }
             Ok(TaskMsg::UpdateStart(update)) => {
-                let msg = match cia::self_update(&update) {
+                let msg = match self_update::run(&update) {
                     Ok(_) => UiMsg::UpdateDone,
                     Err(e) => {
                         log::error!("self update failed: {e}");
