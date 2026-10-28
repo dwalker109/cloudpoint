@@ -1,6 +1,6 @@
 use crate::{app::UiMsg, gfx::*};
 pub use conflict_modal::ConflictModalScreen;
-pub use connect_modal::ConnectModalScreen;
+pub use connect::ConnectScreen;
 use ctru::prelude::KeyPad;
 pub use error_modal::ErrorModalScreen;
 pub use link::LinkScreen;
@@ -14,7 +14,7 @@ pub use titles::TitlesScreen;
 pub use updater_modal::UpdaterModalScreen;
 
 mod conflict_modal;
-mod connect_modal;
+mod connect;
 mod error_modal;
 mod link;
 mod link_client_modal;
@@ -29,6 +29,7 @@ mod updater_modal;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenId {
+    Connect,
     Sync,
     Titles,
     Link,

@@ -24,7 +24,6 @@ pub enum TaskMsg {
 }
 
 pub enum OpenModalMsg {
-    Connect,
     Refresh,
     ResolveConflict {
         title_label: String,

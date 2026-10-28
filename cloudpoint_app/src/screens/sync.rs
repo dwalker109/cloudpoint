@@ -34,7 +34,7 @@ impl Screen for SyncScreen {
                 TOP_H - 35.0,
                 0.4,
                 ATTENTION,
-                &format!("{} available to install", app_update.version),
+                &format!("{} available", app_update.version),
             );
         }
         if self.connect.srv_update.is_some() {

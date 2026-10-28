@@ -1,5 +1,5 @@
 use super::*;
-use crate::{cia, db, link, sync};
+use crate::{cia, config::RUNNING_VIA_HBL, db, link, sync};
 use anyhow::{Result, bail};
 use itertools::Itertools;
 use std::{
@@ -15,9 +15,18 @@ pub fn worker_thread(
     ui_tx: Sender<UiMsg>,
     modal_tx: Sender<OpenModalMsg>,
 ) -> Result<()> {
-    let connect = sync::connect(&shutdown_rx, &ui_tx, &modal_tx)?;
-
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
+    let connect = sync::connect(&shutdown_rx, &ui_tx)?;
+
+    if let Some(client_update) = &connect.app_update
+        && !*RUNNING_VIA_HBL
+    {
+        modal_tx
+            .send(OpenModalMsg::SelfUpdate(client_update.clone()))
+            .ok();
+    } else {
+        ui_tx.send(UiMsg::ConnectDone).ok();
+    }
 
     ui_tx
         .send(UiMsg::Ready {
@@ -27,12 +36,6 @@ pub fn worker_thread(
             connect: connect.clone(),
         })
         .ok();
-
-    if let Some(client_update) = &connect.app_update {
-        modal_tx
-            .send(OpenModalMsg::SelfUpdate(client_update.clone()))
-            .ok();
-    }
 
     loop {
         match task_rx.recv() {
@@ -187,9 +190,11 @@ pub fn worker_thread(
             }
             Ok(TaskMsg::UpdateSkip(update)) => {
                 log::info!("update {} was skipped", update.version);
+                ui_tx.send(UiMsg::ConnectDone).ok();
             }
             Err(e) if e == mpsc::RecvError => {
-                log::info!("worker thread task channel shutting down: {e}");
+                log::info!("worker thread task channel shutting down");
+                log::debug!("{e}");
                 break;
             }
             Err(e) => {
