@@ -51,6 +51,17 @@ You will need a domain pointing at your server for this one. Add it to
 Again, if you want to customise ports, passwords etc just take a 
 look in that file.
 
+### Client Self Update
+
+By default the server will check GitHub for updated client releases a few 
+times each hour, and will present these to clients when they connect. The
+clients can then self update to the latest version.
+
+I don't recommend disabling this, and I only support the latest client release,
+but if you don't want your server or clients talking to GitHub then you can
+set the `DISABLE_APP_UPDATER` env var to `true` in the `cloudpoint` section 
+of your compose file.
+
 ## Maintenance
 
 While there is not (yet) any user interface for management of versions,

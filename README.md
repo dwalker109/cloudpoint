@@ -34,6 +34,7 @@ Please join the [Discord](https://discord.gg/fkaXcnWt3V) and help me build a com
 - Auto discover your saves, and refresh them on demand as you add new games
 - "Link" your consoles to enable initial setup using local ad-hoc wireless; syncs
   all happen directly with the server (your consoles don't all need to be online at once)
+- Built in app self update 
 - Auto enable wireless on boot, disable on quit - be kind to your battery life
 - Slightly increased performance on New... model consoles (but works on all of them really well)
 
