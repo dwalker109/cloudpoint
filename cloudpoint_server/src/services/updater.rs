@@ -70,7 +70,7 @@ pub mod client_app {
             .build()
             .expect("should create reqwest client");
 
-        let mut interval = interval(Duration::from_mins(5));
+        let mut interval = interval(Duration::from_mins(60));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {

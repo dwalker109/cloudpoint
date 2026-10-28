@@ -19,6 +19,8 @@ use semver::Version as SemVer;
 use tracing::warn;
 use uuid::Uuid;
 
+const MIN_APP_VER: SemVer = SemVer::new(0, 5, 0);
+
 pub async fn preflight_get(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -38,15 +40,21 @@ pub async fn preflight_get(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
-    let Ok(_app_version) = SemVer::parse(ver) else {
+    let Ok(app_version) = SemVer::parse(ver) else {
         warn!(ver, "malformed client app_ver in User-Agent header");
 
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
 
+    let app_update = state.app_updater.get().await.map(|mut u| {
+        u.required = app_version < MIN_APP_VER;
+
+        u
+    });
+
     Ok(Postcard(Connect {
         srv_ver: SemVer::parse(env!("CARGO_PKG_VERSION"))?,
-        app_update: state.app_updater.get().await,
+        app_update,
         srv_update: None,
     })
     .into_response())
