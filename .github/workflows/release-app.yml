@@ -27,31 +27,11 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
 
-      - name: Build 3DSX
-        run: just build
-        shell: bash
-
-      - name: Parse release tag
-        run: |
-          apt-get update && apt-get install -y jq
-          tag=$(jq -r '.release.tag_name' "$GITHUB_EVENT_PATH")
-          if [[ -z "$tag" ]]; then
-            echo "Invalid release payload: missing tag_name" >&2
-            exit 1
-          fi
-          IFS='.' read -r major minor micro <<< "$tag"
-          if [[ -z "$major" || -z "$minor" || -z "$micro" ]]; then
-            echo "Invalid release tag format: $tag" >&2
-            exit 1
-          fi
-          echo "MAJOR=$major" >> $GITHUB_ENV
-          echo "MINOR=$minor" >> $GITHUB_ENV
-          echo "MICRO=$micro" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Build CIA from release tag
-        run: just cia ${{ env.MAJOR }} ${{ env.MINOR }} ${{ env.MICRO }}
-        shell: bash
+      - name: Build 3DSX and CIA
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          SUFFIX: ${{ github.event.release.prerelease && '-pre' || '' }}
+        run: just cia "$TAG$SUFFIX"
 
       - name: Create release
         uses: softprops/action-gh-release@v2

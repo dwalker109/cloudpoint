@@ -12,7 +12,17 @@ run ip app_ver="0.0.0-hbl":
     APP_VER={{ app_ver }} cargo 3ds run -a {{ ip }} --release
 
 [working-directory('cloudpoint_app/cia')]
-cia major minor micro: (check-ver major minor micro) (build major + "." + minor + "." + micro)
+cia version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="{{ version }}"
+
+    numeric="${version%%[-+]*}"
+    IFS='.' read -r major minor micro <<< "$numeric"
+
+    just check-ver "$major" "$minor" "$micro"
+    just build "$version"
+
     ./bannertool makesmdh \
         -f visible,nosavebackups \
         -s "Cloudpoint" \
@@ -28,7 +38,7 @@ cia major minor micro: (check-ver major minor micro) (build major + "." + minor 
         -ca banner.bcwav \
         -o banner.bnr
     ./makerom -f cia -v \
-        -ver $(( ({{ major }} << 10) | ({{ minor }} << 4) | {{ micro }} )) \
+        -ver $(( (major << 10) | (minor << 4) | micro )) \
         -target t \
         -elf ../../target/armv6k-nintendo-3ds/release/cloudpoint.elf \
         -DROMFS_PATH="../romfs" \
