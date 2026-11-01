@@ -11,20 +11,6 @@ build app_ver="0.0.0-hbl":
 run ip app_ver="0.0.0-hbl":
     APP_VER={{ app_ver }} cargo 3ds run -a {{ ip }} --release
 
-[private]
-check-ver major minor micro:
-    #!/usr/bin/env bash
-    set -eu
-    for v in {{ major }} {{ minor }} {{ micro }}; do
-        [[ $v =~ ^(0|[1-9][0-9]*)$ ]] || {
-            echo "error: '$v' must be an integer without zero padding" >&2
-            exit 1
-        }
-    done
-    [ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
-    [ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
-    [ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
-
 [working-directory('cloudpoint_app/cia')]
 cia major minor micro: (check-ver major minor micro) (build major + "." + minor + "." + micro)
     ./bannertool makesmdh \
@@ -51,6 +37,20 @@ cia major minor micro: (check-ver major minor micro) (build major + "." + minor 
         -banner banner.bnr \
         -logo logo.bcma.lz \
         -o cloudpoint.cia
+
+[private]
+check-ver major minor micro:
+    #!/usr/bin/env bash
+    set -eu
+    for v in {{ major }} {{ minor }} {{ micro }}; do
+        [[ $v =~ ^(0|[1-9][0-9]*)$ ]] || {
+            echo "error: '$v' must be an integer without zero padding" >&2
+            exit 1
+        }
+    done
+    [ {{ major }} -le 63 ] || { echo "error: major max 63" >&2; exit 1; }
+    [ {{ minor }} -le 63 ] || { echo "error: minor max 63" >&2; exit 1; }
+    [ {{ micro }} -le 15 ] || { echo "error: micro max 15" >&2; exit 1; }
 
 [working-directory('cloudpoint_app/src/gfx/c2d')]
 citro2d:
@@ -108,19 +108,6 @@ update-cacert:
     curl --remote-name https://curl.se/ca/cacert.pem \
         --etag-compare cacert.etag.txt \
         --etag-save cacert.etag.txt
-
-docker-release-server:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cargo clean
-    cargo metadata > /dev/null
-    version=$(cargo pkgid -p cloudpoint_server | sed 's/.*[@#]//')
-    docker buildx build --ssh default \
-      --platform linux/amd64,linux/arm64 \
-      -t dwalker109/cloudpoint:"$version" \
-      -t dwalker109/cloudpoint:latest \
-      -f cloudpoint_server/Dockerfile . \
-      --push
 
 docker-build-server:
     #!/usr/bin/env bash

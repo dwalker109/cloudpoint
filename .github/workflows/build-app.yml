@@ -1,5 +1,4 @@
-# .github/workflows/build.yml
-name: Build
+name: Build app binary
 
 on:
   pull_request:

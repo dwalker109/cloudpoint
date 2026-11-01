@@ -1,4 +1,4 @@
-name: Release
+name: Release app binary & CIA
 
 on:
   release:
@@ -15,11 +15,8 @@ jobs:
       contents: write
 
     steps:
-      - name: Install Git LFS
-        run: |
-          curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-          sudo apt-get install -y git-lfs
-          git lfs install
+      - name: Install Git LFS for devkitpro container
+        run: apt-get update && apt-get install -y git-lfs
 
       - uses: actions/checkout@v4
         with:

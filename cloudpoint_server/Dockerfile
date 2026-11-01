@@ -1,6 +1,7 @@
 FROM rust:1-bullseye AS builder
 WORKDIR /clpt
 COPY . .
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh cargo build --release -p cloudpoint_server
 
 FROM debian:bullseye-slim
