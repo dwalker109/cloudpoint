@@ -4,7 +4,7 @@ COPY . .
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh cargo build --release -p cloudpoint_server
 
-FROM debian:bullseye-slim
+FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=builder /clpt/target/release/cloudpoint_server /usr/local/bin/
 EXPOSE 6776
 ENTRYPOINT [ "cloudpoint_server" ]
