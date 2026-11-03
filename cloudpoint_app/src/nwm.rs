@@ -1,16 +1,30 @@
 use anyhow::Result;
 use ctru::services::ac::{Ac, NetworkStatus};
 
+use crate::config::USER_SETTINGS;
+
 pub struct ForceWlan {
-    launch_state: NetworkStatus,
+    launch_state: Option<NetworkStatus>,
 }
 
 impl ForceWlan {
     pub fn new() -> Result<Self> {
-        let launch_state = Ac::new()?.wifi_status()?;
+        let launch_state = match USER_SETTINGS.auto_wifi {
+            true => {
+                log::debug!("auto_wifi is enabled");
+                Ac::new()?.wifi_status().ok()
+            }
+            false => {
+                log::debug!("auto_wifi is disabled");
+                None
+            }
+        };
 
-        if matches!(launch_state, NetworkStatus::None | NetworkStatus::Idle) {
-            log::debug!("trying to enable wireless while Cloudpoint is running");
+        if matches!(
+            launch_state,
+            Some(NetworkStatus::None | NetworkStatus::Idle)
+        ) {
+            log::debug!("trying to enable wireless radio");
             ffi::ctr_control_wireless_enabled(true).ok();
         }
 
@@ -20,8 +34,11 @@ impl ForceWlan {
 
 impl Drop for ForceWlan {
     fn drop(&mut self) {
-        if matches!(self.launch_state, NetworkStatus::None | NetworkStatus::Idle) {
-            log::debug!("trying to disable wireless to restore launch state");
+        if matches!(
+            self.launch_state,
+            Some(NetworkStatus::None | NetworkStatus::Idle)
+        ) {
+            log::debug!("trying to disable wireless radio to restore launch state");
             ffi::ctr_control_wireless_enabled(false).ok();
         }
     }

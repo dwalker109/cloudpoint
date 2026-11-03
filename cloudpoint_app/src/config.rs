@@ -21,6 +21,7 @@ pub struct Settings {
     pub log_level: String,
     pub retain_log_qty: usize,
     pub backup: bool,
+    pub auto_wifi: bool,
 }
 
 pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
@@ -32,6 +33,8 @@ pub static USER_SETTINGS: LazyLock<Settings> = LazyLock::new(|| {
         .set_default("retain_log_qty", 10)
         .unwrap()
         .set_default("backup", true)
+        .unwrap()
+        .set_default("auto_wifi", true)
         .unwrap()
         .add_source(config::File::from_str(
             &fs::read_to_string(AppPath::Base.join("settings.ini")).unwrap_or_default(),
