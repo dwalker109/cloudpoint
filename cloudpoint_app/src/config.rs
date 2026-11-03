@@ -1,6 +1,6 @@
+use crate::title::program_id;
 use anyhow::Result;
 use chrono::Utc;
-use ctru_sys::envIsHomebrew;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -13,7 +13,7 @@ pub static APP_VER: LazyLock<semver::Version> = LazyLock::new(|| {
     semver::Version::parse(env!("APP_VER")).expect("app version should be valid semver")
 });
 
-pub static RUNNING_VIA_HBL: LazyLock<bool> = LazyLock::new(|| unsafe { envIsHomebrew() });
+pub static RUNNING_AS_3DSX: LazyLock<bool> = LazyLock::new(|| program_id() != 0x000400000FF00100);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {

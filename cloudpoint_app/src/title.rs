@@ -1,3 +1,4 @@
+use crate::ctr_fs::{CtrArchive, smdh};
 use anyhow::Result;
 use cloudpoint_lib::{
     ctr::{CtrMeta, CtrSmdh},
@@ -16,7 +17,9 @@ use std::{
     sync::LazyLock,
 };
 
-use crate::ctr_fs::{CtrArchive, smdh};
+pub fn program_id() -> u64 {
+    ffi::apt_get_program_id().expect("should retrieve title id of self")
+}
 
 pub struct CtrAmTitle {
     pub title_id: u64,
@@ -167,13 +170,25 @@ pub fn get_installed_at_for_title(title_id: u64) -> u64 {
 }
 
 mod ffi {
-    use anyhow::Result;
-    use anyhow::bail;
+    use anyhow::{Result, bail};
     use ctru::services::fs::MediaType;
-    use ctru_sys::AM_GetTitleExtDataId;
-    use ctru_sys::archive_getmtime;
-    use ctru_sys::{AM_GetTitleInfo, AM_TitleInfo, MEDIATYPE_SD, R_FAILED};
+    use ctru_sys::{
+        AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, APT_GetProgramID, MEDIATYPE_SD,
+        R_FAILED, archive_getmtime,
+    };
     use std::ffi::CString;
+
+    pub(super) fn apt_get_program_id() -> Result<u64> {
+        let mut id = 0;
+
+        let res = unsafe { APT_GetProgramID(&mut id) };
+
+        if R_FAILED(res) {
+            bail!("could not get title id Cloudpoint is running under")
+        }
+
+        Ok(id)
+    }
 
     pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16> {
         let mut title_info: AM_TitleInfo = unsafe { std::mem::zeroed() };
