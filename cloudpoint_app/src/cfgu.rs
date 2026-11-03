@@ -7,11 +7,11 @@ impl NewMode {
     pub fn new() -> Result<Self> {
         match Cfgu::new()?.model()? {
             SystemModel::Old3DS | SystemModel::Old3DSXL | SystemModel::Old2DS => {
-                log::debug!(r#"model is "Old" family, no perf increase available"#);
+                log::info!(r#"model is "Old" family, no perf increase available"#);
                 ffi::ctr_os_set_speedup_enable(false);
             }
             SystemModel::New3DS | SystemModel::New3DSXL | SystemModel::New2DSXL => {
-                log::debug!(r#"model is "New" family, enabling enhanced CPU clock and L2 cache"#);
+                log::info!(r#"model is "New" family, enabling enhanced CPU clock and L2 cache"#);
                 ffi::ctr_os_set_speedup_enable(true);
             }
         }
