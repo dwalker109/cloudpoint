@@ -116,10 +116,16 @@ impl CurlHttpClient {
 
         #[cfg(target_os = "horizon")]
         {
-            let ca_path = ["sdmc:/3ds/Cloudpoint/cacert.pem", "romfs:/cacert.pem"]
-                .into_iter()
-                .find(|p| std::path::Path::new(p).exists())
-                .expect("cacert.pem should be available");
+            let ca_path = [
+                "sdmc:/config/ssl/cacert.pem",
+                "sdmc:/3ds/Cloudpoint/cacert.pem",
+                "romfs:/cacert.pem",
+            ]
+            .into_iter()
+            .find(|p| std::path::Path::new(p).exists())
+            .expect("cacert.pem should be available");
+            log::info!("TLS is using CA bundle from {}", &ca_path);
+
             let cainfo_c = CString::new(ca_path)?;
             handle.set_ptr(CURLOPT_CAINFO, cainfo_c.as_ptr() as *const c_void)?;
         }
