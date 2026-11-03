@@ -36,8 +36,8 @@ pub fn run(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Connect>
         return match HTTP_CLIENT.get(url, &[]) {
             Ok(res) if res.status == 200 => {
                 log::info!(
-                    "connected to server, took {} seconds",
-                    timeout.elapsed().as_secs()
+                    "connected to server, took {} ms",
+                    timeout.elapsed().as_millis()
                 );
 
                 Ok(postcard::from_bytes(&res.body).unwrap_or_default())
@@ -50,16 +50,22 @@ pub fn run(shutdown_rx: &Receiver<()>, ui_tx: &Sender<UiMsg>) -> Result<Connect>
                     .ok();
 
                 bail!(
-                    "connected to server but received status code {}, took {} seconds, cannot proceed",
+                    "connected to server but received status code {}, took {} ms, cannot proceed",
                     res.status,
-                    timeout.elapsed().as_secs()
+                    timeout.elapsed().as_millis()
                 );
             }
             Err(e) => {
-                log::warn!("failing to connect to server (will retry): {e}");
-                ui_tx.send(UiMsg::ConnectDelayed).ok();
-                std::thread::sleep(delay);
-                continue;
+                ui_tx
+                    .send(UiMsg::ConnectFailed {
+                        reason: e.to_string(),
+                    })
+                    .ok();
+
+                bail!(
+                    "connected to access point but received error {e}, took {} ms, cannot proceed",
+                    timeout.elapsed().as_millis()
+                );
             }
         };
     }

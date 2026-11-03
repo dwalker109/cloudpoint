@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    config::RUNNING_VIA_HBL,
+    config::RUNNING_AS_3DSX,
     db, link,
     net::{self, self_update, sync},
 };
@@ -22,15 +22,17 @@ pub fn worker_thread(
     let (mut title_db, mut state_db, mut install_history_db) = db::load(&ui_tx, &modal_tx)?;
     let connect = net::connect::run(&shutdown_rx, &ui_tx)?;
 
-    if let Some(client_update) = &connect.app_update
-        && !*RUNNING_VIA_HBL
-    {
-        modal_tx
-            .send(OpenModalMsg::SelfUpdate(client_update.clone()))
-            .ok();
+    if *RUNNING_AS_3DSX {
+        ui_tx.send(UiMsg::ConnectDone)?;
     } else {
-        ui_tx.send(UiMsg::ConnectDone).ok();
-    }
+        match connect.app_update {
+            Some(ref client_update) => modal_tx
+                .send(OpenModalMsg::SelfUpdate(client_update.clone()))
+                .ok(),
+
+            None => ui_tx.send(UiMsg::ConnectDone).ok(),
+        };
+    };
 
     ui_tx
         .send(UiMsg::Ready {
