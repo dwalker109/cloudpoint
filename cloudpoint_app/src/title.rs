@@ -12,7 +12,7 @@ use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
 use serde::Deserialize;
 use std::{
     collections::{BTreeSet, HashMap},
-    fs::{read_dir, read_to_string},
+    fs::read_to_string,
     path::PathBuf,
     sync::LazyLock,
 };
@@ -68,26 +68,8 @@ pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| 
 pub static SD_APP_TITLES_HASH: LazyLock<BTreeSet<u64>> =
     LazyLock::new(|| SD_APP_TITLES.keys().copied().collect());
 
-static SD_TMD_ROOTS: LazyLock<Vec<PathBuf>> = LazyLock::new(|| {
-    let mut roots = Vec::new();
-
-    static EXPECT_MSG: &str =
-        "sdmc:/Nintendo 3DS/<id0>/<id1>/ dirs should always exist and be readble";
-
-    for entry in read_dir("sdmc:/Nintendo 3DS").expect(EXPECT_MSG) {
-        let id0 = entry.expect(EXPECT_MSG);
-        if id0.file_type().expect(EXPECT_MSG).is_dir() && id0.file_name().len() == 32 {
-            for entry in read_dir(id0.path()).expect(EXPECT_MSG) {
-                let id1 = entry.expect(EXPECT_MSG);
-                if id1.file_type().expect(EXPECT_MSG).is_dir() && id1.file_name().len() == 32 {
-                    roots.push(id1.path());
-                }
-            }
-        }
-    }
-
-    roots
-});
+static SD_TMD_ROOT: LazyLock<Option<PathBuf>> =
+    LazyLock::new(|| ffi::fsuser_get_sdmc_ctr_root_path().ok());
 
 pub fn title_smdh(title_id: u64) -> Result<CtrSmdh> {
     log::debug!("looking up smdh for {title_id} via faked SyncItem");
@@ -152,31 +134,34 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 }
 
 pub fn get_installed_at_for_title(title_id: u64) -> u64 {
-    let mut latest = 0;
+    let Some(root) = &*SD_TMD_ROOT else {
+        log::warn!("tmd inspection unsupported on this platform");
+        return 0;
+    };
 
-    for root in &*SD_TMD_ROOTS {
-        let tmd_path = format!(
-            "{}/title/00040000/{:08x}/content/00000000.tmd",
-            root.display(),
-            title_id as u32
-        );
+    let tmd_path = format!(
+        "{}/title/00040000/{:08x}/content/00000000.tmd",
+        root.display(),
+        title_id as u32
+    );
 
-        if let Ok(mtime) = ffi::ctr_archive_get_mtime(&tmd_path) {
-            latest = latest.max(mtime);
+    match ffi::ctr_archive_get_mtime(&tmd_path) {
+        Ok(mtime) => mtime,
+        Err(e) => {
+            log::warn!("tmd inspection failed for {title_id:016X}: {e}");
+            0
         }
     }
-
-    latest
 }
 
 mod ffi {
     use anyhow::{Result, bail};
     use ctru::services::fs::MediaType;
     use ctru_sys::{
-        AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, APT_GetProgramID, MEDIATYPE_SD,
-        R_FAILED, archive_getmtime,
+        AM_GetTitleExtDataId, AM_GetTitleInfo, AM_TitleInfo, APT_GetProgramID,
+        FSUSER_GetSdmcCtrRootPath, MEDIATYPE_SD, R_FAILED, archive_getmtime,
     };
-    use std::ffi::CString;
+    use std::{ffi::CString, path::PathBuf};
 
     pub(super) fn apt_get_program_id() -> Result<u64> {
         let mut id = 0;
@@ -188,6 +173,22 @@ mod ffi {
         }
 
         Ok(id)
+    }
+
+    pub(super) fn fsuser_get_sdmc_ctr_root_path() -> Result<PathBuf> {
+        let mut buf = [0u8; 0xA0];
+        let res = unsafe { FSUSER_GetSdmcCtrRootPath(buf.as_mut_ptr(), buf.len() as u32) };
+
+        if R_FAILED(res) || buf[0] == 0x00 {
+            bail!("could not get sdmc ctr root path");
+        }
+
+        Ok([
+            "sdmc:/".into(),
+            String::from_utf16le(&buf[2..buf.len() - 2])?,
+        ]
+        .into_iter()
+        .collect())
     }
 
     pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16> {
