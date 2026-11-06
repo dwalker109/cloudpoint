@@ -68,7 +68,7 @@ pub static SD_APP_TITLES: LazyLock<HashMap<u64, CtrAmTitle>> = LazyLock::new(|| 
 pub static SD_APP_TITLES_HASH: LazyLock<BTreeSet<u64>> =
     LazyLock::new(|| SD_APP_TITLES.keys().copied().collect());
 
-static SD_TMD_ROOT: LazyLock<Option<PathBuf>> =
+static SDMC_CTR_ROOT: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| ffi::fsuser_get_sdmc_ctr_root_path().ok());
 
 pub fn title_smdh(title_id: u64) -> Result<CtrSmdh> {
@@ -134,14 +134,15 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
 }
 
 pub fn get_installed_at_for_title(title_id: u64) -> u64 {
-    let Some(root) = &*SD_TMD_ROOT else {
+    let Some(root) = &*SDMC_CTR_ROOT else {
         log::warn!("tmd inspection unsupported on this platform");
         return 0;
     };
 
     let tmd_path = format!(
-        "{}/title/00040000/{:08x}/content/00000000.tmd",
+        "{}/title/{:08x}/{:08x}/content/00000000.tmd",
         root.display(),
+        title_id >> 32 as u32,
         title_id as u32
     );
 
@@ -176,19 +177,16 @@ mod ffi {
     }
 
     pub(super) fn fsuser_get_sdmc_ctr_root_path() -> Result<PathBuf> {
-        let mut buf = [0u8; 0xA0];
-        let res = unsafe { FSUSER_GetSdmcCtrRootPath(buf.as_mut_ptr(), buf.len() as u32) };
+        let mut buf = [0u8; 160];
+        let res = unsafe { FSUSER_GetSdmcCtrRootPath(buf.as_mut_ptr(), 160) };
 
         if R_FAILED(res) || buf[0] == 0x00 {
             bail!("could not get sdmc ctr root path");
         }
 
-        Ok([
-            "sdmc:/".into(),
-            String::from_utf16le(&buf[2..buf.len() - 2])?,
-        ]
-        .into_iter()
-        .collect())
+        Ok(["sdmc:/".into(), String::from_utf16le(&buf[2..158])?]
+            .into_iter()
+            .collect())
     }
 
     pub(super) fn ctr_get_title_version(title_id: u64) -> Result<u16> {
