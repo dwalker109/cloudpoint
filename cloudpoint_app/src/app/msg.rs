@@ -2,7 +2,7 @@ use crate::{
     db::TitleDetails,
     link::{LinkState, SharePermission},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use cloudpoint_lib::{
     preflight::{ClientUpdate, Connect},
     sync::{SyncItem, SyncState},
@@ -26,9 +26,9 @@ pub enum TaskMsg {
 pub enum OpenModalMsg {
     Refresh,
     ResolveConflict {
-        title_label: String,
-        title_local_time: Option<DateTime<Utc>>,
-        title_remote_time: Option<DateTime<Utc>>,
+        label: String,
+        local_synced_at: Option<NaiveDateTime>,
+        remote_synced_at: Option<DateTime<Utc>>,
         reply_tx: oneshot::Sender<ConflictWinner>,
     },
     Error {

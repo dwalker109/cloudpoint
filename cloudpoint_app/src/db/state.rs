@@ -15,7 +15,7 @@ use std::{
 
 mod legacy;
 
-const CURRENT_VERSION: u16 = 1;
+const CURRENT_VERSION: u16 = 2;
 static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("state.db"));
 
 #[derive(Deserialize, Serialize)]
@@ -35,6 +35,7 @@ impl StateDb {
 
         Ok(match ver {
             CURRENT_VERSION => postcard::from_bytes(data)?,
+            1 => postcard::from_bytes::<legacy::StateDbV1>(data)?.into(),
             0 => postcard::from_bytes::<legacy::StateDbV0>(data)?.into(),
             v => bail!("cannot decode state db version {v}"),
         })

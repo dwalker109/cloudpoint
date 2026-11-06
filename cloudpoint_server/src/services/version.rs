@@ -1,6 +1,6 @@
 use crate::hex_u128::HexU128;
 use chunktree::{tree::MemLeaf, version::Version};
-use cloudpoint_lib::{ctr::CtrMeta, version::RemoteVersionMeta};
+use cloudpoint_lib::{ctr::CtrMeta, remote_version::RemoteVersionInfo};
 use sqlx::{Error, PgPool, Row};
 use tracing::warn;
 use uuid::Uuid;
@@ -9,7 +9,7 @@ pub async fn latest(
     user_key: &Uuid,
     sync_item: &str,
     db_pool: &PgPool,
-) -> Result<Option<RemoteVersionMeta>, Error> {
+) -> Result<Option<RemoteVersionInfo>, Error> {
     let result = sqlx::query(
         "SELECT xxhash3_128, created_at FROM versions WHERE user_key = $1 AND sync_item = $2 ORDER BY created_at DESC LIMIT 1",
     )
@@ -19,7 +19,7 @@ pub async fn latest(
         .await;
 
     match result {
-        Ok(row) => Ok(Some(RemoteVersionMeta {
+        Ok(row) => Ok(Some(RemoteVersionInfo {
             cid: format!("{:032x}", u128::from_be_bytes(row.try_get("xxhash3_128")?)),
             created_at: row.try_get("created_at")?,
         })),
