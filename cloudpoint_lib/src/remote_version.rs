@@ -7,12 +7,12 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct RemoteVersionMeta {
+pub struct RemoteVersionInfo {
     pub cid: String,
     pub created_at: DateTime<Utc>,
 }
 
-impl RemoteVersionMeta {
+impl RemoteVersionInfo {
     pub fn fingerprint(&self) -> Result<u128> {
         Ok(u128::from_str_radix(&self.cid, 16)?)
     }
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn fingerprint_fails_on_malformed_name() {
-        let e = RemoteVersionMeta {
+        let e = RemoteVersionInfo {
             cid: "foobar".into(),
             created_at: Default::default(),
         };
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn fingerprint_ok_on_valid_name() {
-        let e = RemoteVersionMeta {
+        let e = RemoteVersionInfo {
             cid: format!("{:032x}", 0xabff99cc_u128),
             created_at: Default::default(),
         };
@@ -142,7 +142,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new(&APP_VER).unwrap();
-        let res = RemoteVersionMeta::latest(
+        let res = RemoteVersionInfo::latest(
             &client,
             &srv.base_url(),
             &USER_KEY,
@@ -164,7 +164,7 @@ mod tests {
         });
 
         let client = CurlHttpClient::new(&APP_VER).unwrap();
-        let res = RemoteVersionMeta::latest(
+        let res = RemoteVersionInfo::latest(
             &client,
             &srv.base_url(),
             &USER_KEY,

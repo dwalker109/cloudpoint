@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt::Display, path::PathBuf};
 use uuid::Uuid;
@@ -52,7 +52,7 @@ pub struct SyncState {
     pub sync_item: SyncItem,
     pub auto_enabled: bool,
     pub synced_fingerprint: Option<u128>,
-    pub synced_at: Option<DateTime<Utc>>,
+    pub synced_at: Option<NaiveDateTime>,
     pub via_title_ids: HashSet<u64>,
     pub via_user_key: Uuid,
 }

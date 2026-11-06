@@ -3,29 +3,33 @@ use crate::{
     app::ConflictWinner,
     screens::shared::{dialog_lower, dialog_upper},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use std::sync::oneshot;
 
 pub struct ConflictModalScreen {
-    title_label: String,
-    title_local_time: Option<DateTime<Utc>>,
-    title_remote_time: Option<DateTime<Utc>>,
+    label: String,
+    local_synced_at: String,
+    remote_synced_at: String,
     is_first_sync: bool,
     reply_tx: Option<oneshot::Sender<ConflictWinner>>,
 }
 
 impl ConflictModalScreen {
     pub fn new(
-        title_label: String,
-        title_local_time: Option<DateTime<Utc>>,
-        title_remote_time: Option<DateTime<Utc>>,
+        label: String,
+        local_synced_at: Option<NaiveDateTime>,
+        remote_synced_at: Option<DateTime<Utc>>,
         reply_tx: oneshot::Sender<ConflictWinner>,
     ) -> Self {
         Self {
-            title_label,
-            title_local_time,
-            title_remote_time,
-            is_first_sync: title_local_time.is_none(),
+            label,
+            local_synced_at: local_synced_at
+                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                .unwrap_or_else(|| "Unknown".into()),
+            remote_synced_at: remote_synced_at
+                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                .unwrap_or_else(|| "Unknown".into()),
+            is_first_sync: local_synced_at.is_none(),
             reply_tx: Some(reply_tx),
         }
     }
@@ -48,20 +52,10 @@ impl Screen for ConflictModalScreen {
                 false => "This title has changed both locally and on the server",
             },
         );
-        ctx.text_centered(0.0, 105.0, TOP_W, 0.7, BLACK, &self.title_label);
+        ctx.text_centered(0.0, 105.0, TOP_W, 0.7, BLACK, &self.label);
 
         ctx.text_centered(0.0, 160.0, TOP_W / 2.0, 0.55, DARK_GREY, "Last local sync");
-        ctx.text_centered(
-            0.0,
-            180.0,
-            TOP_W / 2.0,
-            0.5,
-            BLACK,
-            &self
-                .title_local_time
-                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
-                .unwrap_or_else(|| "Never".into()),
-        );
+        ctx.text_centered(0.0, 180.0, TOP_W / 2.0, 0.5, BLACK, &self.local_synced_at);
 
         ctx.text_centered(
             TOP_W / 2.0,
@@ -77,10 +71,7 @@ impl Screen for ConflictModalScreen {
             TOP_W / 2.0,
             0.5,
             BLACK,
-            &self
-                .title_remote_time
-                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
-                .unwrap_or_else(|| "Unknown".into()),
+            &self.remote_synced_at,
         );
     }
 
