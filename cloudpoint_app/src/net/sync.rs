@@ -1,25 +1,24 @@
 use crate::{
     app::{ConflictWinner, OpenModalMsg, SyncProgress, UiMsg},
     config::{AppPath, USER_KEY, USER_SETTINGS},
-    ctr_fs::{CtrArchive, CtrLeaf},
+    ctr_fs::CtrLeaf,
     db::{InstallHistoryDb, InstallStatus, TitleDb},
     ndmu::KeepAwake,
-    net::HTTP_CLIENT,
-    title::meta,
+    net::{HTTP_CLIENT, sync::local_version::LocalVersionInfo},
 };
 use anyhow::{Result, bail};
 use chrono::Utc;
 use chunktree::{
     store::MemStore,
     tree::{Leaf, Tree},
-    version::{ChunkStrategy, Concurrency, Diff, Version, updater::BlockingUpdater},
+    version::{Diff, updater::BlockingUpdater},
 };
 use cloudpoint_lib::{
     ctr::CtrMeta,
     http::CurlHttpClient,
+    remote_version::{RemoteVersionInfo, get_version, put_version},
     store::HttpStore,
     sync::{SyncAction, SyncState},
-    version::{RemoteVersionMeta, get_version, put_version},
 };
 use ctru::services::ac::Ac;
 use std::{
@@ -31,6 +30,8 @@ use std::{
         oneshot,
     },
 };
+
+mod local_version;
 
 pub fn run<'a>(
     states: impl Iterator<Item = &'a mut SyncState>,
@@ -91,6 +92,8 @@ fn run_one(
         bail!("No internet connection is available - please ensure you are online and try again");
     }
 
+    sync_progress.label(title_label).message("Checking").send();
+
     for title_id in &sync_state.via_title_ids {
         match install_history_db.check(*title_id, sync_state.sync_item) {
             InstallStatus::Updated => {
@@ -113,25 +116,16 @@ fn run_one(
         sync_state.via_user_key = *USER_KEY;
     }
 
-    sync_progress.label(title_label).message("Checking").send();
-
-    let remote_ver = RemoteVersionMeta::latest(
+    let remote_ver_info = RemoteVersionInfo::latest(
         &HTTP_CLIENT,
         &USER_SETTINGS.base_url,
         &USER_KEY,
         sync_state.sync_item,
     )?;
-    let remote_fingerprint = remote_ver.as_ref().and_then(|m| m.fingerprint().ok());
+    let remote_fingerprint = remote_ver_info.as_ref().and_then(|m| m.fingerprint().ok());
 
-    let local_meta = meta(sync_state.sync_item)?;
-    let local_tree = CtrArchive::open(sync_state.sync_item)?.into_tree()?;
-    let local_ver = Version::new(
-        &local_tree,
-        local_meta,
-        ChunkStrategy::FixedSize(256 * 1024),
-        Concurrency::Serial,
-    )?;
-    let local_fingerprint = Some(local_ver.fingerprint());
+    let local_ver_info = LocalVersionInfo::try_new(sync_state.sync_item)?;
+    let local_fingerprint = local_ver_info.fingerprint();
 
     log::debug!("Local: {:032x}", local_fingerprint.unwrap_or_default());
     log::debug!("Remote: {:032x}", remote_fingerprint.unwrap_or_default());
@@ -144,7 +138,7 @@ fn run_one(
                 sync_state.synced_fingerprint = local_fingerprint;
             }
 
-            sync_state.synced_at = Some(Utc::now());
+            sync_state.synced_at = Some(Utc::now().naive_utc());
         }
         SyncAction::Conflict => {
             log::info!("changed on server and locally for {}", sync_state.sync_item,);
@@ -153,9 +147,9 @@ fn run_one(
 
             modal_tx
                 .send(OpenModalMsg::ResolveConflict {
-                    title_label: title_label.to_string(),
-                    title_local_time: sync_state.synced_at,
-                    title_remote_time: remote_ver.as_ref().map(|v| v.created_at),
+                    label: title_label.to_string(),
+                    local_synced_at: sync_state.synced_at,
+                    remote_synced_at: remote_ver_info.as_ref().map(|v| v.created_at),
                     reply_tx,
                 })
                 .ok();
@@ -166,8 +160,7 @@ fn run_one(
                         sync_state,
                         &HTTP_CLIENT,
                         sync_progress,
-                        &local_ver,
-                        &local_tree,
+                        local_ver_info,
                         local_fingerprint,
                     )?;
                 }
@@ -176,9 +169,7 @@ fn run_one(
                         sync_state,
                         &HTTP_CLIENT,
                         sync_progress,
-                        &local_meta,
-                        &local_ver,
-                        local_tree,
+                        local_ver_info,
                         remote_fingerprint,
                     )?;
                 }
@@ -190,8 +181,7 @@ fn run_one(
                 sync_state,
                 &HTTP_CLIENT,
                 sync_progress,
-                &local_ver,
-                &local_tree,
+                local_ver_info,
                 local_fingerprint,
             )?;
         }
@@ -200,9 +190,7 @@ fn run_one(
                 sync_state,
                 &HTTP_CLIENT,
                 sync_progress,
-                &local_meta,
-                &local_ver,
-                local_tree,
+                local_ver_info,
                 remote_fingerprint,
             )?;
         }
@@ -217,13 +205,14 @@ fn ul(
     s: &mut SyncState,
     client: &CurlHttpClient,
     sync_progress: &mut SyncProgress,
-    local_ver: &Version<CtrLeaf, CtrMeta>,
-    local_tree: &Tree<CtrLeaf>,
+    local_ver_info: LocalVersionInfo,
     local_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("uploading {}", s.sync_item);
 
     sync_progress.message("Uploading").send();
+
+    let (_local_meta, local_tree, local_ver) = local_ver_info.into_parts()?;
 
     let mut store = HttpStore::new(
         client.clone(),
@@ -241,7 +230,7 @@ fn ul(
     )?;
 
     s.synced_fingerprint = local_fingerprint;
-    s.synced_at = Some(Utc::now());
+    s.synced_at = Some(Utc::now().naive_utc());
 
     Ok(())
 }
@@ -250,12 +239,12 @@ fn dl(
     s: &mut SyncState,
     client: &CurlHttpClient,
     sync_progress: &mut SyncProgress,
-    local_meta: &CtrMeta,
-    local_ver: &Version<CtrLeaf, CtrMeta>,
-    local_tree: Tree<CtrLeaf>,
+    local_ver_info: LocalVersionInfo,
     remote_fingerprint: Option<u128>,
 ) -> Result<()> {
     log::info!("downloading {}", s.sync_item);
+
+    let (local_meta, local_tree, local_ver) = local_ver_info.into_parts()?;
 
     let remote_ver = get_version::<CtrLeaf, CtrMeta>(
         &client,
@@ -306,7 +295,7 @@ fn dl(
     local_tree.context().finalise()?;
 
     s.synced_fingerprint = remote_fingerprint;
-    s.synced_at = Some(Utc::now());
+    s.synced_at = Some(Utc::now().naive_utc());
 
     Ok(())
 }

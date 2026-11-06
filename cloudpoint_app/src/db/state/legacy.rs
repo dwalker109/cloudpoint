@@ -7,9 +7,9 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 pub use v0::StateDbV0;
+pub use v1::StateDbV1;
 
 mod v0 {
-
     use super::*;
 
     #[derive(Deserialize)]
@@ -53,7 +53,58 @@ mod v0 {
                             sync_item,
                             auto_enabled,
                             synced_fingerprint,
-                            synced_at,
+                            synced_at: synced_at.and_then(|dt| Some(dt.naive_utc())),
+                            via_title_ids,
+                            via_user_key,
+                        },
+                    )
+                })
+                .collect();
+
+            Self(updated_items)
+        }
+    }
+}
+
+mod v1 {
+    use super::*;
+
+    #[derive(Deserialize)]
+    pub struct StateDbV1(HashMap<SyncItem, SyncStateV1>);
+
+    #[derive(serde::Deserialize)]
+    struct SyncStateV1 {
+        pub sync_item: SyncItem,
+        pub auto_enabled: bool,
+        pub synced_fingerprint: Option<u128>,
+        pub synced_at: Option<DateTime<Utc>>,
+        pub via_title_ids: HashSet<u64>,
+        pub via_user_key: Uuid,
+    }
+
+    impl From<StateDbV1> for StateDb {
+        fn from(legacy: StateDbV1) -> Self {
+            let StateDbV1(items) = legacy;
+
+            let updated_items = items
+                .into_iter()
+                .map(|(k, v)| {
+                    let SyncStateV1 {
+                        sync_item,
+                        auto_enabled,
+                        synced_fingerprint,
+                        synced_at,
+                        via_title_ids,
+                        via_user_key,
+                    } = v;
+
+                    (
+                        k,
+                        SyncState {
+                            sync_item,
+                            auto_enabled,
+                            synced_fingerprint,
+                            synced_at: synced_at.and_then(|dt| Some(dt.naive_utc())),
                             via_title_ids,
                             via_user_key,
                         },
