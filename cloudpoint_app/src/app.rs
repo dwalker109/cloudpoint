@@ -133,15 +133,15 @@ impl App {
                         app.modal_stack.push(Box::new(RefreshModalScreen::new()));
                     }
                     OpenModalMsg::ResolveConflict {
-                        title_label,
-                        title_local_time,
-                        title_remote_time,
+                        label,
+                        local_synced_at,
+                        remote_synced_at,
                         reply_tx,
                     } => {
                         app.modal_stack.push(Box::new(ConflictModalScreen::new(
-                            title_label,
-                            title_local_time,
-                            title_remote_time,
+                            label,
+                            local_synced_at,
+                            remote_synced_at,
                             reply_tx,
                         )));
                     }

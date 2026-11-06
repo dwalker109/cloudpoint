@@ -3,7 +3,7 @@ use chunktree::{
     tree::{MemLeaf, Tree},
     version::{ChunkStrategy::PerFile, Concurrency::Serial, Version},
 };
-use cloudpoint_lib::{ctr::CtrMeta, version::RemoteVersionMeta};
+use cloudpoint_lib::{ctr::CtrMeta, remote_version::RemoteVersionInfo};
 use sqlx::types::chrono::{DateTime, Utc};
 use uuid::{Uuid, uuid};
 
@@ -166,7 +166,7 @@ async fn version_get_latest_ok(db_pool: Pool<sqlx::Postgres>) {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = &response.into_body().collect().await.unwrap().to_bytes();
-    let ver: RemoteVersionMeta = serde_json::from_slice(&body[..]).unwrap();
+    let ver: RemoteVersionInfo = serde_json::from_slice(&body[..]).unwrap();
     assert_eq!(u128::from_str_radix(&ver.cid, 16).unwrap(), VERSION_CID);
     assert_eq!(
         ver.created_at,
