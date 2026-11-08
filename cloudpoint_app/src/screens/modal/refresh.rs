@@ -45,7 +45,7 @@ impl Screen for RefreshModalScreen {
                 self.message = message.clone();
                 self.progress = *progress;
             }
-            UiMsg::Ready { .. } => {
+            UiMsg::RefreshDone => {
                 return ScreenCommand::CloseModal;
             }
             _ => {}

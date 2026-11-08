@@ -23,48 +23,56 @@ pub fn load(
         (Ok(mut title_db), Ok(mut state_db)) => {
             if title_db.is_stale() {
                 modal_tx.send(OpenModalMsg::Refresh).ok();
+
                 title_db.refresh(&ui_tx);
                 title_db.commit()?;
 
-                modal_tx.send(OpenModalMsg::Refresh).ok();
                 state_db.refresh(true, &title_db, &ui_tx);
                 state_db.commit()?;
+
+                ui_tx.send(UiMsg::RefreshDone).ok();
             }
 
             (title_db, state_db)
         }
         (Ok(mut title_db), Err(_)) => {
+            modal_tx.send(OpenModalMsg::Refresh).ok();
+
             if title_db.is_stale() {
-                modal_tx.send(OpenModalMsg::Refresh).ok();
                 title_db.refresh(&ui_tx);
                 title_db.commit()?;
             }
 
-            modal_tx.send(OpenModalMsg::Refresh).ok();
             let mut state_db = StateDb::new(&title_db, &ui_tx)?;
             state_db.commit()?;
+
+            ui_tx.send(UiMsg::RefreshDone).ok();
 
             (title_db, state_db)
         }
         (Err(_), Ok(mut state_db)) => {
             modal_tx.send(OpenModalMsg::Refresh).ok();
+
             let mut title_db = TitleDb::new(&ui_tx)?;
             title_db.commit()?;
 
-            modal_tx.send(OpenModalMsg::Refresh).ok();
             state_db.refresh(true, &title_db, &ui_tx);
             state_db.commit()?;
+
+            ui_tx.send(UiMsg::RefreshDone).ok();
 
             (title_db, state_db)
         }
         (Err(_), Err(_)) => {
             modal_tx.send(OpenModalMsg::Refresh).ok();
+
             let mut title_db = TitleDb::new(&ui_tx)?;
             title_db.commit()?;
 
-            modal_tx.send(OpenModalMsg::Refresh).ok();
             let mut state_db = StateDb::new(&title_db, &ui_tx)?;
             state_db.commit()?;
+
+            ui_tx.send(UiMsg::RefreshDone).ok();
 
             (title_db, state_db)
         }

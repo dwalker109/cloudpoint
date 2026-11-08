@@ -49,6 +49,7 @@ pub fn worker_thread(
                 modal_tx.send(OpenModalMsg::Refresh).ok();
                 title_db.refresh(&ui_tx);
                 state_db.refresh(true, &title_db, &ui_tx);
+                ui_tx.send(UiMsg::RefreshDone).ok();
                 ui_tx
                     .send(UiMsg::Ready {
                         titles: title_db.titles_sorted_vec(),
@@ -200,7 +201,7 @@ pub fn worker_thread(
             }
             Err(e) if e == mpsc::RecvError => {
                 log::info!("worker thread task channel shutting down");
-                log::debug!("{e}");
+                log::debug!("expecting receiving on closed channel: {e}");
                 break;
             }
             Err(e) => {
