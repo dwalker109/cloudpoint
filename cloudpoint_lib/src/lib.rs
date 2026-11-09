@@ -1,5 +1,6 @@
 pub mod agb_utils;
 pub mod ctr;
+pub mod db;
 pub mod http;
 pub mod preflight;
 pub mod remote_version;

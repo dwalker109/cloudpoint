@@ -1,40 +1,30 @@
 use crate::{config::AppPath, title::get_installed_at_for_title};
-use anyhow::{Context, Result, bail};
-use cloudpoint_lib::sync::SyncItem;
+use anyhow::{Context, Result};
+use cloudpoint_lib::{
+    db::{self, Migrate},
+    sync::SyncItem,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, sync::LazyLock};
 
-mod legacy;
+mod migrate;
 
-const CURRENT_VERSION: u16 = 1;
 static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("install_history.db"));
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct InstallHistoryDb(HashMap<(u64, SyncItem), u64>);
 
 impl InstallHistoryDb {
     pub fn open() -> Result<Self> {
         log::debug!("loading install history db from disk");
 
-        Ok(Self::decode(
-            &fs::read(&*PATH).context("install history db not found")?,
-        )?)
-    }
-
-    fn decode(buf: &[u8]) -> Result<Self> {
-        let (ver, data) = super::decode_parts(buf)?;
-
-        Ok(match ver {
-            CURRENT_VERSION => postcard::from_bytes(data)?,
-            0 => postcard::from_bytes::<legacy::InstallHistoryDbV0>(data)?.into(),
-            v => bail!("cannot decode install history db version {v}"),
-        })
+        db::read(&fs::read(&*PATH).context("install history db not found")?)
     }
 
     pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving install history db to disk");
 
-        super::write_to_disk(&*PATH, CURRENT_VERSION, &self)
+        db::write_to_disk(&*PATH, Self::VERSION_ID, &self)
     }
 
     pub fn new() -> Result<Self> {

@@ -8,6 +8,7 @@ use crate::{
     title::{SD_APP_TITLES, lookup_gba_sync_item_for_title, title_smdh},
 };
 use anyhow::{Context, Result, bail};
+use cloudpoint_lib::db::{self, Migrate};
 use cloudpoint_lib::utils::ellipsis;
 use cloudpoint_lib::{
     ctr::SmdhLanguage,
@@ -19,9 +20,8 @@ use std::collections::BTreeSet;
 use std::sync::LazyLock;
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc::Sender};
 
-mod legacy;
+mod migrate;
 
-const CURRENT_VERSION: u16 = 1;
 static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("title.db"));
 
 #[derive(Serialize, Deserialize)]
@@ -31,25 +31,13 @@ impl TitleDb {
     pub fn open() -> Result<Self> {
         log::debug!("loading title db from disk");
 
-        Ok(Self::decode(
-            &fs::read(&*PATH).context("title db not found")?,
-        )?)
-    }
-
-    fn decode(buf: &[u8]) -> Result<Self> {
-        let (ver, data) = super::decode_parts(buf)?;
-
-        Ok(match ver {
-            CURRENT_VERSION => postcard::from_bytes(data)?,
-            0 => postcard::from_bytes::<legacy::TitleDbV0>(data)?.into(),
-            v => bail!("cannot decode title db version {v}"),
-        })
+        db::read(&fs::read(&*PATH).context("title db not found")?)
     }
 
     pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving title db to disk");
 
-        super::write_to_disk(&*PATH, CURRENT_VERSION, &self)
+        db::write_to_disk(&*PATH, Self::VERSION_ID, &self)
     }
 
     pub fn new(ui_tx: &Sender<UiMsg>) -> Result<Self> {
