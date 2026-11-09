@@ -3,7 +3,8 @@ use crate::{
     config::{AppPath, USER_KEY},
     db::{TitleDb, TitleDetails},
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use cloudpoint_lib::db::{self, Migrate};
 use cloudpoint_lib::sync::{SyncItem, SyncState};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -13,9 +14,9 @@ use std::{
     sync::{LazyLock, mpsc::Sender},
 };
 
-mod legacy;
+mod migrate;
 
-const CURRENT_VERSION: u16 = 2;
+// const CURRENT_VERSION: u16 = 2;
 static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("state.db"));
 
 #[derive(Deserialize, Serialize)]
@@ -25,26 +26,13 @@ impl StateDb {
     pub fn open() -> Result<Self> {
         log::debug!("loading state db from disk");
 
-        Ok(Self::decode(
-            &fs::read(&*PATH).context("state db not found")?,
-        )?)
-    }
-
-    fn decode(buf: &[u8]) -> Result<Self> {
-        let (ver, data) = super::decode_parts(buf)?;
-
-        Ok(match ver {
-            CURRENT_VERSION => postcard::from_bytes(data)?,
-            1 => postcard::from_bytes::<legacy::StateDbV1>(data)?.into(),
-            0 => postcard::from_bytes::<legacy::StateDbV0>(data)?.into(),
-            v => bail!("cannot decode state db version {v}"),
-        })
+        db::read(&fs::read(&*PATH).context("state db not found")?)
     }
 
     pub fn commit(&mut self) -> Result<()> {
         log::debug!("saving state db to disk");
 
-        super::write_to_disk(&*PATH, CURRENT_VERSION, &self)
+        db::write_to_disk(&*PATH, Self::VERSION_ID, &self)
     }
 
     pub fn new(title_db: &TitleDb, ui_tx: &Sender<UiMsg>) -> Result<Self> {
