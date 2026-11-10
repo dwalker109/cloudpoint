@@ -1,9 +1,9 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub trait Migrate: DeserializeOwned {
@@ -34,38 +34,6 @@ pub trait Migrate: DeserializeOwned {
     fn migrate(prev: Self::Previous) -> Result<Self>;
 }
 
-const MAGIC: [u8; 4] = *b"CPDB";
-
-pub fn read<T: Migrate>(buf: &[u8]) -> Result<T> {
-    let (ver, buf) = decode_parts(buf)?;
-
-    T::decode(ver, buf)
-}
-
-fn decode_parts(buf: &[u8]) -> Result<(u16, &[u8])> {
-    Ok(match buf.split_first_chunk::<6>() {
-        Some((head, rest)) if head[..4] == MAGIC => {
-            (u16::from_le_bytes(head[4..].try_into()?), rest)
-        }
-        _ => (0, buf),
-    })
-}
-
-pub fn write_to_disk(path: impl AsRef<Path>, ver: u16, data: &impl Serialize) -> Result<()> {
-    let mut w = BufWriter::new(File::create(&path)?);
-
-    write(&mut w, ver, data)
-}
-
-fn write(mut w: &mut impl Write, ver: u16, data: &impl Serialize) -> Result<()> {
-    w.write_all(&MAGIC)?;
-    w.write_all(&ver.to_le_bytes())?;
-    postcard::to_io(data, &mut w)?;
-    w.flush()?;
-
-    Ok(())
-}
-
 #[derive(Deserialize)]
 pub struct MigrateRoot;
 
@@ -83,6 +51,48 @@ impl Migrate for MigrateRoot {
     }
 }
 
+pub trait Persist: Migrate + Serialize + DeserializeOwned {
+    fn path() -> PathBuf;
+
+    fn open() -> Result<Self> {
+        let path = Self::path();
+
+        log::debug!("loading {} from disk", path.display());
+
+        read(&fs::read(path)?)
+    }
+
+    fn commit(&mut self) -> Result<()> {
+        let path = Self::path();
+
+        log::debug!("saving {} to disk", path.display());
+
+        write(&mut BufWriter::new(File::create(&path)?), self)
+    }
+}
+
+const HEADER_BYTES: [u8; 4] = *b"CPDB";
+
+fn read<T: Persist>(buf: &[u8]) -> Result<T> {
+    let (ver, buf) = match buf.split_first_chunk::<6>() {
+        Some((head, rest)) if head[..4] == HEADER_BYTES => {
+            (u16::from_le_bytes(head[4..].try_into()?), rest)
+        }
+        _ => (0, buf),
+    };
+
+    T::decode(ver, buf)
+}
+
+fn write<T: Persist>(mut w: &mut impl Write, data: &T) -> Result<()> {
+    w.write_all(&HEADER_BYTES)?;
+    w.write_all(&T::VERSION_ID.to_le_bytes())?;
+    postcard::to_io(data, &mut w)?;
+    w.flush()?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +103,12 @@ mod tests {
         #[derive(Deserialize, Serialize)]
         struct M0 {
             foo: String,
+        }
+
+        impl Persist for M0 {
+            fn path() -> PathBuf {
+                unreachable!()
+            }
         }
 
         impl Migrate for M0 {
@@ -130,6 +146,12 @@ mod tests {
             bar: bool,
         }
 
+        impl Persist for M2 {
+            fn path() -> PathBuf {
+                unreachable!()
+            }
+        }
+
         impl Migrate for M2 {
             const VERSION_ID: u16 = 2;
 
@@ -150,8 +172,8 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        write(&mut buf, 0, &first).unwrap();
-        let actual = read::<M2>(&buf).unwrap();
+        write(&mut buf, &first).unwrap();
+        let actual: M2 = read(&buf).unwrap();
 
         assert_eq!(actual, expected);
     }

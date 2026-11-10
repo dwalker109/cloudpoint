@@ -1,5 +1,6 @@
 use crate::app::{OpenModalMsg, UiMsg};
 use anyhow::Result;
+use cloudpoint_lib::db::Persist;
 pub use install_history::{InstallHistoryDb, InstallStatus};
 pub use state::StateDb;
 use std::sync::mpsc::Sender;
@@ -29,7 +30,9 @@ pub fn load(
 
             (title_db, state_db)
         }
-        (Ok(mut title_db), Err(_)) => {
+        (Ok(mut title_db), Err(e)) => {
+            log::info!("could not load state db: {e}");
+
             modal_tx.send(OpenModalMsg::Refresh).ok();
 
             if title_db.is_stale() {
@@ -44,7 +47,9 @@ pub fn load(
 
             (title_db, state_db)
         }
-        (Err(_), Ok(mut state_db)) => {
+        (Err(e), Ok(mut state_db)) => {
+            log::info!("could not load title db: {e}");
+
             modal_tx.send(OpenModalMsg::Refresh).ok();
 
             let mut title_db = TitleDb::new(&ui_tx)?;
@@ -77,7 +82,9 @@ pub fn load(
 
     let install_history_db = match InstallHistoryDb::open() {
         Ok(install_history_db) => install_history_db,
-        Err(_) => {
+        Err(e) => {
+            log::info!("could not load install history db: {e}");
+
             let mut install_history_db = InstallHistoryDb::new()?;
             install_history_db.commit()?;
 

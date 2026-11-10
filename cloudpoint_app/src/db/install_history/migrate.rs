@@ -4,8 +4,7 @@ use cloudpoint_lib::{
     sync::SyncItem,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 impl Migrate for InstallHistoryDbV1 {
     const VERSION_ID: u16 = 1;

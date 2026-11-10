@@ -5,8 +5,10 @@ use cloudpoint_lib::{
     sync::{SyncItem, SyncState as SyncStateV2},
 };
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 use uuid::Uuid;
 
 impl Migrate for StateDbV2 {
