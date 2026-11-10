@@ -3,38 +3,24 @@ use crate::{
     config::{AppPath, USER_KEY},
     db::{TitleDb, TitleDetails},
 };
-use anyhow::{Context, Result};
-use cloudpoint_lib::db::{self, Migrate};
+use anyhow::Result;
+use cloudpoint_lib::db::Persist;
 use cloudpoint_lib::sync::{SyncItem, SyncState};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fs,
-    path::PathBuf,
-    sync::{LazyLock, mpsc::Sender},
-};
+use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
 
 mod migrate;
-
-// const CURRENT_VERSION: u16 = 2;
-static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("state.db"));
 
 #[derive(Deserialize, Serialize)]
 pub struct StateDb(HashMap<SyncItem, SyncState>);
 
+impl Persist for StateDb {
+    fn path() -> PathBuf {
+        AppPath::Db.join("state.db")
+    }
+}
+
 impl StateDb {
-    pub fn open() -> Result<Self> {
-        log::debug!("loading state db from disk");
-
-        db::read(&fs::read(&*PATH).context("state db not found")?)
-    }
-
-    pub fn commit(&mut self) -> Result<()> {
-        log::debug!("saving state db to disk");
-
-        db::write_to_disk(&*PATH, Self::VERSION_ID, &self)
-    }
-
     pub fn new(title_db: &TitleDb, ui_tx: &Sender<UiMsg>) -> Result<Self> {
         log::debug!("building new state db");
 

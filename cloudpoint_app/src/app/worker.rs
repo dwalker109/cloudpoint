@@ -5,6 +5,7 @@ use crate::{
     net::{self, self_update, sync},
 };
 use anyhow::{Result, bail};
+use cloudpoint_lib::db::Persist;
 use itertools::Itertools;
 use std::{
     sync::mpsc::{self, Receiver, Sender},

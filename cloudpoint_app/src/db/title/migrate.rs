@@ -2,9 +2,10 @@ use super::TitleDb as TitleDbV1;
 use crate::db::TitleDetails;
 use cloudpoint_lib::db::{Migrate, MigrateRoot};
 use serde::Deserialize;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::PathBuf,
+};
 
 impl Migrate for TitleDbV1 {
     const VERSION_ID: u16 = 1;

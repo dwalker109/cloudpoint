@@ -1,32 +1,21 @@
 use crate::{config::AppPath, title::get_installed_at_for_title};
-use anyhow::{Context, Result};
-use cloudpoint_lib::{
-    db::{self, Migrate},
-    sync::SyncItem,
-};
+use anyhow::Result;
+use cloudpoint_lib::{db::Persist, sync::SyncItem};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::PathBuf, sync::LazyLock};
+use std::{collections::HashMap, path::PathBuf};
 
 mod migrate;
-
-static PATH: LazyLock<PathBuf> = LazyLock::new(|| AppPath::Db.join("install_history.db"));
 
 #[derive(Serialize, Deserialize)]
 pub struct InstallHistoryDb(HashMap<(u64, SyncItem), u64>);
 
+impl Persist for InstallHistoryDb {
+    fn path() -> PathBuf {
+        AppPath::Db.join("install_history.db")
+    }
+}
+
 impl InstallHistoryDb {
-    pub fn open() -> Result<Self> {
-        log::debug!("loading install history db from disk");
-
-        db::read(&fs::read(&*PATH).context("install history db not found")?)
-    }
-
-    pub fn commit(&mut self) -> Result<()> {
-        log::debug!("saving install history db to disk");
-
-        db::write_to_disk(&*PATH, Self::VERSION_ID, &self)
-    }
-
     pub fn new() -> Result<Self> {
         log::debug!("building install history db");
 
