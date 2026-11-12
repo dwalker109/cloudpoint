@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 pub trait Migrate: DeserializeOwned {
@@ -66,6 +66,14 @@ pub trait Persist: Migrate + Serialize + DeserializeOwned {
         let path = Self::path();
 
         log::debug!("saving {} to disk", path.display());
+
+        #[cfg(feature = "db_debug")]
+        {
+            std::fs::write(
+                path.with_added_extension(format!("debug.v{}.ron", Self::VERSION_ID)),
+                ron::ser::to_string_pretty(&self, ron::ser::PrettyConfig::default())?,
+            )?;
+        }
 
         write(&mut BufWriter::new(File::create(&path)?), self)
     }
