@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::PathBuf};
 mod migrate;
 
 #[derive(Serialize, Deserialize)]
-pub struct InstallHistoryDb(HashMap<(u64, SyncItem), u64>);
+pub struct InstallHistoryDb(HashMap<(u64, SyncItem), Option<u64>>);
 
 impl Persist for InstallHistoryDb {
     fn path() -> PathBuf {
@@ -31,11 +31,9 @@ impl InstallHistoryDb {
         log::debug!("latest_mtime is {:?}", latest_mtime);
         log::debug!("cached_mtime is {:?}", cached_mtime);
 
-        match (latest_mtime, cached_mtime) {
-            (_, None) => InstallStatus::Updated,
-            (latest, Some(cached)) if latest != cached => InstallStatus::Updated,
-            (latest, Some(cached)) if latest == cached => InstallStatus::Unchanged,
-            _ => unreachable!("install status cannot be unknown"),
+        match cached_mtime {
+            Some(cached) if cached == latest_mtime => InstallStatus::Unchanged,
+            _ => InstallStatus::Updated,
         }
     }
 

@@ -9,10 +9,11 @@ use ctru::services::{
     fs::MediaType,
 };
 use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
+use itertools::Itertools;
 use serde::Deserialize;
 use std::{
     collections::{BTreeSet, HashMap},
-    fs::read_to_string,
+    fs::{read_dir, read_to_string},
     path::PathBuf,
     sync::LazyLock,
 };
@@ -133,26 +134,33 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
         .ok()
 }
 
-pub fn get_installed_at_for_title(title_id: u64) -> u64 {
+pub fn get_installed_at_for_title(title_id: u64) -> Option<u64> {
     let Some(root) = &*SDMC_CTR_ROOT else {
-        log::warn!("tmd inspection unsupported on this platform");
-        return 0;
+        log::warn!("tmd install time safety checks unsupported on this platform");
+
+        return None;
     };
 
-    let tmd_path = format!(
-        "{}/title/{:08x}/{:08x}/content/00000000.tmd",
+    let content_path = format!(
+        "{}/title/{:08x}/{:08x}/content",
         root.display(),
         title_id >> 32 as u32,
         title_id as u32
     );
 
-    match ffi::ctr_archive_get_mtime(&tmd_path) {
-        Ok(mtime) => mtime,
-        Err(e) => {
-            log::warn!("tmd inspection failed for {title_id:016X}: {e}");
-            0
-        }
-    }
+    let tmd_path = read_dir(&content_path)
+        .ok()?
+        .flatten()
+        .filter_map(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|ext| ext == "tmd")
+                .then(|| e.path())
+        })
+        .sorted()
+        .next()?;
+
+    ffi::ctr_archive_get_mtime(tmd_path.to_str()?).ok()
 }
 
 mod ffi {
