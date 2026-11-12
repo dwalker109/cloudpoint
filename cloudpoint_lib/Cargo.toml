@@ -17,6 +17,12 @@ flate2 = { workspace = true }
 lru = { workspace = true }
 sha2 = { workspace = true }
 semver = { workspace = true }
+ron = { version = "0.12.3", features = ["integer128"], optional = true }
+
 
 [dev-dependencies]
 httpmock = { workspace = true }
+
+[features]
+default = []
+db_debug = ["dep:ron"]
