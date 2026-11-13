@@ -12,10 +12,10 @@ use ffi::{ctr_get_ext_data_id_for_title, ctr_get_title_version};
 use itertools::Itertools;
 use serde::Deserialize;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fs::{read_dir, read_to_string},
     path::PathBuf,
-    sync::LazyLock,
+    sync::{LazyLock, Mutex},
 };
 
 pub fn program_id() -> u64 {
@@ -134,33 +134,42 @@ pub fn infer_extdata_sync_item_for_title(title_id: u64) -> Option<SyncItem> {
         .ok()
 }
 
+static INSTALLED_AT_FOR_TITLE_CACHE: Mutex<BTreeMap<u64, Option<u64>>> =
+    Mutex::new(BTreeMap::new());
+
 pub fn get_installed_at_for_title(title_id: u64) -> Option<u64> {
-    let Some(root) = &*SDMC_CTR_ROOT else {
-        log::warn!("tmd install time safety checks unsupported on this platform");
+    *INSTALLED_AT_FOR_TITLE_CACHE
+        .lock()
+        .expect("installed at cache should be able to be locked")
+        .entry(title_id)
+        .or_insert_with(|| {
+            let Some(root) = &*SDMC_CTR_ROOT else {
+                log::warn!("tmd install time safety checks unsupported on this platform");
 
-        return None;
-    };
+                return None;
+            };
 
-    let content_path = format!(
-        "{}/title/{:08x}/{:08x}/content",
-        root.display(),
-        title_id >> 32 as u32,
-        title_id as u32
-    );
+            let content_path = format!(
+                "{}/title/{:08x}/{:08x}/content",
+                root.display(),
+                (title_id >> 32) as u32,
+                title_id as u32
+            );
 
-    let tmd_path = read_dir(&content_path)
-        .ok()?
-        .flatten()
-        .filter_map(|e| {
-            e.path()
-                .extension()
-                .is_some_and(|ext| ext == "tmd")
-                .then(|| e.path())
+            let tmd_path = read_dir(&content_path)
+                .ok()?
+                .flatten()
+                .filter_map(|e| {
+                    e.path()
+                        .extension()
+                        .is_some_and(|ext| ext == "tmd")
+                        .then(|| e.path())
+                })
+                .sorted()
+                .next()?;
+
+            ffi::ctr_archive_get_mtime(tmd_path.to_str()?).ok()
         })
-        .sorted()
-        .next()?;
-
-    ffi::ctr_archive_get_mtime(tmd_path.to_str()?).ok()
 }
 
 mod ffi {
