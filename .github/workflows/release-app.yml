@@ -28,10 +28,7 @@ jobs:
           ssh-private-key: ${{ secrets.CHUNKTREE_DEPLOY_KEY }}
 
       - name: Build 3DSX and CIA
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-          SUFFIX: ${{ github.event.release.prerelease && '-pre' || '' }}
-        run: just cia "$TAG$SUFFIX"
+        run: just cia ${{ github.event.release.tag_name }}
 
       - name: Create release
         uses: softprops/action-gh-release@v2
