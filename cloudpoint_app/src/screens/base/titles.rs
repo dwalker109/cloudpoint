@@ -1,7 +1,6 @@
-use cloudpoint_lib::sync::{SyncItem, SyncState};
-
 use super::*;
-use crate::{app::TaskMsg, db::TitleDetails};
+use crate::{app::TaskMsg, db::TitleDetails, screens::input::DelayRepeat};
+use cloudpoint_lib::sync::{SyncItem, SyncState};
 use std::{collections::HashMap, sync::mpsc::Sender};
 
 pub struct TitlesScreen {
@@ -10,6 +9,7 @@ pub struct TitlesScreen {
     sync_states: HashMap<SyncItem, SyncState>,
     selected_idx: usize,
     show_from: usize,
+    scroll_delay: DelayRepeat<20, 5>,
 }
 
 const PAGE_SIZE: usize = 12;
@@ -22,6 +22,7 @@ impl TitlesScreen {
             sync_states: HashMap::new(),
             selected_idx: 0,
             show_from: 0,
+            scroll_delay: DelayRepeat::new(),
         }
     }
 
@@ -170,19 +171,21 @@ impl Screen for TitlesScreen {
         ScreenCommand::Noop
     }
 
-    fn handle_input(&mut self, keys_down: &KeyPad, _keys_held: &KeyPad) -> ScreenCommand {
-        if keys_down.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP) {
+    fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand {
+        let scroll_keys = *keys_down | self.scroll_delay.tick(keys_held);
+
+        if scroll_keys.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP) {
             self.selected_idx = self
                 .selected_idx
                 .checked_sub(1)
                 .or_else(|| Some(self.max_idx()))
                 .unwrap_or_default();
-        } else if keys_down.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN) {
+        } else if scroll_keys.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN) {
             self.selected_idx = (self.selected_idx + 1) % (self.max_idx() + 1);
-        } else if keys_down.intersects(KeyPad::DPAD_LEFT | KeyPad::CPAD_LEFT) {
+        } else if scroll_keys.intersects(KeyPad::DPAD_LEFT | KeyPad::CPAD_LEFT) {
             self.selected_idx = self.selected_idx.saturating_sub(PAGE_SIZE);
             self.show_from = self.selected_idx;
-        } else if keys_down.intersects(KeyPad::DPAD_RIGHT | KeyPad::CPAD_RIGHT) {
+        } else if scroll_keys.intersects(KeyPad::DPAD_RIGHT | KeyPad::CPAD_RIGHT) {
             self.selected_idx = (self.selected_idx + PAGE_SIZE).min(self.max_idx());
             self.show_from = self
                 .selected_idx

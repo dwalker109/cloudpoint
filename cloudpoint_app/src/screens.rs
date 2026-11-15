@@ -37,6 +37,7 @@ mod modal {
     pub(super) mod update;
 }
 
+mod input;
 mod shared;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
