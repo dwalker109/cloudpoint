@@ -174,18 +174,18 @@ impl Screen for TitlesScreen {
     fn handle_input(&mut self, keys_down: &KeyPad, keys_held: &KeyPad) -> ScreenCommand {
         let scroll_keys = *keys_down | self.scroll_delay.tick(keys_held);
 
-        if scroll_keys.intersects(KeyPad::DPAD_UP | KeyPad::CPAD_UP) {
+        if scroll_keys.intersects(KeyPad::UP) {
             self.selected_idx = self
                 .selected_idx
                 .checked_sub(1)
                 .or_else(|| Some(self.max_idx()))
                 .unwrap_or_default();
-        } else if scroll_keys.intersects(KeyPad::DPAD_DOWN | KeyPad::CPAD_DOWN) {
+        } else if scroll_keys.intersects(KeyPad::DOWN) {
             self.selected_idx = (self.selected_idx + 1) % (self.max_idx() + 1);
-        } else if scroll_keys.intersects(KeyPad::DPAD_LEFT | KeyPad::CPAD_LEFT) {
+        } else if scroll_keys.intersects(KeyPad::LEFT) {
             self.selected_idx = self.selected_idx.saturating_sub(PAGE_SIZE);
             self.show_from = self.selected_idx;
-        } else if scroll_keys.intersects(KeyPad::DPAD_RIGHT | KeyPad::CPAD_RIGHT) {
+        } else if scroll_keys.intersects(KeyPad::RIGHT) {
             self.selected_idx = (self.selected_idx + PAGE_SIZE).min(self.max_idx());
             self.show_from = self
                 .selected_idx
